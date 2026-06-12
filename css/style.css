@@ -404,3 +404,60 @@ tr:hover td {
 /* PAGE */
 .page { display: none; }
 .page.active { display: block; }
+
+/* LOGIN PAGE */
+.login-page {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    background: var(--primary-dark);
+}
+
+.login-box {
+    background: var(--white);
+    border-radius: 10px;
+    padding: 40px 35px;
+    width: 360px;
+    max-width: 90%;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+    text-align: center;
+}
+
+.login-box h2 {
+    color: var(--primary-dark);
+    font-size: 18px;
+    margin-bottom: 4px;
+}
+
+.login-box p.subtitle {
+    color: var(--text-light);
+    font-size: 12px;
+    margin-bottom: 25px;
+}
+
+.login-box .form-group {
+    text-align: left;
+}
+
+.login-box .btn-primary {
+    width: 100%;
+    padding: 10px;
+    font-size: 14px;
+    margin-top: 5px;
+}
+
+.login-error {
+    background: #FFEBEE;
+    color: var(--danger);
+    border-left: 4px solid var(--danger);
+    padding: 8px 12px;
+    border-radius: 5px;
+    font-size: 12px;
+    margin-bottom: 15px;
+    display: none;
+}
+
+.login-error.active {
+    display: block;
+}

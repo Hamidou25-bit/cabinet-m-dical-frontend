@@ -7,6 +7,7 @@
     <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
+<script src="js/auth.js"></script>
 
 <!-- SIDEBAR -->
 <div class="sidebar">
@@ -39,8 +40,7 @@
 <div class="main">
     <div class="topbar">
         <h1 id="page-title">Tableau de bord</h1>
-        <div class="topbar-right">
-            <span id="current-date"></span>
+        <div class="topbar-right"><span id="user-name" style="margin-right: 15px; font-weight: bold;"></span><button onclick="logout()" style="background: #e74c3c; color: white; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer; margin-right: 15px;">Déconnexion</button><span id="current-date"></span>
         </div>
     </div>
 
