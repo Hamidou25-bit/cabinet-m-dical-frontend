@@ -29,12 +29,13 @@ function showPage(page) {
     document.getElementById('page-' + page).classList.add('active');
     event.currentTarget.classList.add('active');
 
-    const titles = { dashboard: 'Tableau de bord', patients: 'Patients', consultations: 'Consultations', stock: 'Stock' };
+    const titles = { dashboard: 'Tableau de bord', patients: 'Patients', consultations: 'Consultations', stock: 'Stock',ordonnances: 'Ordonnances' };
     document.getElementById('page-title').textContent = titles[page];
 
     if (page === 'patients') loadPatients();
     if (page === 'consultations') loadConsultations();
     if (page === 'stock') loadStock();
+    if (page === 'ordonnances') loadOrdonnances();
 }
 
 // Modal
@@ -135,4 +136,96 @@ function renderStock(data) {
 function filterStock() {
     const q = document.getElementById('search-stock').value.toLowerCase();
     renderStock(stockData.filter(s => (s.Designation||'').toLowerCase().includes(q)));
+}
+
+// Ordonnances
+let dosagesData = [];
+let formesData = [];
+
+async function loadOrdonnances() {
+    try {
+        const data = await apiFetch('/ordonnances').then(r => r.json());
+        const tbody = document.getElementById('table-ordonnances');
+        if (!data.length) { tbody.innerHTML = '<tr><td colspan="5">Aucune ordonnance</td></tr>'; return; }
+        tbody.innerHTML = data.map(o => {
+            const statut = o.est_validee ? '<span class="status status-ok">Validée</span>' : '<span class="status status-warning">En attente</span>';
+            return `<tr>
+                <td>${o.date_ordonnance || ''}</td>
+                <td>${o.nom || ''} ${o.prenom || ''}</td>
+                <td>${o.motif || '-'}</td>
+                <td>${o.beneficiaire || '-'}</td>
+                <td>${statut}</td>
+            </tr>`;
+        }).join('');
+    } catch(e) { document.getElementById('table-ordonnances').innerHTML = '<tr><td colspan="5">Erreur</td></tr>'; }
+}
+
+async function openOrdonnanceModal() {
+    // Remplir la liste des patients
+    const select = document.getElementById('o-patient');
+    if (!patientsData.length) await loadPatients();
+    select.innerHTML = patientsData.map(p => `<option value="${p.id}">${p.nom} ${p.prenom}</option>`).join('');
+
+    // Charger dosages/formes si pas déjà fait
+    if (!dosagesData.length) dosagesData = await apiFetch('/ordonnances/refs/dosages').then(r => r.json());
+    if (!formesData.length) formesData = await apiFetch('/ordonnances/refs/formes').then(r => r.json());
+
+    // Date par défaut = aujourd'hui
+    document.getElementById('o-date').value = new Date().toISOString().split('T')[0];
+    document.getElementById('o-motif').value = '';
+    document.getElementById('o-beneficiaire').value = '';
+
+    // Réinitialiser les lignes
+    document.getElementById('lignes-ordonnance').innerHTML = '';
+    addLigneOrdonnance();
+
+    openModal('modal-ordonnance');
+}
+
+function addLigneOrdonnance() {
+    const container = document.getElementById('lignes-ordonnance');
+    const div = document.createElement('div');
+    div.className = 'ligne-ordonnance';
+    div.innerHTML = `
+        <input type="text" placeholder="Médicament" class="lo-designation">
+        <select class="lo-dosage"><option value="">Dosage</option>${dosagesData.map(d => `<option value="${d.nom}">${d.nom}</option>`).join('')}</select>
+        <select class="lo-forme"><option value="">Forme</option>${formesData.map(f => `<option value="${f.nom}">${f.nom}</option>`).join('')}</select>
+        <input type="number" placeholder="Qté" class="lo-quantite" value="1" min="1">
+        <input type="text" placeholder="Posologie" class="lo-posologie">
+        <input type="number" placeholder="Jours" class="lo-duree">
+        <button class="btn-remove" onclick="this.parentElement.remove()">✕</button>
+    `;
+    container.appendChild(div);
+}
+
+async function saveOrdonnance() {
+    const lignes = Array.from(document.querySelectorAll('.ligne-ordonnance')).map(div => ({
+        designation: div.querySelector('.lo-designation').value,
+        dosage: div.querySelector('.lo-dosage').value,
+        forme: div.querySelector('.lo-forme').value,
+        quantite: parseInt(div.querySelector('.lo-quantite').value) || 1,
+        posologie: div.querySelector('.lo-posologie').value,
+        duree_jours: parseInt(div.querySelector('.lo-duree').value) || null,
+        montant: 0,
+        prix_achat: 0
+    })).filter(l => l.designation.trim() !== '');
+
+    if (!lignes.length) { alert('Ajoutez au moins un médicament'); return; }
+
+    const data = {
+        patient_id: parseInt(document.getElementById('o-patient').value),
+        date_ordonnance: document.getElementById('o-date').value,
+        motif: document.getElementById('o-motif').value,
+        beneficiaire: document.getElementById('o-beneficiaire').value,
+        est_validee: 0,
+        is_interne: 0,
+        lignes: lignes
+    };
+
+    try {
+        await apiFetch('/ordonnances', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(data) });
+        closeModal('modal-ordonnance');
+        loadOrdonnances();
+        alert('Ordonnance enregistrée !');
+    } catch(e) { alert('Erreur lors de l\'enregistrement'); }
 }

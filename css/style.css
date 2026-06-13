@@ -461,3 +461,31 @@ tr:hover td {
 .login-error.active {
     display: block;
 }
+/* LIGNES ORDONNANCE */
+.ligne-ordonnance {
+    display: grid;
+    grid-template-columns: 2fr 1fr 1fr 0.7fr 1.5fr 0.7fr auto;
+    gap: 8px;
+    margin-bottom: 8px;
+    align-items: center;
+}
+
+.ligne-ordonnance input,
+.ligne-ordonnance select {
+    padding: 7px 8px;
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    font-size: 12px;
+    outline: none;
+}
+
+.ligne-ordonnance .btn-remove {
+    background: var(--danger);
+    color: white;
+    border: none;
+    border-radius: 5px;
+    width: 26px;
+    height: 26px;
+    cursor: pointer;
+    font-size: 14px;
+}
