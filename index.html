@@ -25,6 +25,9 @@
         <div class="menu-item" onclick="showPage('patients')">
             <span class="icon">👥</span> Patients
         </div>
+        <div class="menu-item" onclick="showPage('rendez_vous')">
+            <span class="icon">📅</span> Rendez-vous
+        </div>
         <div class="menu-item" onclick="showPage('consultations')">
             <span class="icon">🩺</span> Consultations
         </div>
@@ -117,6 +120,30 @@
                     </thead>
                     <tbody id="table-patients">
                         <tr><td colspan="6" class="loading">Chargement...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- RENDEZ-VOUS -->
+        <div id="page-rendez_vous" class="page">
+            <div class="table-container">
+                <div class="table-header">
+                    <h3>Liste des rendez-vous</h3>
+                    <button class="btn btn-primary" onclick="openRendezVousModal()">+ Nouveau rendez-vous</button>
+                </div>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Date / Heure</th>
+                            <th>Patient</th>
+                            <th>Médecin</th>
+                            <th>Motif</th>
+                            <th>Statut</th>
+                        </tr>
+                    </thead>
+                    <tbody id="table-rendez_vous">
+                        <tr><td colspan="5" class="loading">Chargement...</td></tr>
                     </tbody>
                 </table>
             </div>
@@ -241,6 +268,49 @@
         <div class="modal-actions">
             <button class="btn" onclick="closeModal('modal-patient')">Annuler</button>
             <button class="btn btn-primary" onclick="savePatient()">Enregistrer</button>
+        </div>
+    </div>
+</div>
+<!-- MODAL NOUVEAU RENDEZ-VOUS -->
+<div class="modal-overlay" id="modal-rendez-vous">
+    <div class="modal">
+        <h3>Nouveau Rendez-vous</h3>
+        <div class="form-row">
+            <div class="form-group">
+                <label>Patient</label>
+                <select id="rv-patient"></select>
+            </div>
+            <div class="form-group">
+                <label>Médecin</label>
+                <select id="rv-medecin"></select>
+            </div>
+        </div>
+        <div class="form-row">
+            <div class="form-group">
+                <label>Date et heure</label>
+                <input type="datetime-local" id="rv-date">
+            </div>
+            <div class="form-group">
+                <label>Statut</label>
+                <select id="rv-statut">
+                    <option value="planifié">Planifié</option>
+                    <option value="confirmé">Confirmé</option>
+                    <option value="terminé">Terminé</option>
+                    <option value="annulé">Annulé</option>
+                </select>
+            </div>
+        </div>
+        <div class="form-group">
+            <label>Motif</label>
+            <input type="text" id="rv-motif" placeholder="Motif du rendez-vous">
+        </div>
+        <div class="form-group">
+            <label>Notes</label>
+            <textarea id="rv-notes" rows="3" placeholder="Notes"></textarea>
+        </div>
+        <div class="modal-actions">
+            <button class="btn" onclick="closeModal('modal-rendez-vous')">Annuler</button>
+            <button class="btn btn-primary" onclick="saveRendezVous()">Enregistrer</button>
         </div>
     </div>
 </div>

@@ -29,10 +29,11 @@ function showPage(page) {
     document.getElementById('page-' + page).classList.add('active');
     event.currentTarget.classList.add('active');
 
-    const titles = { dashboard: 'Tableau de bord', patients: 'Patients', consultations: 'Consultations', stock: 'Stock',ordonnances: 'Ordonnances' };
+    const titles = { dashboard: 'Tableau de bord', patients: 'Patients', rendez_vous: 'Rendez-vous', consultations: 'Consultations', stock: 'Stock',ordonnances: 'Ordonnances' };
     document.getElementById('page-title').textContent = titles[page];
 
     if (page === 'patients') loadPatients();
+    if (page === 'rendez_vous') loadRendezVous();
     if (page === 'consultations') loadConsultations();
     if (page === 'stock') loadStock();
     if (page === 'ordonnances') loadOrdonnances();
@@ -227,5 +228,62 @@ async function saveOrdonnance() {
         closeModal('modal-ordonnance');
         loadOrdonnances();
         alert('Ordonnance enregistrée !');
+    } catch(e) { alert('Erreur lors de l\'enregistrement'); }
+}
+
+// Rendez-vous
+let medecinsData = [];
+
+async function loadRendezVous() {
+    try {
+        const data = await apiFetch('/rendez-vous').then(r => r.json());
+        const tbody = document.getElementById('table-rendez_vous');
+        if (!data.length) { tbody.innerHTML = '<tr><td colspan="5">Aucun rendez-vous</td></tr>'; return; }
+        const statutClasses = { 'planifié': 'status-warning', 'confirmé': 'status-info', 'terminé': 'status-ok', 'annulé': 'status-danger' };
+        tbody.innerHTML = data.map(r => {
+            const statutClass = statutClasses[r.statut] || 'status-warning';
+            return `<tr>
+                <td>${(r.date_heure_rdv || '').replace('T', ' ')}</td>
+                <td>${r.nom || ''} ${r.prenom || ''}</td>
+                <td>${r.medecin_nom || '-'}</td>
+                <td>${r.motif || '-'}</td>
+                <td><span class="status ${statutClass}">${r.statut || ''}</span></td>
+            </tr>`;
+        }).join('');
+    } catch(e) { document.getElementById('table-rendez_vous').innerHTML = '<tr><td colspan="5">Erreur</td></tr>'; }
+}
+
+async function openRendezVousModal() {
+    const patientSelect = document.getElementById('rv-patient');
+    if (!patientsData.length) await loadPatients();
+    patientSelect.innerHTML = patientsData.map(p => `<option value="${p.id}">${p.nom} ${p.prenom}</option>`).join('');
+
+    const medecinSelect = document.getElementById('rv-medecin');
+    if (!medecinsData.length) medecinsData = await apiFetch('/ordonnances/refs/medecins').then(r => r.json());
+    medecinSelect.innerHTML = '<option value="">-- Aucun --</option>' + medecinsData.map(m => `<option value="${m.id}">${m.nom}</option>`).join('');
+
+    document.getElementById('rv-date').value = new Date().toISOString().slice(0, 16);
+    document.getElementById('rv-statut').value = 'planifié';
+    document.getElementById('rv-motif').value = '';
+    document.getElementById('rv-notes').value = '';
+
+    openModal('modal-rendez-vous');
+}
+
+async function saveRendezVous() {
+    const data = {
+        patient_id: parseInt(document.getElementById('rv-patient').value),
+        medecin_id: document.getElementById('rv-medecin').value ? parseInt(document.getElementById('rv-medecin').value) : null,
+        date_heure_rdv: document.getElementById('rv-date').value,
+        motif: document.getElementById('rv-motif').value,
+        statut: document.getElementById('rv-statut').value,
+        notes: document.getElementById('rv-notes').value
+    };
+
+    try {
+        await apiFetch('/rendez-vous', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(data) });
+        closeModal('modal-rendez-vous');
+        loadRendezVous();
+        alert('Rendez-vous enregistré !');
     } catch(e) { alert('Erreur lors de l\'enregistrement'); }
 }

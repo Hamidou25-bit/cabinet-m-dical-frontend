@@ -392,6 +392,7 @@ tr:hover td {
 .status-ok { background: #E8F5E9; color: var(--success); }
 .status-warning { background: #FFF8E1; color: var(--warning); }
 .status-danger { background: #FFEBEE; color: var(--danger); }
+.status-info { background: #E3F2FD; color: var(--primary); }
 
 /* LOADING */
 .loading {
