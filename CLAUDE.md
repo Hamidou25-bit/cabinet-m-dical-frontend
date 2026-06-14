@@ -51,7 +51,7 @@ Le frontend est statique (HTML/CSS/JS). Pour tester avec l'API en local, l'API t
 | Rendez-vous (liste + création) | ✅ |
 | Examens complémentaires | ❌ à faire |
 | Personnel | ❌ à faire |
-| Comptabilité | ❌ à faire |
+| Comptabilité | 🟡 en cours (onglet Dépenses : liste + filtre par type) |
 | Rapports | ❌ à faire |
 | CRUD Patients (modifier/supprimer) | ❌ à faire |
 | CRUD Stock (entrées/sorties) | ❌ à faire |
