@@ -2,6 +2,7 @@ let patientsData = [];
 let stockData = [];
 let personnelData = [];
 let consultationsData = [];
+let fournisseursData = [];
 
 // 1. Initialisation sécurisée (on vérifie si l'élément existe)
 document.addEventListener('DOMContentLoaded', function() {
@@ -20,11 +21,12 @@ document.addEventListener('DOMContentLoaded', function() {
         userEl.textContent = '👤 ' + userName;
     }
 
-    // Menu Personnel / Médecins réservés aux admins
+    // Menu Personnel / Médecins / Comptabilité réservés aux admins
     if (localStorage.getItem('role') === 'admin') {
         document.getElementById('menu-section-admin').style.display = '';
         document.getElementById('menu-personnel').style.display = '';
         document.getElementById('menu-medecins').style.display = '';
+        document.getElementById('menu-comptabilite').style.display = '';
     }
 
     // Chargement initial
@@ -38,7 +40,7 @@ function showPage(page) {
     document.getElementById('page-' + page).classList.add('active');
     event.currentTarget.classList.add('active');
 
-    const titles = { dashboard: 'Tableau de bord', patients: 'Patients', rendez_vous: 'Rendez-vous', consultations: 'Consultations', stock: 'Stock',ordonnances: 'Ordonnances', examens: 'Examens complémentaires', personnel: 'Personnel', medecins: 'Médecins' };
+    const titles = { dashboard: 'Tableau de bord', patients: 'Patients', rendez_vous: 'Rendez-vous', consultations: 'Consultations', stock: 'Stock',ordonnances: 'Ordonnances', examens: 'Examens complémentaires', personnel: 'Personnel', medecins: 'Médecins', comptabilite: 'Comptabilité' };
     document.getElementById('page-title').textContent = titles[page];
 
     if (page === 'patients') loadPatients();
@@ -49,11 +51,42 @@ function showPage(page) {
     if (page === 'examens') loadExamens();
     if (page === 'personnel') loadPersonnel();
     if (page === 'medecins') loadMedecins();
+    if (page === 'comptabilite') loadFournisseurs();
 }
 
 // Modal
 function openModal(id) { document.getElementById(id).classList.add('active'); }
 function closeModal(id) { document.getElementById(id).classList.remove('active'); }
+
+// Notifications toast (succès / erreur / avertissement)
+function showToast(message, type = 'success', duration = 3000) {
+    let container = document.getElementById('toast-container');
+    if (!container) {
+        container = document.createElement('div');
+        container.id = 'toast-container';
+        document.body.appendChild(container);
+    }
+    const icons = { success: '✓', error: '✕', warning: '⚠' };
+    const toast = document.createElement('div');
+    toast.className = `toast toast-${type}`;
+
+    const icon = document.createElement('span');
+    icon.className = 'toast-icon';
+    icon.textContent = icons[type] || '';
+
+    const text = document.createElement('span');
+    text.textContent = message;
+
+    toast.appendChild(icon);
+    toast.appendChild(text);
+    container.appendChild(toast);
+
+    requestAnimationFrame(() => toast.classList.add('show'));
+    setTimeout(() => {
+        toast.classList.remove('show');
+        setTimeout(() => toast.remove(), 300);
+    }, duration);
+}
 
 // Dashboard
 async function loadDashboard() {
@@ -120,7 +153,7 @@ function filterPatients() {
 
 function exportPatientsExcel() {
     const data = getFilteredPatients();
-    if (!data.length) { alert('Aucun patient à exporter'); return; }
+    if (!data.length) { showToast('Aucun patient à exporter', 'warning'); return; }
     const rows = data.map(p => ({
         'Nom': p.nom,
         'Prénom': p.prenom,
@@ -195,8 +228,8 @@ async function savePatient() {
         } else {
             await apiFetch('/patients', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(patient) });
         }
-        closeModal('modal-patient'); loadPatients(); loadDashboard(); alert('Patient enregistré !');
-    } catch(e) { alert('Erreur lors de l\'enregistrement : ' + e.message); }
+        closeModal('modal-patient'); loadPatients(); loadDashboard(); showToast('Patient enregistré !', 'success');
+    } catch(e) { showToast('Erreur lors de l\'enregistrement : ' + e.message, 'error'); }
 }
 
 async function deletePatient(id) {
@@ -204,7 +237,7 @@ async function deletePatient(id) {
     try {
         await apiFetch(`/patients/${id}`, { method: 'DELETE' });
         loadPatients(); loadDashboard();
-    } catch(e) { alert('Erreur lors de la suppression'); }
+    } catch(e) { showToast('Erreur lors de la suppression', 'error'); }
 }
 
 // Combobox de sélection de patient (recherche live)
@@ -299,7 +332,7 @@ function filterConsultations() {
 
 function exportConsultationsExcel() {
     const data = getFilteredConsultations();
-    if (!data.length) { alert('Aucune consultation à exporter'); return; }
+    if (!data.length) { showToast('Aucune consultation à exporter', 'warning'); return; }
     const rows = data.map(c => ({
         'Date': c.date_consult,
         'Patient': `${c.nom || ''} ${c.prenom || ''}`.trim(),
@@ -324,6 +357,16 @@ async function ensureMedecinsLoaded() {
         medecinsData = Array.isArray(data) ? data : [];
     } catch (e) {
         medecinsData = [];
+    }
+}
+
+async function ensureFournisseursLoaded() {
+    if (fournisseursData.length) return;
+    try {
+        const data = await apiFetch('/fournisseurs').then(r => r.json());
+        fournisseursData = Array.isArray(data) ? data : [];
+    } catch (e) {
+        fournisseursData = [];
     }
 }
 
@@ -384,7 +427,7 @@ function onConsultationPrixChange() {
 async function saveConsultation() {
     const id = document.getElementById('co-id').value;
     const patientId = parseInt(document.getElementById('co-patient').value);
-    if (!patientId) { alert('Veuillez sélectionner un patient'); return; }
+    if (!patientId) { showToast('Veuillez sélectionner un patient', 'warning'); return; }
     const data = {
         patient_id: patientId,
         medecin_id: document.getElementById('co-medecin').value ? parseInt(document.getElementById('co-medecin').value) : null,
@@ -404,8 +447,8 @@ async function saveConsultation() {
         }
         closeModal('modal-consultation');
         loadConsultations();
-        alert('Consultation enregistrée !');
-    } catch(e) { alert('Erreur lors de l\'enregistrement : ' + e.message); }
+        showToast('Consultation enregistrée !', 'success');
+    } catch(e) { showToast('Erreur lors de l\'enregistrement : ' + e.message, 'error'); }
 }
 
 async function deleteConsultation(id) {
@@ -413,7 +456,7 @@ async function deleteConsultation(id) {
     try {
         await apiFetch(`/consultations/${id}`, { method: 'DELETE' });
         loadConsultations();
-    } catch(e) { alert('Erreur lors de la suppression'); }
+    } catch(e) { showToast('Erreur lors de la suppression', 'error'); }
 }
 
 // Stock
@@ -422,7 +465,8 @@ async function loadStock() {
         const [data, alertes, alertesPeremption] = await Promise.all([
             apiFetch('/stock').then(r => r.json()),
             apiFetch('/stock/alertes').then(r => r.json()),
-            apiFetch('/stock/alertes-peremption').then(r => r.json())
+            apiFetch('/stock/alertes-peremption').then(r => r.json()),
+            ensureFournisseursLoaded()
         ]);
         stockData = data;
         const alertDiv = document.getElementById('alertes-stock');
@@ -471,6 +515,24 @@ function showStockTab(tab) {
     if (tab === 'sorties') loadSorties();
 }
 
+// Onglets Comptabilité
+function showComptabiliteTab(tab) {
+    document.getElementById('comptabilite-tab-fournisseurs').style.display = tab === 'fournisseurs' ? '' : 'none';
+    document.getElementById('tab-comptabilite-fournisseurs').className = tab === 'fournisseurs' ? 'btn btn-primary' : 'btn';
+    if (tab === 'fournisseurs') loadFournisseurs();
+}
+
+// Remplit le select Fournisseur du modal Stock
+function populateFournisseurSelect(selected) {
+    const select = document.getElementById('st-fournisseur');
+    let options = '<option value="">-- Aucun --</option>' + fournisseursData.map(f => `<option value="${f.nom}">${f.nom}</option>`).join('');
+    if (selected && !fournisseursData.some(f => f.nom === selected)) {
+        options += `<option value="${selected}">${selected}</option>`;
+    }
+    select.innerHTML = options;
+    select.value = selected || '';
+}
+
 // Modifier un article
 function editStockArticle(id) {
     const article = stockData.find(s => s.idStock === id);
@@ -479,7 +541,7 @@ function editStockArticle(id) {
     document.getElementById('st-date-entree').value = article.DateEntree || '';
     document.getElementById('st-designation').value = article.Designation || '';
     document.getElementById('st-type').value = article.Type || '';
-    document.getElementById('st-fournisseur').value = article.Fournisseur || '';
+    populateFournisseurSelect(article.Fournisseur || '');
     document.getElementById('st-quantite').value = article.Quantite || 0;
     document.getElementById('st-seuil').value = article.SeuilAlerte || 0;
     document.getElementById('st-prix-vente').value = article.PrixVente || 0;
@@ -509,8 +571,8 @@ async function saveStockArticle() {
         await apiFetch(`/stock/${id}`, { method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(article) });
         closeModal('modal-stock-edit');
         loadStock();
-        alert('Article mis à jour !');
-    } catch(e) { alert('Erreur lors de la mise à jour : ' + e.message); }
+        showToast('Article mis à jour !', 'success');
+    } catch(e) { showToast('Erreur lors de la mise à jour : ' + e.message, 'error'); }
 }
 
 // Sortie de stock
@@ -538,8 +600,8 @@ async function saveSortie() {
         await apiFetch('/stock/sortie', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(data) });
         closeModal('modal-sortie');
         loadStock();
-        alert('Sortie enregistrée !');
-    } catch(e) { alert('Erreur lors de l\'enregistrement : ' + e.message); }
+        showToast('Sortie enregistrée !', 'success');
+    } catch(e) { showToast('Erreur lors de l\'enregistrement : ' + e.message, 'error'); }
 }
 
 async function loadSorties() {
@@ -608,7 +670,7 @@ function filterOrdonnances() {
 
 function exportOrdonnancesExcel() {
     const data = getFilteredOrdonnances();
-    if (!data.length) { alert('Aucune ordonnance à exporter'); return; }
+    if (!data.length) { showToast('Aucune ordonnance à exporter', 'warning'); return; }
     const rows = data.map(o => ({
         'Date': o.date_ordonnance,
         'Patient': `${o.nom || ''} ${o.prenom || ''}`.trim(),
@@ -676,7 +738,7 @@ async function editOrdonnance(id) {
         }
 
         openModal('modal-ordonnance');
-    } catch(e) { alert('Erreur lors du chargement de l\'ordonnance'); }
+    } catch(e) { showToast('Erreur lors du chargement de l\'ordonnance', 'error'); }
 }
 
 function addLigneOrdonnance(ligne) {
@@ -708,10 +770,10 @@ async function saveOrdonnance() {
         prix_achat: 0
     })).filter(l => l.designation.trim() !== '');
 
-    if (!lignes.length) { alert('Ajoutez au moins un médicament'); return; }
+    if (!lignes.length) { showToast('Ajoutez au moins un médicament', 'warning'); return; }
 
     const patientId = parseInt(document.getElementById('o-patient').value);
-    if (!patientId) { alert('Veuillez sélectionner un patient'); return; }
+    if (!patientId) { showToast('Veuillez sélectionner un patient', 'warning'); return; }
 
     const data = {
         patient_id: patientId,
@@ -731,8 +793,8 @@ async function saveOrdonnance() {
         }
         closeModal('modal-ordonnance');
         loadOrdonnances();
-        alert('Ordonnance enregistrée !');
-    } catch(e) { alert('Erreur lors de l\'enregistrement : ' + e.message); }
+        showToast('Ordonnance enregistrée !', 'success');
+    } catch(e) { showToast('Erreur lors de l\'enregistrement : ' + e.message, 'error'); }
 }
 
 async function deleteOrdonnance(id) {
@@ -740,7 +802,7 @@ async function deleteOrdonnance(id) {
     try {
         await apiFetch(`/ordonnances/${id}`, { method: 'DELETE' });
         loadOrdonnances();
-    } catch(e) { alert('Erreur lors de la suppression'); }
+    } catch(e) { showToast('Erreur lors de la suppression', 'error'); }
 }
 
 // Rendez-vous
@@ -795,7 +857,7 @@ function filterRendezVous() {
 
 function exportRendezVousExcel() {
     const data = getFilteredRendezVous();
-    if (!data.length) { alert('Aucun rendez-vous à exporter'); return; }
+    if (!data.length) { showToast('Aucun rendez-vous à exporter', 'warning'); return; }
     const rows = data.map(r => ({
         'Date / Heure': (r.date_heure_rdv || '').replace('T', ' '),
         'Patient': `${r.nom || ''} ${r.prenom || ''}`.trim(),
@@ -857,7 +919,7 @@ async function editRendezVous(id) {
 async function saveRendezVous() {
     const id = document.getElementById('rv-id').value;
     const patientId = parseInt(document.getElementById('rv-patient').value);
-    if (!patientId) { alert('Veuillez sélectionner un patient'); return; }
+    if (!patientId) { showToast('Veuillez sélectionner un patient', 'warning'); return; }
     const data = {
         patient_id: patientId,
         medecin_id: document.getElementById('rv-medecin').value ? parseInt(document.getElementById('rv-medecin').value) : null,
@@ -875,8 +937,8 @@ async function saveRendezVous() {
         }
         closeModal('modal-rendez-vous');
         loadRendezVous();
-        alert('Rendez-vous enregistré !');
-    } catch(e) { alert('Erreur lors de l\'enregistrement : ' + e.message); }
+        showToast('Rendez-vous enregistré !', 'success');
+    } catch(e) { showToast('Erreur lors de l\'enregistrement : ' + e.message, 'error'); }
 }
 
 async function deleteRendezVous(id) {
@@ -884,7 +946,7 @@ async function deleteRendezVous(id) {
     try {
         await apiFetch(`/rendez-vous/${id}`, { method: 'DELETE' });
         loadRendezVous();
-    } catch(e) { alert('Erreur lors de la suppression'); }
+    } catch(e) { showToast('Erreur lors de la suppression', 'error'); }
 }
 
 // Examens complémentaires
@@ -935,7 +997,7 @@ function filterExamens() {
 
 function exportExamensExcel() {
     const data = getFilteredExamens();
-    if (!data.length) { alert('Aucun examen à exporter'); return; }
+    if (!data.length) { showToast('Aucun examen à exporter', 'warning'); return; }
     const rows = data.map(e => ({
         'Date': e.date_examen,
         'Patient': `${e.nom || ''} ${e.prenom || ''}`.trim(),
@@ -1029,7 +1091,7 @@ function onSousTypeChange() {
 async function saveExamen() {
     const id = document.getElementById('e-id').value;
     const patientId = parseInt(document.getElementById('e-patient').value);
-    if (!patientId) { alert('Veuillez sélectionner un patient'); return; }
+    if (!patientId) { showToast('Veuillez sélectionner un patient', 'warning'); return; }
     const data = {
         patient_id: patientId,
         sous_type_examen_id: parseInt(document.getElementById('e-sous-type').value),
@@ -1048,8 +1110,8 @@ async function saveExamen() {
         }
         closeModal('modal-examen');
         loadExamens();
-        alert('Examen enregistré !');
-    } catch(e) { alert('Erreur lors de l\'enregistrement : ' + e.message); }
+        showToast('Examen enregistré !', 'success');
+    } catch(e) { showToast('Erreur lors de l\'enregistrement : ' + e.message, 'error'); }
 }
 
 async function deleteExamen(id) {
@@ -1057,7 +1119,7 @@ async function deleteExamen(id) {
     try {
         await apiFetch(`/examens-complementaires/${id}`, { method: 'DELETE' });
         loadExamens();
-    } catch(e) { alert('Erreur lors de la suppression'); }
+    } catch(e) { showToast('Erreur lors de la suppression', 'error'); }
 }
 
 // Personnel
@@ -1089,7 +1151,7 @@ function filterPersonnel() {
 
 function exportPersonnelExcel() {
     const data = getFilteredPersonnel();
-    if (!data.length) { alert('Aucun membre du personnel à exporter'); return; }
+    if (!data.length) { showToast('Aucun membre du personnel à exporter', 'warning'); return; }
     const rows = data.map(p => ({
         'Nom': p.nom,
         'Prénom': p.prenom,
@@ -1167,8 +1229,8 @@ async function savePersonnel() {
         }
         closeModal('modal-personnel');
         loadPersonnel();
-        alert('Membre du personnel enregistré !');
-    } catch(e) { alert('Erreur lors de l\'enregistrement : ' + e.message); }
+        showToast('Membre du personnel enregistré !', 'success');
+    } catch(e) { showToast('Erreur lors de l\'enregistrement : ' + e.message, 'error'); }
 }
 
 async function deactivatePersonnel(id) {
@@ -1176,7 +1238,7 @@ async function deactivatePersonnel(id) {
     try {
         await apiFetch(`/personnel/${id}`, { method: 'DELETE' });
         loadPersonnel();
-    } catch(e) { alert('Erreur lors de la désactivation'); }
+    } catch(e) { showToast('Erreur lors de la désactivation', 'error'); }
 }
 
 // Médecins
@@ -1232,8 +1294,8 @@ async function saveMedecin() {
         closeModal('modal-medecin');
         medecinsData = [];
         loadMedecins();
-        alert('Médecin enregistré !');
-    } catch(e) { alert('Erreur lors de l\'enregistrement : ' + e.message); }
+        showToast('Médecin enregistré !', 'success');
+    } catch(e) { showToast('Erreur lors de l\'enregistrement : ' + e.message, 'error'); }
 }
 
 async function deleteMedecin(id) {
@@ -1243,7 +1305,87 @@ async function deleteMedecin(id) {
         medecinsData = [];
         loadMedecins();
     } catch(e) {
-        if (e.status === 409) alert(e.detail);
-        else alert('Erreur lors de la suppression : ' + e.message);
+        if (e.status === 409) showToast(e.detail, 'error');
+        else showToast('Erreur lors de la suppression : ' + e.message, 'error');
+    }
+}
+
+// Fournisseurs
+async function loadFournisseurs() {
+    try {
+        fournisseursData = await apiFetch('/fournisseurs').then(r => r.json());
+        renderFournisseurs(fournisseursData);
+    } catch(e) { document.getElementById('table-fournisseurs').innerHTML = '<tr><td colspan="5">Erreur</td></tr>'; }
+}
+
+function renderFournisseurs(data) {
+    const tbody = document.getElementById('table-fournisseurs');
+    if (!data.length) { tbody.innerHTML = '<tr><td colspan="5">Aucun fournisseur</td></tr>'; return; }
+    tbody.innerHTML = data.map(f => `<tr>
+        <td>${f.nom}</td><td>${f.type_article || '-'}</td><td>${f.telephone || '-'}</td><td>${f.adresse || '-'}</td>
+        <td>
+            <button class="btn btn-sm" onclick="editFournisseur(${f.id})">Modifier</button>
+            <button class="btn btn-sm btn-danger" onclick="deleteFournisseur(${f.id})">Supprimer</button>
+        </td>
+    </tr>`).join('');
+}
+
+function filterFournisseurs() {
+    const q = document.getElementById('search-fournisseurs').value.toLowerCase();
+    renderFournisseurs(fournisseursData.filter(f => (f.nom||'').toLowerCase().includes(q) || (f.type_article||'').toLowerCase().includes(q)));
+}
+
+function openNewFournisseurModal() {
+    document.getElementById('modal-fournisseur-title').textContent = 'Nouveau Fournisseur';
+    document.getElementById('fo-id').value = '';
+    document.getElementById('fo-nom').value = '';
+    document.getElementById('fo-type-article').value = '';
+    document.getElementById('fo-telephone').value = '';
+    document.getElementById('fo-adresse').value = '';
+    openModal('modal-fournisseur');
+}
+
+function editFournisseur(id) {
+    const fournisseur = fournisseursData.find(f => f.id === id);
+    if (!fournisseur) return;
+    document.getElementById('modal-fournisseur-title').textContent = 'Modifier Fournisseur';
+    document.getElementById('fo-id').value = fournisseur.id;
+    document.getElementById('fo-nom').value = fournisseur.nom || '';
+    document.getElementById('fo-type-article').value = fournisseur.type_article || '';
+    document.getElementById('fo-telephone').value = fournisseur.telephone || '';
+    document.getElementById('fo-adresse').value = fournisseur.adresse || '';
+    openModal('modal-fournisseur');
+}
+
+async function saveFournisseur() {
+    const id = document.getElementById('fo-id').value;
+    const fournisseur = {
+        nom: document.getElementById('fo-nom').value,
+        type_article: document.getElementById('fo-type-article').value,
+        telephone: document.getElementById('fo-telephone').value,
+        adresse: document.getElementById('fo-adresse').value,
+    };
+    try {
+        if (id) {
+            await apiFetch(`/fournisseurs/${id}`, { method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(fournisseur) });
+        } else {
+            await apiFetch('/fournisseurs', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(fournisseur) });
+        }
+        closeModal('modal-fournisseur');
+        fournisseursData = [];
+        loadFournisseurs();
+        showToast('Fournisseur enregistré !', 'success');
+    } catch(e) { showToast('Erreur lors de l\'enregistrement : ' + e.message, 'error'); }
+}
+
+async function deleteFournisseur(id) {
+    if (!confirm('Voulez-vous vraiment supprimer ce fournisseur ?')) return;
+    try {
+        await apiFetch(`/fournisseurs/${id}`, { method: 'DELETE' });
+        fournisseursData = [];
+        loadFournisseurs();
+    } catch(e) {
+        if (e.status === 409) showToast(e.detail, 'error');
+        else showToast('Erreur lors de la suppression : ' + e.message, 'error');
     }
 }

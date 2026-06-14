@@ -53,6 +53,9 @@
         <div class="menu-item" id="menu-medecins" style="display:none;" onclick="showPage('medecins')">
             <span class="icon">🆔</span> Médecins
         </div>
+        <div class="menu-item" id="menu-comptabilite" style="display:none;" onclick="showPage('comptabilite')">
+            <span class="icon">💰</span> Comptabilité
+        </div>
     </div>
 </div>
 
@@ -393,12 +396,46 @@
             </div>
         </div>
 
+        <!-- COMPTABILITE -->
+        <div id="page-comptabilite" class="page">
+            <div style="display:flex; gap:10px; margin-bottom:15px;">
+                <button class="btn btn-primary" id="tab-comptabilite-fournisseurs" onclick="showComptabiliteTab('fournisseurs')">Fournisseurs</button>
+            </div>
+
+            <!-- FOURNISSEURS -->
+            <div id="comptabilite-tab-fournisseurs">
+                <div class="table-container">
+                    <div class="table-header">
+                        <h3>Fournisseurs</h3>
+                        <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+                            <input type="text" class="search-box" placeholder="Rechercher..." id="search-fournisseurs" oninput="filterFournisseurs()">
+                            <button class="btn btn-primary" onclick="openNewFournisseurModal()">+ Nouveau fournisseur</button>
+                        </div>
+                    </div>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Nom</th>
+                                <th>Type d'article</th>
+                                <th>Téléphone</th>
+                                <th>Adresse</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="table-fournisseurs">
+                            <tr><td colspan="5" class="loading">Chargement...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
     </div>
 </div>
 
 <!-- MODAL NOUVEAU PATIENT -->
 <div class="modal-overlay" id="modal-patient">
-    <div class="modal">
+    <div class="modal modal-lg">
         <h3 id="modal-patient-title">Nouveau Patient</h3>
         <input type="hidden" id="p-id">
         <div class="form-row">
@@ -518,7 +555,7 @@
 </div>
 <!-- MODAL NOUVELLE ORDONNANCE -->
 <div class="modal-overlay" id="modal-ordonnance">
-    <div class="modal" style="width: 700px;">
+    <div class="modal modal-lg">
         <h3 id="modal-ordonnance-title">Nouvelle Ordonnance</h3>
         <input type="hidden" id="o-id">
         <div class="form-row">
@@ -561,7 +598,7 @@
 </div>
 <!-- MODAL NOUVEL EXAMEN -->
 <div class="modal-overlay" id="modal-examen">
-    <div class="modal">
+    <div class="modal modal-lg">
         <h3 id="modal-examen-title">Nouvel Examen Complémentaire</h3>
         <input type="hidden" id="e-id">
         <div class="form-row">
@@ -614,7 +651,7 @@
 </div>
 <!-- MODAL CONSULTATION -->
 <div class="modal-overlay" id="modal-consultation">
-    <div class="modal">
+    <div class="modal modal-lg">
         <h3 id="modal-consultation-title">Nouvelle Consultation</h3>
         <input type="hidden" id="co-id">
         <div class="form-row">
@@ -671,7 +708,7 @@
 </div>
 <!-- MODAL MODIFIER ARTICLE STOCK -->
 <div class="modal-overlay" id="modal-stock-edit">
-    <div class="modal">
+    <div class="modal modal-lg">
         <h3>Modifier Article</h3>
         <input type="hidden" id="st-id">
         <input type="hidden" id="st-date-entree">
@@ -688,7 +725,9 @@
         <div class="form-row">
             <div class="form-group">
                 <label>Fournisseur</label>
-                <input type="text" id="st-fournisseur">
+                <select id="st-fournisseur">
+                    <option value="">-- Aucun --</option>
+                </select>
             </div>
             <div class="form-group">
                 <label>Quantité</label>
@@ -834,6 +873,40 @@
         </div>
     </div>
 </div>
+
+<!-- MODAL FOURNISSEUR -->
+<div class="modal-overlay" id="modal-fournisseur">
+    <div class="modal">
+        <h3 id="modal-fournisseur-title">Nouveau Fournisseur</h3>
+        <input type="hidden" id="fo-id">
+        <div class="form-row">
+            <div class="form-group">
+                <label>Nom</label>
+                <input type="text" id="fo-nom" placeholder="Nom du fournisseur">
+            </div>
+            <div class="form-group">
+                <label>Type d'article</label>
+                <input type="text" id="fo-type-article" placeholder="Ex: Médicaments">
+            </div>
+        </div>
+        <div class="form-row">
+            <div class="form-group">
+                <label>Téléphone</label>
+                <input type="text" id="fo-telephone" placeholder="Téléphone">
+            </div>
+            <div class="form-group">
+                <label>Adresse</label>
+                <input type="text" id="fo-adresse" placeholder="Adresse">
+            </div>
+        </div>
+        <div class="modal-actions">
+            <button class="btn" onclick="closeModal('modal-fournisseur')">Annuler</button>
+            <button class="btn btn-primary" onclick="saveFournisseur()">Enregistrer</button>
+        </div>
+    </div>
+</div>
+
+<div id="toast-container"></div>
 
 <script src="https://cdn.sheetjs.com/xlsx-0.20.2/package/dist/xlsx.full.min.js"></script>
 <script src="js/app.js"></script>
