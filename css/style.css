@@ -587,6 +587,20 @@ input[type="datetime-local"]:focus {
     box-shadow: 0 0 0 3px rgba(13, 148, 136, 0.12);
 }
 
+.required-mark {
+    color: var(--danger);
+    margin-left: 2px;
+}
+
+.input-error {
+    border-color: var(--danger) !important;
+    background: #FEF2F2 !important;
+}
+
+.input-error:focus {
+    box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.15) !important;
+}
+
 .form-group input[type="checkbox"],
 .form-group input[type="radio"] {
     width: auto;

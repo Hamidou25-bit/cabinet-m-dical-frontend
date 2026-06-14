@@ -57,8 +57,78 @@ function showPage(page) {
 }
 
 // Modal
-function openModal(id) { document.getElementById(id).classList.add('active'); }
+function openModal(id) {
+    const modal = document.getElementById(id);
+    modal.querySelectorAll('.input-error').forEach(el => el.classList.remove('input-error'));
+    modal.classList.add('active');
+}
 function closeModal(id) { document.getElementById(id).classList.remove('active'); }
+
+// Validation générique des champs obligatoires d'un formulaire/modal
+// fields: [{ id, label, highlightId?, min? }]
+// - id : id de l'input/select contenant la valeur à vérifier
+// - highlightId : id de l'élément à mettre en surbrillance si différent de `id` (ex: combobox patient)
+// - min : valeur numérique minimale acceptée (optionnel)
+function validateRequiredFields(fields) {
+    const missing = [];
+    fields.forEach(({ id, label, highlightId, min }) => {
+        const valueEl = document.getElementById(id);
+        const highlightEl = document.getElementById(highlightId || id);
+        if (highlightEl) highlightEl.classList.remove('input-error');
+
+        const value = valueEl ? valueEl.value : '';
+        const isEmpty = value === null || value === undefined || String(value).trim() === '';
+        const tooLow = !isEmpty && min !== undefined && parseFloat(value) < min;
+
+        if (isEmpty || tooLow) {
+            missing.push(label);
+            if (highlightEl) highlightEl.classList.add('input-error');
+        }
+    });
+    if (missing.length) {
+        showToast(`Champ(s) obligatoire(s) manquant(s) ou invalide(s) : ${missing.join(', ')}`, 'error');
+        return false;
+    }
+    return true;
+}
+
+// Validation générique des lignes d'un tableau dynamique (ordonnance, achat...)
+// - lineSelector : sélecteur CSS des lignes (ex: '.ligne-achat')
+// - designationSelector : sélecteur du champ "désignation" de chaque ligne
+// - numericSelectors : sélecteurs des champs numériques qui doivent être > 0 (sur les lignes non vides)
+// - emptyMessage : message affiché si aucune ligne valide n'est renseignée
+function validateLignes(lineSelector, designationSelector, numericSelectors, emptyMessage) {
+    const lines = document.querySelectorAll(lineSelector);
+    let hasDesignation = false;
+    let allValid = true;
+
+    lines.forEach(div => {
+        const designationInput = div.querySelector(designationSelector);
+        designationInput.classList.remove('input-error');
+        (numericSelectors || []).forEach(sel => div.querySelector(sel).classList.remove('input-error'));
+
+        if (!designationInput.value.trim()) return; // ligne vide, ignorée
+        hasDesignation = true;
+
+        (numericSelectors || []).forEach(sel => {
+            const input = div.querySelector(sel);
+            if (!input.value || parseFloat(input.value) <= 0) {
+                input.classList.add('input-error');
+                allValid = false;
+            }
+        });
+    });
+
+    if (!hasDesignation) {
+        showToast(emptyMessage, 'warning');
+        return false;
+    }
+    if (!allValid) {
+        showToast('Quantité et prix unitaire doivent être renseignés (et supérieurs à 0) pour chaque ligne', 'error');
+        return false;
+    }
+    return true;
+}
 
 // Notifications toast (succès / erreur / avertissement)
 function showToast(message, type = 'success', duration = 3000) {
@@ -210,6 +280,12 @@ function editPatient(id) {
 }
 
 async function savePatient() {
+    if (!validateRequiredFields([
+        { id: 'p-nom', label: 'Nom' },
+        { id: 'p-prenom', label: 'Prénom' },
+        { id: 'p-age', label: 'Âge', min: 0 },
+    ])) return;
+
     const id = document.getElementById('p-id').value;
     const patient = {
         nom: document.getElementById('p-nom').value.toUpperCase(),
@@ -427,9 +503,14 @@ function onConsultationPrixChange() {
 }
 
 async function saveConsultation() {
+    if (!validateRequiredFields([
+        { id: 'co-patient', label: 'Patient', highlightId: 'co-patient-search' },
+        { id: 'co-date', label: 'Date' },
+        { id: 'co-motif', label: 'Motif' },
+    ])) return;
+
     const id = document.getElementById('co-id').value;
     const patientId = parseInt(document.getElementById('co-patient').value);
-    if (!patientId) { showToast('Veuillez sélectionner un patient', 'warning'); return; }
     const data = {
         patient_id: patientId,
         medecin_id: document.getElementById('co-medecin').value ? parseInt(document.getElementById('co-medecin').value) : null,
@@ -561,6 +642,12 @@ function editStockArticle(id) {
 }
 
 async function saveStockArticle() {
+    if (!validateRequiredFields([
+        { id: 'st-designation', label: 'Désignation' },
+        { id: 'st-quantite', label: 'Quantité', min: 0 },
+        { id: 'st-prix-vente', label: 'Prix vente', min: 0 },
+    ])) return;
+
     const id = document.getElementById('st-id').value;
     const article = {
         DateEntree: document.getElementById('st-date-entree').value,
@@ -597,6 +684,11 @@ function openSortieModal(id) {
 }
 
 async function saveSortie() {
+    if (!validateRequiredFields([
+        { id: 'so-date', label: 'Date' },
+        { id: 'so-quantite', label: 'Quantité', min: 1 },
+    ])) return;
+
     const data = {
         Designation: document.getElementById('so-designation').value,
         DateSortie: document.getElementById('so-date').value,
@@ -754,7 +846,7 @@ function addLigneOrdonnance(ligne) {
     const div = document.createElement('div');
     div.className = 'ligne-ordonnance';
     div.innerHTML = `
-        <input type="text" placeholder="Médicament" class="lo-designation" value="${ligne ? (ligne.designation || '') : ''}">
+        <input type="text" placeholder="Médicament *" class="lo-designation" value="${ligne ? (ligne.designation || '') : ''}">
         <select class="lo-dosage"><option value="">Dosage</option>${dosagesData.map(d => `<option value="${d.nom}" ${ligne && ligne.dosage === d.nom ? 'selected' : ''}>${d.nom}</option>`).join('')}</select>
         <select class="lo-forme"><option value="">Forme</option>${formesData.map(f => `<option value="${f.nom}" ${ligne && ligne.forme === f.nom ? 'selected' : ''}>${f.nom}</option>`).join('')}</select>
         <input type="number" placeholder="Qté" class="lo-quantite" value="${ligne ? (ligne.quantite || 1) : 1}" min="1">
@@ -766,6 +858,13 @@ function addLigneOrdonnance(ligne) {
 }
 
 async function saveOrdonnance() {
+    if (!validateRequiredFields([
+        { id: 'o-patient', label: 'Patient', highlightId: 'o-patient-search' },
+        { id: 'o-date', label: 'Date' },
+    ])) return;
+
+    if (!validateLignes('.ligne-ordonnance', '.lo-designation', [], 'Ajoutez au moins un médicament')) return;
+
     const id = document.getElementById('o-id').value;
     const lignes = Array.from(document.querySelectorAll('.ligne-ordonnance')).map(div => ({
         designation: div.querySelector('.lo-designation').value,
@@ -778,10 +877,7 @@ async function saveOrdonnance() {
         prix_achat: 0
     })).filter(l => l.designation.trim() !== '');
 
-    if (!lignes.length) { showToast('Ajoutez au moins un médicament', 'warning'); return; }
-
     const patientId = parseInt(document.getElementById('o-patient').value);
-    if (!patientId) { showToast('Veuillez sélectionner un patient', 'warning'); return; }
 
     const data = {
         patient_id: patientId,
@@ -925,9 +1021,13 @@ async function editRendezVous(id) {
 }
 
 async function saveRendezVous() {
+    if (!validateRequiredFields([
+        { id: 'rv-patient', label: 'Patient', highlightId: 'rv-patient-search' },
+        { id: 'rv-date', label: 'Date et heure' },
+    ])) return;
+
     const id = document.getElementById('rv-id').value;
     const patientId = parseInt(document.getElementById('rv-patient').value);
-    if (!patientId) { showToast('Veuillez sélectionner un patient', 'warning'); return; }
     const data = {
         patient_id: patientId,
         medecin_id: document.getElementById('rv-medecin').value ? parseInt(document.getElementById('rv-medecin').value) : null,
@@ -1097,9 +1197,14 @@ function onSousTypeChange() {
 }
 
 async function saveExamen() {
+    if (!validateRequiredFields([
+        { id: 'e-patient', label: 'Patient', highlightId: 'e-patient-search' },
+        { id: 'e-date', label: 'Date' },
+        { id: 'e-sous-type', label: "Examen" },
+    ])) return;
+
     const id = document.getElementById('e-id').value;
     const patientId = parseInt(document.getElementById('e-patient').value);
-    if (!patientId) { showToast('Veuillez sélectionner un patient', 'warning'); return; }
     const data = {
         patient_id: patientId,
         sous_type_examen_id: parseInt(document.getElementById('e-sous-type').value),
@@ -1220,6 +1325,12 @@ function editPersonnel(id) {
 }
 
 async function savePersonnel() {
+    if (!validateRequiredFields([
+        { id: 'pe-nom', label: 'Nom' },
+        { id: 'pe-prenom', label: 'Prénom' },
+        { id: 'pe-fonction', label: 'Fonction' },
+    ])) return;
+
     const id = document.getElementById('pe-id').value;
     const personnel = {
         nom: document.getElementById('pe-nom').value.toUpperCase(),
@@ -1291,6 +1402,10 @@ function editMedecin(id) {
 }
 
 async function saveMedecin() {
+    if (!validateRequiredFields([
+        { id: 'me-nom', label: 'Nom' },
+    ])) return;
+
     const id = document.getElementById('me-id').value;
     const medecin = { nom: document.getElementById('me-nom').value };
     try {
@@ -1366,6 +1481,10 @@ function editFournisseur(id) {
 }
 
 async function saveFournisseur() {
+    if (!validateRequiredFields([
+        { id: 'fo-nom', label: 'Nom' },
+    ])) return;
+
     const id = document.getElementById('fo-id').value;
     const fournisseur = {
         nom: document.getElementById('fo-nom').value,
@@ -1463,6 +1582,12 @@ function editDepense(id) {
 }
 
 async function saveDepense() {
+    if (!validateRequiredFields([
+        { id: 'de-date', label: 'Date' },
+        { id: 'de-type', label: 'Type' },
+        { id: 'de-montant', label: 'Montant', min: 0.01 },
+    ])) return;
+
     const id = document.getElementById('de-id').value;
     const depense = {
         date_depense: document.getElementById('de-date').value,
@@ -1571,9 +1696,9 @@ function addLigneAchat(ligne) {
     const div = document.createElement('div');
     div.className = 'ligne-achat';
     div.innerHTML = `
-        <input type="text" placeholder="Désignation" class="la-designation" value="${ligne ? (ligne.designation || '') : ''}">
-        <input type="number" placeholder="Qté" class="la-quantite" value="${ligne ? (ligne.quantite || 1) : 1}" min="1" oninput="updateLigneAchatMontant(this)">
-        <input type="number" placeholder="Prix unitaire" class="la-prix-unitaire" value="${ligne ? (ligne.prix_unitaire || 0) : 0}" min="0" oninput="updateLigneAchatMontant(this)">
+        <input type="text" placeholder="Désignation *" class="la-designation" value="${ligne ? (ligne.designation || '') : ''}">
+        <input type="number" placeholder="Qté *" class="la-quantite" value="${ligne ? (ligne.quantite || 1) : 1}" min="1" oninput="updateLigneAchatMontant(this)">
+        <input type="number" placeholder="Prix unitaire *" class="la-prix-unitaire" value="${ligne ? (ligne.prix_unitaire || 0) : 0}" min="0" oninput="updateLigneAchatMontant(this)">
         <input type="number" placeholder="Montant" class="la-montant" value="${ligne ? (ligne.montant || 0) : 0}" readonly>
         <button class="btn-remove" onclick="this.parentElement.remove(); updateAchatTotal();">✕</button>
     `;
@@ -1597,14 +1722,18 @@ function updateAchatTotal() {
 }
 
 async function saveAchat() {
+    if (!validateRequiredFields([
+        { id: 'ac-date', label: 'Date' },
+    ])) return;
+
+    if (!validateLignes('.ligne-achat', '.la-designation', ['.la-quantite', '.la-prix-unitaire'], 'Ajoutez au moins un article')) return;
+
     const id = document.getElementById('ac-id').value;
     const lignes = Array.from(document.querySelectorAll('.ligne-achat')).map(div => ({
         designation: div.querySelector('.la-designation').value,
         quantite: parseFloat(div.querySelector('.la-quantite').value) || 1,
         prix_unitaire: parseFloat(div.querySelector('.la-prix-unitaire').value) || 0,
     })).filter(l => l.designation.trim() !== '');
-
-    if (!lignes.length) { showToast('Ajoutez au moins un article', 'warning'); return; }
 
     const fournisseurId = document.getElementById('ac-fournisseur').value;
     const data = {
