@@ -801,6 +801,54 @@ input[type="datetime-local"]:focus {
     border-color: var(--danger);
 }
 
+/* LIGNES ACHAT */
+.ligne-achat {
+    display: grid;
+    grid-template-columns: 2fr 1fr 1fr 1fr auto;
+    gap: 8px;
+    margin-bottom: 8px;
+    align-items: center;
+}
+
+.ligne-achat input {
+    padding: 8px 10px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    font-size: 12px;
+    outline: none;
+    background: #F8FAFC;
+    transition: border-color var(--transition), box-shadow var(--transition), background var(--transition);
+}
+
+.ligne-achat input:focus {
+    border-color: var(--primary);
+    background: var(--white);
+    box-shadow: 0 0 0 3px rgba(13, 148, 136, 0.12);
+}
+
+.ligne-achat input[readonly] {
+    background: #EEF2F7;
+    color: var(--text-light);
+}
+
+.ligne-achat .btn-remove {
+    background: var(--white);
+    color: var(--danger);
+    border: 1px solid #FECACA;
+    border-radius: var(--radius-sm);
+    width: 28px;
+    height: 28px;
+    cursor: pointer;
+    font-size: 14px;
+    transition: background var(--transition), color var(--transition);
+}
+
+.ligne-achat .btn-remove:hover {
+    background: var(--danger);
+    color: white;
+    border-color: var(--danger);
+}
+
 /* RESPONSIVE */
 @media (max-width: 980px) {
     :root {

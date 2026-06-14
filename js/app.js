@@ -523,15 +523,18 @@ function showComptabiliteTab(tab) {
     document.getElementById('tab-comptabilite-fournisseurs').className = tab === 'fournisseurs' ? 'btn btn-primary' : 'btn';
     document.getElementById('comptabilite-tab-depenses').style.display = tab === 'depenses' ? '' : 'none';
     document.getElementById('tab-comptabilite-depenses').className = tab === 'depenses' ? 'btn btn-primary' : 'btn';
+    document.getElementById('comptabilite-tab-achats').style.display = tab === 'achats' ? '' : 'none';
+    document.getElementById('tab-comptabilite-achats').className = tab === 'achats' ? 'btn btn-primary' : 'btn';
     if (tab === 'fournisseurs') loadFournisseurs();
     if (tab === 'depenses') loadDepenses();
+    if (tab === 'achats') loadAchats();
 }
 
-// Remplit le select Fournisseur du modal Stock
-function populateFournisseurSelect(selected) {
-    const select = document.getElementById('st-fournisseur');
-    let options = '<option value="">-- Aucun --</option>' + fournisseursData.map(f => `<option value="${f.nom}">${f.nom}</option>`).join('');
-    if (selected && !fournisseursData.some(f => f.nom === selected)) {
+// Remplit un select Fournisseur (Stock : valeur = nom, Achats : valeur = id)
+function populateFournisseurSelect(selected, selectId = 'st-fournisseur', valueField = 'nom') {
+    const select = document.getElementById(selectId);
+    let options = '<option value="">-- Aucun --</option>' + fournisseursData.map(f => `<option value="${f[valueField]}">${f.nom}</option>`).join('');
+    if (valueField === 'nom' && selected && !fournisseursData.some(f => f.nom === selected)) {
         options += `<option value="${selected}">${selected}</option>`;
     }
     select.innerHTML = options;
@@ -1425,4 +1428,150 @@ function populateTypeDepenseFilter() {
 function filterDepenses() {
     const type = document.getElementById('filter-type-depense').value;
     renderDepenses(type ? depensesData.filter(d => d.type_depense === type) : depensesData);
+}
+
+// Achats
+let achatsData = [];
+const statutPaiementClasses = { 'Payé': 'status-ok', 'Non payé': 'status-danger', 'Partiel': 'status-warning' };
+const statutFactureClasses = { 'Actif': 'status-ok', 'Annulé': 'status-danger' };
+
+async function loadAchats() {
+    try {
+        const [achats] = await Promise.all([apiFetch('/achats').then(r => r.json()), ensureFournisseursLoaded()]);
+        achatsData = achats;
+        renderAchats(achatsData);
+    } catch(e) { document.getElementById('table-achats').innerHTML = '<tr><td colspan="7">Erreur</td></tr>'; }
+}
+
+function renderAchats(data) {
+    const tbody = document.getElementById('table-achats');
+    if (!data.length) { tbody.innerHTML = '<tr><td colspan="7">Aucun achat</td></tr>'; return; }
+    tbody.innerHTML = data.map(a => `<tr>
+        <td>${a.numero_facture || '-'}</td>
+        <td>${a.date_achat || ''}</td>
+        <td>${a.fournisseur_nom || '-'}</td>
+        <td>${(a.montant_total || 0).toLocaleString()} FCFA</td>
+        <td><span class="status ${statutPaiementClasses[a.statut_paiement] || 'status-warning'}">${a.statut_paiement || ''}</span></td>
+        <td><span class="status ${statutFactureClasses[a.statut_facture] || 'status-warning'}">${a.statut_facture || ''}</span></td>
+        <td>
+            <button class="btn btn-sm" onclick="editAchat(${a.id})">Modifier</button>
+            <button class="btn btn-sm btn-danger" onclick="deleteAchat(${a.id})">Annuler</button>
+        </td>
+    </tr>`).join('');
+}
+
+function filterAchats() {
+    const q = document.getElementById('search-achats').value.toLowerCase();
+    renderAchats(achatsData.filter(a => (a.numero_facture||'').toLowerCase().includes(q)
+        || (a.fournisseur_nom||'').toLowerCase().includes(q)
+        || (a.statut_paiement||'').toLowerCase().includes(q)));
+}
+
+async function openNewAchatModal() {
+    document.getElementById('modal-achat-title').textContent = 'Nouvel Achat';
+    document.getElementById('ac-id').value = '';
+    await ensureFournisseursLoaded();
+    populateFournisseurSelect('', 'ac-fournisseur', 'id');
+    document.getElementById('ac-numero-facture').value = '';
+    document.getElementById('ac-date').value = new Date().toISOString().split('T')[0];
+    document.getElementById('ac-statut-paiement').value = 'Non payé';
+    document.getElementById('ac-notes').value = '';
+    document.getElementById('lignes-achat').innerHTML = '';
+    addLigneAchat();
+    updateAchatTotal();
+    openModal('modal-achat');
+}
+
+async function editAchat(id) {
+    document.getElementById('modal-achat-title').textContent = 'Modifier Achat';
+    document.getElementById('ac-id').value = id;
+    try {
+        const [, achat] = await Promise.all([ensureFournisseursLoaded(), apiFetch(`/achats/${id}`).then(r => r.json())]);
+        populateFournisseurSelect(achat.fournisseur_id || '', 'ac-fournisseur', 'id');
+        document.getElementById('ac-numero-facture').value = achat.numero_facture || '';
+        document.getElementById('ac-date').value = achat.date_achat || '';
+        document.getElementById('ac-statut-paiement').value = achat.statut_paiement || 'Non payé';
+        document.getElementById('ac-notes').value = achat.notes || '';
+
+        document.getElementById('lignes-achat').innerHTML = '';
+        if (achat.lignes && achat.lignes.length) {
+            achat.lignes.forEach(ligne => addLigneAchat(ligne));
+        } else {
+            addLigneAchat();
+        }
+        updateAchatTotal();
+
+        openModal('modal-achat');
+    } catch(e) { showToast('Erreur lors du chargement de l\'achat', 'error'); }
+}
+
+function addLigneAchat(ligne) {
+    const container = document.getElementById('lignes-achat');
+    const div = document.createElement('div');
+    div.className = 'ligne-achat';
+    div.innerHTML = `
+        <input type="text" placeholder="Désignation" class="la-designation" value="${ligne ? (ligne.designation || '') : ''}">
+        <input type="number" placeholder="Qté" class="la-quantite" value="${ligne ? (ligne.quantite || 1) : 1}" min="1" oninput="updateLigneAchatMontant(this)">
+        <input type="number" placeholder="Prix unitaire" class="la-prix-unitaire" value="${ligne ? (ligne.prix_unitaire || 0) : 0}" min="0" oninput="updateLigneAchatMontant(this)">
+        <input type="number" placeholder="Montant" class="la-montant" value="${ligne ? (ligne.montant || 0) : 0}" readonly>
+        <button class="btn-remove" onclick="this.parentElement.remove(); updateAchatTotal();">✕</button>
+    `;
+    container.appendChild(div);
+    updateAchatTotal();
+}
+
+function updateLigneAchatMontant(input) {
+    const div = input.parentElement;
+    const quantite = parseFloat(div.querySelector('.la-quantite').value) || 0;
+    const prixUnitaire = parseFloat(div.querySelector('.la-prix-unitaire').value) || 0;
+    div.querySelector('.la-montant').value = quantite * prixUnitaire;
+    updateAchatTotal();
+}
+
+function updateAchatTotal() {
+    const total = Array.from(document.querySelectorAll('.ligne-achat')).reduce((sum, div) => {
+        return sum + (parseFloat(div.querySelector('.la-montant').value) || 0);
+    }, 0);
+    document.getElementById('ac-montant-total').textContent = total.toLocaleString();
+}
+
+async function saveAchat() {
+    const id = document.getElementById('ac-id').value;
+    const lignes = Array.from(document.querySelectorAll('.ligne-achat')).map(div => ({
+        designation: div.querySelector('.la-designation').value,
+        quantite: parseFloat(div.querySelector('.la-quantite').value) || 1,
+        prix_unitaire: parseFloat(div.querySelector('.la-prix-unitaire').value) || 0,
+    })).filter(l => l.designation.trim() !== '');
+
+    if (!lignes.length) { showToast('Ajoutez au moins un article', 'warning'); return; }
+
+    const fournisseurId = document.getElementById('ac-fournisseur').value;
+    const data = {
+        fournisseur_id: fournisseurId ? parseInt(fournisseurId) : null,
+        numero_facture: document.getElementById('ac-numero-facture').value,
+        date_achat: document.getElementById('ac-date').value,
+        statut_paiement: document.getElementById('ac-statut-paiement').value,
+        notes: document.getElementById('ac-notes').value,
+        lignes: lignes
+    };
+
+    try {
+        if (id) {
+            await apiFetch(`/achats/${id}`, { method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(data) });
+        } else {
+            await apiFetch('/achats', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(data) });
+        }
+        closeModal('modal-achat');
+        loadAchats();
+        showToast('Achat enregistré !', 'success');
+    } catch(e) { showToast('Erreur lors de l\'enregistrement : ' + e.message, 'error'); }
+}
+
+async function deleteAchat(id) {
+    if (!confirm('Voulez-vous vraiment annuler cet achat ?')) return;
+    try {
+        await apiFetch(`/achats/${id}`, { method: 'DELETE' });
+        loadAchats();
+        showToast('Achat annulé', 'success');
+    } catch(e) { showToast('Erreur lors de l\'annulation : ' + e.message, 'error'); }
 }

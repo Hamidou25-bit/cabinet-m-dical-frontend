@@ -401,6 +401,7 @@
             <div style="display:flex; gap:10px; margin-bottom:15px;">
                 <button class="btn btn-primary" id="tab-comptabilite-fournisseurs" onclick="showComptabiliteTab('fournisseurs')">Fournisseurs</button>
                 <button class="btn" id="tab-comptabilite-depenses" onclick="showComptabiliteTab('depenses')">Dépenses</button>
+                <button class="btn" id="tab-comptabilite-achats" onclick="showComptabiliteTab('achats')">Achats</button>
             </div>
 
             <!-- FOURNISSEURS -->
@@ -452,6 +453,35 @@
                         </thead>
                         <tbody id="table-depenses">
                             <tr><td colspan="4" class="loading">Chargement...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- ACHATS -->
+            <div id="comptabilite-tab-achats" style="display:none;">
+                <div class="table-container">
+                    <div class="table-header">
+                        <h3>Achats</h3>
+                        <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+                            <input type="text" class="search-box" placeholder="Rechercher..." id="search-achats" oninput="filterAchats()">
+                            <button class="btn btn-primary" onclick="openNewAchatModal()">+ Nouvel achat</button>
+                        </div>
+                    </div>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>N° Facture</th>
+                                <th>Date</th>
+                                <th>Fournisseur</th>
+                                <th>Montant total</th>
+                                <th>Statut paiement</th>
+                                <th>Statut facture</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="table-achats">
+                            <tr><td colspan="7" class="loading">Chargement...</td></tr>
                         </tbody>
                     </table>
                 </div>
@@ -930,6 +960,56 @@
         <div class="modal-actions">
             <button class="btn" onclick="closeModal('modal-fournisseur')">Annuler</button>
             <button class="btn btn-primary" onclick="saveFournisseur()">Enregistrer</button>
+        </div>
+    </div>
+</div>
+
+<!-- MODAL ACHAT -->
+<div class="modal-overlay" id="modal-achat">
+    <div class="modal modal-lg">
+        <h3 id="modal-achat-title">Nouvel Achat</h3>
+        <input type="hidden" id="ac-id">
+        <div class="form-row">
+            <div class="form-group">
+                <label>N° Facture</label>
+                <input type="text" id="ac-numero-facture" placeholder="Numéro de facture">
+            </div>
+            <div class="form-group">
+                <label>Date</label>
+                <input type="date" id="ac-date">
+            </div>
+        </div>
+        <div class="form-row">
+            <div class="form-group">
+                <label>Fournisseur</label>
+                <select id="ac-fournisseur">
+                    <option value="">-- Aucun --</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Statut paiement</label>
+                <select id="ac-statut-paiement">
+                    <option value="Payé">Payé</option>
+                    <option value="Non payé">Non payé</option>
+                    <option value="Partiel">Partiel</option>
+                </select>
+            </div>
+        </div>
+        <div class="form-group">
+            <label>Notes</label>
+            <textarea id="ac-notes" rows="2" placeholder="Notes"></textarea>
+        </div>
+
+        <h3 style="margin-top: 15px; font-size: 14px;">Articles</h3>
+        <div id="lignes-achat"></div>
+        <button class="btn btn-sm" onclick="addLigneAchat()">+ Ajouter un article</button>
+        <div style="text-align:right; margin-top:10px; font-weight:600;">
+            Total : <span id="ac-montant-total">0</span> FCFA
+        </div>
+
+        <div class="modal-actions">
+            <button class="btn" onclick="closeModal('modal-achat')">Annuler</button>
+            <button class="btn btn-primary" onclick="saveAchat()">Enregistrer</button>
         </div>
     </div>
 </div>
