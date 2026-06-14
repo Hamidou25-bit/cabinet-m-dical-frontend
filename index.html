@@ -440,6 +440,7 @@
                             <select id="filter-type-depense" onchange="filterDepenses()">
                                 <option value="">Tous les types</option>
                             </select>
+                            <button class="btn btn-primary" onclick="openNewDepenseModal()">+ Nouvelle dépense</button>
                         </div>
                     </div>
                     <table>
@@ -449,10 +450,11 @@
                                 <th>Type</th>
                                 <th>Montant</th>
                                 <th>Description</th>
+                                <th>Actions</th>
                             </tr>
                         </thead>
                         <tbody id="table-depenses">
-                            <tr><td colspan="4" class="loading">Chargement...</td></tr>
+                            <tr><td colspan="5" class="loading">Chargement...</td></tr>
                         </tbody>
                     </table>
                 </div>
@@ -960,6 +962,38 @@
         <div class="modal-actions">
             <button class="btn" onclick="closeModal('modal-fournisseur')">Annuler</button>
             <button class="btn btn-primary" onclick="saveFournisseur()">Enregistrer</button>
+        </div>
+    </div>
+</div>
+
+<!-- MODAL DEPENSE -->
+<div class="modal-overlay" id="modal-depense">
+    <div class="modal">
+        <h3 id="modal-depense-title">Nouvelle Dépense</h3>
+        <input type="hidden" id="de-id">
+        <div class="form-row">
+            <div class="form-group">
+                <label>Date</label>
+                <input type="date" id="de-date">
+            </div>
+            <div class="form-group">
+                <label>Type</label>
+                <select id="de-type"></select>
+            </div>
+        </div>
+        <div class="form-row">
+            <div class="form-group">
+                <label>Montant</label>
+                <input type="number" id="de-montant" placeholder="Montant" min="0" step="any">
+            </div>
+            <div class="form-group">
+                <label>Description</label>
+                <input type="text" id="de-description" placeholder="Description">
+            </div>
+        </div>
+        <div class="modal-actions">
+            <button class="btn" onclick="closeModal('modal-depense')">Annuler</button>
+            <button class="btn btn-primary" onclick="saveDepense()">Enregistrer</button>
         </div>
     </div>
 </div>

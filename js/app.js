@@ -1414,9 +1414,13 @@ async function loadDepenses() {
 
 function renderDepenses(data) {
     const tbody = document.getElementById('table-depenses');
-    if (!data.length) { tbody.innerHTML = '<tr><td colspan="4">Aucune dépense</td></tr>'; return; }
+    if (!data.length) { tbody.innerHTML = '<tr><td colspan="5">Aucune dépense</td></tr>'; return; }
     tbody.innerHTML = data.map(d => `<tr>
         <td>${d.date_depense}</td><td>${d.type_depense}</td><td>${(d.montant || 0).toLocaleString()} FCFA</td><td>${d.description || '-'}</td>
+        <td>
+            <button class="btn btn-sm" onclick="editDepense(${d.id_depense})">Modifier</button>
+            <button class="btn btn-sm btn-danger" onclick="deleteDepense(${d.id_depense})">Supprimer</button>
+        </td>
     </tr>`).join('');
 }
 
@@ -1428,6 +1432,63 @@ function populateTypeDepenseFilter() {
 function filterDepenses() {
     const type = document.getElementById('filter-type-depense').value;
     renderDepenses(type ? depensesData.filter(d => d.type_depense === type) : depensesData);
+}
+
+function populateTypeDepenseSelect(selected) {
+    const select = document.getElementById('de-type');
+    select.innerHTML = typesDepenseData.map(t => `<option value="${t.nom}">${t.nom}</option>`).join('');
+    if (selected) select.value = selected;
+}
+
+function openNewDepenseModal() {
+    document.getElementById('modal-depense-title').textContent = 'Nouvelle Dépense';
+    document.getElementById('de-id').value = '';
+    document.getElementById('de-date').value = '';
+    populateTypeDepenseSelect('');
+    document.getElementById('de-montant').value = '';
+    document.getElementById('de-description').value = '';
+    openModal('modal-depense');
+}
+
+function editDepense(id) {
+    const depense = depensesData.find(d => d.id_depense === id);
+    if (!depense) return;
+    document.getElementById('modal-depense-title').textContent = 'Modifier Dépense';
+    document.getElementById('de-id').value = depense.id_depense;
+    document.getElementById('de-date').value = depense.date_depense;
+    populateTypeDepenseSelect(depense.type_depense);
+    document.getElementById('de-montant').value = depense.montant;
+    document.getElementById('de-description').value = depense.description || '';
+    openModal('modal-depense');
+}
+
+async function saveDepense() {
+    const id = document.getElementById('de-id').value;
+    const depense = {
+        date_depense: document.getElementById('de-date').value,
+        type_depense: document.getElementById('de-type').value,
+        montant: parseFloat(document.getElementById('de-montant').value) || 0,
+        description: document.getElementById('de-description').value,
+    };
+    try {
+        if (id) {
+            await apiFetch(`/depenses/${id}`, { method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(depense) });
+        } else {
+            await apiFetch('/depenses', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(depense) });
+        }
+        closeModal('modal-depense');
+        loadDepenses();
+        showToast('Dépense enregistrée !', 'success');
+    } catch(e) { showToast('Erreur lors de l\'enregistrement : ' + e.message, 'error'); }
+}
+
+async function deleteDepense(id) {
+    if (!confirm('Voulez-vous vraiment supprimer cette dépense ?')) return;
+    try {
+        await apiFetch(`/depenses/${id}`, { method: 'DELETE' });
+        loadDepenses();
+        showToast('Dépense supprimée !', 'success');
+    } catch(e) { showToast('Erreur lors de la suppression : ' + e.message, 'error'); }
 }
 
 // Achats
