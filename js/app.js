@@ -3,6 +3,8 @@ let stockData = [];
 let personnelData = [];
 let consultationsData = [];
 let fournisseursData = [];
+let depensesData = [];
+let typesDepenseData = [];
 
 // 1. Initialisation sécurisée (on vérifie si l'élément existe)
 document.addEventListener('DOMContentLoaded', function() {
@@ -519,7 +521,10 @@ function showStockTab(tab) {
 function showComptabiliteTab(tab) {
     document.getElementById('comptabilite-tab-fournisseurs').style.display = tab === 'fournisseurs' ? '' : 'none';
     document.getElementById('tab-comptabilite-fournisseurs').className = tab === 'fournisseurs' ? 'btn btn-primary' : 'btn';
+    document.getElementById('comptabilite-tab-depenses').style.display = tab === 'depenses' ? '' : 'none';
+    document.getElementById('tab-comptabilite-depenses').className = tab === 'depenses' ? 'btn btn-primary' : 'btn';
     if (tab === 'fournisseurs') loadFournisseurs();
+    if (tab === 'depenses') loadDepenses();
 }
 
 // Remplit le select Fournisseur du modal Stock
@@ -1388,4 +1393,36 @@ async function deleteFournisseur(id) {
         if (e.status === 409) showToast(e.detail, 'error');
         else showToast('Erreur lors de la suppression : ' + e.message, 'error');
     }
+}
+
+// Dépenses
+async function loadDepenses() {
+    try {
+        const [depenses, types] = await Promise.all([
+            apiFetch('/depenses').then(r => r.json()),
+            apiFetch('/type-depense').then(r => r.json())
+        ]);
+        depensesData = depenses;
+        typesDepenseData = types;
+        populateTypeDepenseFilter();
+        renderDepenses(depensesData);
+    } catch(e) { document.getElementById('table-depenses').innerHTML = '<tr><td colspan="4">Erreur</td></tr>'; }
+}
+
+function renderDepenses(data) {
+    const tbody = document.getElementById('table-depenses');
+    if (!data.length) { tbody.innerHTML = '<tr><td colspan="4">Aucune dépense</td></tr>'; return; }
+    tbody.innerHTML = data.map(d => `<tr>
+        <td>${d.date_depense}</td><td>${d.type_depense}</td><td>${(d.montant || 0).toLocaleString()} FCFA</td><td>${d.description || '-'}</td>
+    </tr>`).join('');
+}
+
+function populateTypeDepenseFilter() {
+    const select = document.getElementById('filter-type-depense');
+    select.innerHTML = '<option value="">Tous les types</option>' + typesDepenseData.map(t => `<option value="${t.nom}">${t.nom}</option>`).join('');
+}
+
+function filterDepenses() {
+    const type = document.getElementById('filter-type-depense').value;
+    renderDepenses(type ? depensesData.filter(d => d.type_depense === type) : depensesData);
 }
