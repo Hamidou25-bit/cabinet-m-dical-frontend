@@ -633,9 +633,97 @@ function showComptabiliteTab(tab) {
     document.getElementById('tab-comptabilite-depenses').className = tab === 'depenses' ? 'btn btn-primary' : 'btn';
     document.getElementById('comptabilite-tab-achats').style.display = tab === 'achats' ? '' : 'none';
     document.getElementById('tab-comptabilite-achats').className = tab === 'achats' ? 'btn btn-primary' : 'btn';
+    document.getElementById('comptabilite-tab-synthese').style.display = tab === 'synthese' ? '' : 'none';
+    document.getElementById('tab-comptabilite-synthese').className = tab === 'synthese' ? 'btn btn-primary' : 'btn';
     if (tab === 'fournisseurs') loadFournisseurs();
     if (tab === 'depenses') loadDepenses();
     if (tab === 'achats') loadAchats();
+    if (tab === 'synthese') loadSynthese();
+}
+
+// Synthèse Comptabilité (Recettes / Dépenses / Profit)
+let syntheseChart = null;
+
+function setSynthesePeriode(periode) {
+    const today = new Date();
+    let debut, fin;
+    if (periode === 'mois') {
+        debut = new Date(today.getFullYear(), today.getMonth(), 1);
+        fin = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+    } else if (periode === 'mois-dernier') {
+        debut = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+        fin = new Date(today.getFullYear(), today.getMonth(), 0);
+    } else if (periode === 'annee') {
+        debut = new Date(today.getFullYear(), 0, 1);
+        fin = new Date(today.getFullYear(), 11, 31);
+    } else if (periode === 'tout') {
+        debut = new Date(2000, 0, 1);
+        fin = new Date(2100, 11, 31);
+    }
+    document.getElementById('synthese-date-debut').value = debut.toISOString().split('T')[0];
+    document.getElementById('synthese-date-fin').value = fin.toISOString().split('T')[0];
+    loadSynthese();
+}
+
+async function loadSynthese() {
+    let dateDebut = document.getElementById('synthese-date-debut').value;
+    let dateFin = document.getElementById('synthese-date-fin').value;
+    if (!dateDebut || !dateFin) {
+        const today = new Date();
+        dateDebut = new Date(today.getFullYear(), today.getMonth(), 1).toISOString().split('T')[0];
+        dateFin = new Date(today.getFullYear(), today.getMonth() + 1, 0).toISOString().split('T')[0];
+        document.getElementById('synthese-date-debut').value = dateDebut;
+        document.getElementById('synthese-date-fin').value = dateFin;
+    }
+    try {
+        const data = await apiFetch(`/comptabilite/synthese?date_debut=${dateDebut}&date_fin=${dateFin}`).then(r => r.json());
+        renderSynthese(data);
+    } catch (e) {
+        showToast('Erreur lors du chargement de la synthèse', 'error');
+    }
+}
+
+function renderSynthese(data) {
+    const r = data.recettes;
+    document.getElementById('synthese-recettes').textContent = `${r.total.toLocaleString()} FCFA`;
+    document.getElementById('synthese-recettes-detail').innerHTML =
+        `Consultations: ${r.detail.consultations.toLocaleString()} · Ordonnances: ${r.detail.ordonnances.toLocaleString()}<br>`
+        + `Soins: ${r.detail.soins.toLocaleString()} · Examens: ${r.detail.examens.toLocaleString()}`;
+
+    const d = data.depenses;
+    document.getElementById('synthese-depenses').textContent = `${d.total.toLocaleString()} FCFA`;
+    document.getElementById('synthese-depenses-detail').innerHTML =
+        `Achats fournisseurs: ${d.detail.achats_fournisseurs.toLocaleString()} · Autres: ${d.detail.autres.toLocaleString()}`;
+
+    const profitEl = document.getElementById('synthese-profit');
+    profitEl.textContent = `${data.profit.toLocaleString()} FCFA`;
+    const profitCard = document.getElementById('synthese-profit-card');
+    profitCard.className = 'card ' + (data.profit >= 0 ? '' : 'orange');
+
+    renderSyntheseChart(data.evolution);
+}
+
+function renderSyntheseChart(evolution) {
+    const ctx = document.getElementById('synthese-chart');
+    const labels = evolution.map(e => e.mois);
+    const recettes = evolution.map(e => e.recettes);
+    const depenses = evolution.map(e => e.depenses);
+
+    if (syntheseChart) syntheseChart.destroy();
+    syntheseChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: labels,
+            datasets: [
+                { label: 'Recettes', data: recettes, backgroundColor: '#0D9488' },
+                { label: 'Dépenses', data: depenses, backgroundColor: '#DC2626' },
+            ]
+        },
+        options: {
+            responsive: true,
+            scales: { y: { beginAtZero: true } }
+        }
+    });
 }
 
 // Remplit un select Fournisseur (Stock : valeur = nom, Achats : valeur = id)

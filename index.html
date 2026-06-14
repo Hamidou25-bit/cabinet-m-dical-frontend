@@ -402,6 +402,7 @@
                 <button class="btn btn-primary" id="tab-comptabilite-fournisseurs" onclick="showComptabiliteTab('fournisseurs')">Fournisseurs</button>
                 <button class="btn" id="tab-comptabilite-depenses" onclick="showComptabiliteTab('depenses')">Dépenses</button>
                 <button class="btn" id="tab-comptabilite-achats" onclick="showComptabiliteTab('achats')">Achats</button>
+                <button class="btn" id="tab-comptabilite-synthese" onclick="showComptabiliteTab('synthese')">Synthèse</button>
             </div>
 
             <!-- FOURNISSEURS -->
@@ -495,6 +496,51 @@
                             <tr><td colspan="6" class="loading">Chargement...</td></tr>
                         </tbody>
                     </table>
+                </div>
+            </div>
+
+            <!-- SYNTHESE -->
+            <div id="comptabilite-tab-synthese" style="display:none;">
+                <div class="table-container">
+                    <div class="table-header">
+                        <h3>Synthèse Recettes / Dépenses / Profit</h3>
+                        <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+                            <input type="date" id="synthese-date-debut" title="Date de début">
+                            <input type="date" id="synthese-date-fin" title="Date de fin">
+                            <button class="btn" onclick="setSynthesePeriode('mois')">Ce mois</button>
+                            <button class="btn" onclick="setSynthesePeriode('mois-dernier')">Mois dernier</button>
+                            <button class="btn" onclick="setSynthesePeriode('annee')">Cette année</button>
+                            <button class="btn" onclick="setSynthesePeriode('tout')">Tout</button>
+                            <button class="btn btn-primary" onclick="loadSynthese()">Appliquer</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="cards-grid">
+                    <div class="card green">
+                        <h3>Recettes</h3>
+                        <div class="value" id="synthese-recettes">...</div>
+                        <div class="sub" id="synthese-recettes-detail"></div>
+                    </div>
+                    <div class="card orange">
+                        <h3>Dépenses</h3>
+                        <div class="value" id="synthese-depenses">...</div>
+                        <div class="sub" id="synthese-depenses-detail"></div>
+                    </div>
+                    <div class="card" id="synthese-profit-card">
+                        <h3>Profit</h3>
+                        <div class="value" id="synthese-profit">...</div>
+                        <div class="sub">Recettes - Dépenses</div>
+                    </div>
+                </div>
+
+                <div class="table-container">
+                    <div class="table-header">
+                        <h3>Évolution mensuelle</h3>
+                    </div>
+                    <div style="padding: 20px;">
+                        <canvas id="synthese-chart" height="100"></canvas>
+                    </div>
                 </div>
             </div>
         </div>
@@ -1079,6 +1125,7 @@
 <div id="toast-container"></div>
 
 <script src="https://cdn.sheetjs.com/xlsx-0.20.2/package/dist/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
 <script src="js/app.js"></script>
 </body>
 </html>
