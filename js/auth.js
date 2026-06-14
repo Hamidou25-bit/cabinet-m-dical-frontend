@@ -28,6 +28,18 @@ async function apiFetch(path, options = {}) {
         return null;
     }
 
+    if (!response.ok) {
+        let detail = `Erreur ${response.status}`;
+        try {
+            const body = await response.json();
+            if (body.detail) detail = body.detail;
+        } catch (e) {}
+        const error = new Error(detail);
+        error.status = response.status;
+        error.detail = detail;
+        throw error;
+    }
+
     return response;
 }
 

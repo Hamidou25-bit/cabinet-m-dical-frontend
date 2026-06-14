@@ -135,12 +135,14 @@
                             <th>Âge</th>
                             <th>Sexe</th>
                             <th>Téléphone</th>
+                            <th>N° Dossier</th>
+                            <th>Email</th>
                             <th>Date enreg.</th>
                             <th>Actions</th>
                         </tr>
                     </thead>
                     <tbody id="table-patients">
-                        <tr><td colspan="7" class="loading">Chargement...</td></tr>
+                        <tr><td colspan="9" class="loading">Chargement...</td></tr>
                     </tbody>
                 </table>
             </div>
@@ -292,15 +294,18 @@
                             <tr>
                                 <th>Désignation</th>
                                 <th>Type</th>
+                                <th>Dosage</th>
+                                <th>Forme</th>
                                 <th>Quantité</th>
                                 <th>Seuil alerte</th>
                                 <th>Prix vente</th>
+                                <th>Péremption</th>
                                 <th>Statut</th>
                                 <th>Actions</th>
                             </tr>
                         </thead>
                         <tbody id="table-stock">
-                            <tr><td colspan="7" class="loading">Chargement...</td></tr>
+                            <tr><td colspan="10" class="loading">Chargement...</td></tr>
                         </tbody>
                     </table>
                 </div>
@@ -432,6 +437,30 @@
         <div class="form-group">
             <label>Adresse</label>
             <input type="text" id="p-adresse" placeholder="Adresse">
+        </div>
+        <div class="form-row">
+            <div class="form-group">
+                <label>N° Dossier</label>
+                <input type="text" id="p-numero-dossier" placeholder="Numéro de dossier">
+            </div>
+            <div class="form-group">
+                <label>Email</label>
+                <input type="email" id="p-email" placeholder="Email">
+            </div>
+        </div>
+        <div class="form-group">
+            <label>Ethnie</label>
+            <input type="text" id="p-ethnie" placeholder="Ethnie" list="p-ethnie-list">
+            <datalist id="p-ethnie-list">
+                <option value="Peulh">
+                <option value="Soninke">
+                <option value="Wolof">
+                <option value="Maure">
+                <option value="Bambara">
+                <option value="Mandingue">
+                <option value="Soussou">
+                <option value="Diola">
+            </datalist>
         </div>
         <div class="modal-actions">
             <button class="btn" onclick="closeModal('modal-patient')">Annuler</button>
@@ -676,9 +705,35 @@
                 <input type="number" id="st-prix-vente">
             </div>
         </div>
-        <div class="form-group">
-            <label>Prix achat</label>
-            <input type="number" id="st-prix-achat">
+        <div class="form-row">
+            <div class="form-group">
+                <label>Prix achat</label>
+                <input type="number" id="st-prix-achat">
+            </div>
+            <div class="form-group">
+                <label>Date de péremption</label>
+                <input type="date" id="st-peremption">
+            </div>
+        </div>
+        <div class="form-row">
+            <div class="form-group">
+                <label>Dosage</label>
+                <input type="text" id="st-dosage" placeholder="Ex: 500 mg">
+            </div>
+            <div class="form-group">
+                <label>Forme</label>
+                <select id="st-forme">
+                    <option value="">-- Choisir --</option>
+                    <option value="Comprimé">Comprimé</option>
+                    <option value="Sirop">Sirop</option>
+                    <option value="Injectable">Injectable</option>
+                    <option value="Sachet">Sachet</option>
+                    <option value="Pommade">Pommade</option>
+                    <option value="Suppositoire">Suppositoire</option>
+                    <option value="Goutte">Goutte</option>
+                    <option value="Autre">Autre</option>
+                </select>
+            </div>
         </div>
         <div class="modal-actions">
             <button class="btn" onclick="closeModal('modal-stock-edit')">Annuler</button>

@@ -92,9 +92,9 @@ async function loadPatients() {
 
 function renderPatients(data) {
     const tbody = document.getElementById('table-patients');
-    if (!data.length) { tbody.innerHTML = '<tr><td colspan="7">Aucun patient</td></tr>'; return; }
+    if (!data.length) { tbody.innerHTML = '<tr><td colspan="9">Aucun patient</td></tr>'; return; }
     tbody.innerHTML = data.map(p => `<tr>
-        <td>${p.nom}</td><td>${p.prenom}</td><td>${p.age}</td><td>${p.sexe}</td><td>${p.telephone || '-'}</td><td>${p.date_enregistrement}</td>
+        <td>${p.nom}</td><td>${p.prenom}</td><td>${p.age}</td><td>${p.sexe}</td><td>${p.telephone || '-'}</td><td>${p.numero_dossier || '-'}</td><td>${p.email || '-'}</td><td>${p.date_enregistrement}</td>
         <td>
             <button class="btn btn-sm" onclick="editPatient(${p.id})">Modifier</button>
             <button class="btn btn-sm btn-danger" onclick="deletePatient(${p.id})">Supprimer</button>
@@ -129,6 +129,9 @@ function exportPatientsExcel() {
         'Téléphone': p.telephone || '',
         'Adresse': p.adresse || '',
         'Profession': p.profession || '',
+        'N° Dossier': p.numero_dossier || '',
+        'Email': p.email || '',
+        'Ethnie': p.ethnie || '',
         "Date d'enregistrement": p.date_enregistrement
     }));
     const ws = XLSX.utils.json_to_sheet(rows);
@@ -147,6 +150,9 @@ function openNewPatientModal() {
     document.getElementById('p-telephone').value = '';
     document.getElementById('p-profession').value = '';
     document.getElementById('p-adresse').value = '';
+    document.getElementById('p-numero-dossier').value = '';
+    document.getElementById('p-email').value = '';
+    document.getElementById('p-ethnie').value = '';
     openModal('modal-patient');
 }
 
@@ -162,6 +168,9 @@ function editPatient(id) {
     document.getElementById('p-telephone').value = patient.telephone || '';
     document.getElementById('p-profession').value = patient.profession || '';
     document.getElementById('p-adresse').value = patient.adresse || '';
+    document.getElementById('p-numero-dossier').value = patient.numero_dossier || '';
+    document.getElementById('p-email').value = patient.email || '';
+    document.getElementById('p-ethnie').value = patient.ethnie || '';
     openModal('modal-patient');
 }
 
@@ -175,6 +184,9 @@ async function savePatient() {
         telephone: document.getElementById('p-telephone').value,
         profession: document.getElementById('p-profession').value,
         adresse: document.getElementById('p-adresse').value,
+        numero_dossier: document.getElementById('p-numero-dossier').value,
+        email: document.getElementById('p-email').value,
+        ethnie: document.getElementById('p-ethnie').value,
         date_enregistrement: new Date().toISOString().split('T')[0]
     };
     try {
@@ -184,7 +196,7 @@ async function savePatient() {
             await apiFetch('/patients', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(patient) });
         }
         closeModal('modal-patient'); loadPatients(); loadDashboard(); alert('Patient enregistré !');
-    } catch(e) { alert('Erreur'); }
+    } catch(e) { alert('Erreur lors de l\'enregistrement : ' + e.message); }
 }
 
 async function deletePatient(id) {
@@ -393,7 +405,7 @@ async function saveConsultation() {
         closeModal('modal-consultation');
         loadConsultations();
         alert('Consultation enregistrée !');
-    } catch(e) { alert('Erreur lors de l\'enregistrement'); }
+    } catch(e) { alert('Erreur lors de l\'enregistrement : ' + e.message); }
 }
 
 async function deleteConsultation(id) {
@@ -407,21 +419,36 @@ async function deleteConsultation(id) {
 // Stock
 async function loadStock() {
     try {
-        const [data, alertes] = await Promise.all([apiFetch('/stock').then(r => r.json()), apiFetch('/stock/alertes').then(r => r.json())]);
+        const [data, alertes, alertesPeremption] = await Promise.all([
+            apiFetch('/stock').then(r => r.json()),
+            apiFetch('/stock/alertes').then(r => r.json()),
+            apiFetch('/stock/alertes-peremption').then(r => r.json())
+        ]);
         stockData = data;
         const alertDiv = document.getElementById('alertes-stock');
-        alertDiv.innerHTML = alertes.length > 0 ? `<div class="alert alert-warning">⚠️ ${alertes.length} article(s) en alerte</div>` : '';
+        let alertsHtml = '';
+        if (alertes.length > 0) alertsHtml += `<div class="alert alert-warning">⚠️ ${alertes.length} article(s) en alerte de stock</div>`;
+        if (alertesPeremption.length > 0) alertsHtml += `<div class="alert alert-warning">⏳ ${alertesPeremption.length} article(s) proche(s) de leur date de péremption</div>`;
+        alertDiv.innerHTML = alertsHtml;
         renderStock(data);
-    } catch(e) { document.getElementById('table-stock').innerHTML = '<tr><td colspan="7">Erreur</td></tr>'; }
+    } catch(e) { document.getElementById('table-stock').innerHTML = '<tr><td colspan="10">Erreur</td></tr>'; }
 }
 
 function renderStock(data) {
     const tbody = document.getElementById('table-stock');
-    if (!data.length) { tbody.innerHTML = '<tr><td colspan="7">Aucun article</td></tr>'; return; }
+    if (!data.length) { tbody.innerHTML = '<tr><td colspan="10">Aucun article</td></tr>'; return; }
+    const dans30Jours = new Date();
+    dans30Jours.setDate(dans30Jours.getDate() + 30);
     tbody.innerHTML = data.map(s => {
         const statut = s.Quantite <= 0 ? '<span class="status status-danger">Rupture</span>' : s.Quantite <= s.SeuilAlerte ? '<span class="status status-warning">Alerte</span>' : '<span class="status status-ok">Normal</span>';
+        let peremption = '-';
+        if (s.DatePeremption) {
+            const datePeremption = new Date(s.DatePeremption);
+            const classe = datePeremption <= new Date() ? 'status-danger' : datePeremption <= dans30Jours ? 'status-warning' : 'status-ok';
+            peremption = `<span class="status ${classe}">${s.DatePeremption}</span>`;
+        }
         return `<tr>
-            <td>${s.Designation||''}</td><td>${s.Type||''}</td><td>${s.Quantite||0}</td><td>${s.SeuilAlerte||0}</td><td>${(s.PrixVente||0).toLocaleString()} FCFA</td><td>${statut}</td>
+            <td>${s.Designation||''}</td><td>${s.Type||''}</td><td>${s.Dosage||'-'}</td><td>${s.Forme||'-'}</td><td>${s.Quantite||0}</td><td>${s.SeuilAlerte||0}</td><td>${(s.PrixVente||0).toLocaleString()} FCFA</td><td>${peremption}</td><td>${statut}</td>
             <td>
                 <button class="btn btn-sm" onclick="editStockArticle(${s.idStock})">Modifier</button>
                 <button class="btn btn-sm btn-primary" onclick="openSortieModal(${s.idStock})">Sortie</button>
@@ -457,6 +484,9 @@ function editStockArticle(id) {
     document.getElementById('st-seuil').value = article.SeuilAlerte || 0;
     document.getElementById('st-prix-vente').value = article.PrixVente || 0;
     document.getElementById('st-prix-achat').value = article.PrixAchat || 0;
+    document.getElementById('st-dosage').value = article.Dosage || '';
+    document.getElementById('st-forme').value = article.Forme || '';
+    document.getElementById('st-peremption').value = article.DatePeremption || '';
     openModal('modal-stock-edit');
 }
 
@@ -471,13 +501,16 @@ async function saveStockArticle() {
         SeuilAlerte: parseInt(document.getElementById('st-seuil').value) || 0,
         PrixVente: parseFloat(document.getElementById('st-prix-vente').value) || 0,
         PrixAchat: parseFloat(document.getElementById('st-prix-achat').value) || 0,
+        Dosage: document.getElementById('st-dosage').value,
+        Forme: document.getElementById('st-forme').value,
+        DatePeremption: document.getElementById('st-peremption').value,
     };
     try {
         await apiFetch(`/stock/${id}`, { method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(article) });
         closeModal('modal-stock-edit');
         loadStock();
         alert('Article mis à jour !');
-    } catch(e) { alert('Erreur'); }
+    } catch(e) { alert('Erreur lors de la mise à jour : ' + e.message); }
 }
 
 // Sortie de stock
@@ -506,7 +539,7 @@ async function saveSortie() {
         closeModal('modal-sortie');
         loadStock();
         alert('Sortie enregistrée !');
-    } catch(e) { alert('Erreur lors de l\'enregistrement'); }
+    } catch(e) { alert('Erreur lors de l\'enregistrement : ' + e.message); }
 }
 
 async function loadSorties() {
@@ -699,7 +732,7 @@ async function saveOrdonnance() {
         closeModal('modal-ordonnance');
         loadOrdonnances();
         alert('Ordonnance enregistrée !');
-    } catch(e) { alert('Erreur lors de l\'enregistrement'); }
+    } catch(e) { alert('Erreur lors de l\'enregistrement : ' + e.message); }
 }
 
 async function deleteOrdonnance(id) {
@@ -843,7 +876,7 @@ async function saveRendezVous() {
         closeModal('modal-rendez-vous');
         loadRendezVous();
         alert('Rendez-vous enregistré !');
-    } catch(e) { alert('Erreur lors de l\'enregistrement'); }
+    } catch(e) { alert('Erreur lors de l\'enregistrement : ' + e.message); }
 }
 
 async function deleteRendezVous(id) {
@@ -1016,7 +1049,7 @@ async function saveExamen() {
         closeModal('modal-examen');
         loadExamens();
         alert('Examen enregistré !');
-    } catch(e) { alert('Erreur lors de l\'enregistrement'); }
+    } catch(e) { alert('Erreur lors de l\'enregistrement : ' + e.message); }
 }
 
 async function deleteExamen(id) {
@@ -1135,7 +1168,7 @@ async function savePersonnel() {
         closeModal('modal-personnel');
         loadPersonnel();
         alert('Membre du personnel enregistré !');
-    } catch(e) { alert('Erreur lors de l\'enregistrement'); }
+    } catch(e) { alert('Erreur lors de l\'enregistrement : ' + e.message); }
 }
 
 async function deactivatePersonnel(id) {
@@ -1200,19 +1233,17 @@ async function saveMedecin() {
         medecinsData = [];
         loadMedecins();
         alert('Médecin enregistré !');
-    } catch(e) { alert('Erreur lors de l\'enregistrement'); }
+    } catch(e) { alert('Erreur lors de l\'enregistrement : ' + e.message); }
 }
 
 async function deleteMedecin(id) {
     if (!confirm('Voulez-vous vraiment supprimer ce médecin ?')) return;
     try {
-        const res = await apiFetch(`/medecins/${id}`, { method: 'DELETE' });
-        if (res.status === 409) {
-            const body = await res.json();
-            alert(body.detail || 'Suppression impossible');
-            return;
-        }
+        await apiFetch(`/medecins/${id}`, { method: 'DELETE' });
         medecinsData = [];
         loadMedecins();
-    } catch(e) { alert('Erreur lors de la suppression'); }
+    } catch(e) {
+        if (e.status === 409) alert(e.detail);
+        else alert('Erreur lors de la suppression : ' + e.message);
+    }
 }
