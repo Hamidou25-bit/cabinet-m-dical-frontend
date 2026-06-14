@@ -440,6 +440,11 @@
                             <select id="filter-type-depense" onchange="filterDepenses()">
                                 <option value="">Tous les types</option>
                             </select>
+                            <input type="date" id="filter-depenses-date-debut" title="Date de dépense - du">
+                            <input type="date" id="filter-depenses-date-fin" title="Date de dépense - au">
+                            <button class="btn" onclick="filterDepenses()">Filtrer</button>
+                            <button class="btn" onclick="resetFilterDepenses()">Réinitialiser</button>
+                            <button class="btn" onclick="exportDepensesExcel()">📊 Exporter Excel</button>
                             <button class="btn btn-primary" onclick="openNewDepenseModal()">+ Nouvelle dépense</button>
                         </div>
                     </div>
@@ -467,6 +472,11 @@
                         <h3>Achats</h3>
                         <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
                             <input type="text" class="search-box" placeholder="Rechercher..." id="search-achats" oninput="filterAchats()">
+                            <input type="date" id="filter-achats-date-debut" title="Date d'achat - du">
+                            <input type="date" id="filter-achats-date-fin" title="Date d'achat - au">
+                            <button class="btn" onclick="filterAchats()">Filtrer</button>
+                            <button class="btn" onclick="resetFilterAchats()">Réinitialiser</button>
+                            <button class="btn" onclick="exportAchatsExcel()">📊 Exporter Excel</button>
                             <button class="btn btn-primary" onclick="openNewAchatModal()">+ Nouvel achat</button>
                         </div>
                     </div>
@@ -478,12 +488,11 @@
                                 <th>Fournisseur</th>
                                 <th>Montant total</th>
                                 <th>Statut paiement</th>
-                                <th>Statut facture</th>
                                 <th>Actions</th>
                             </tr>
                         </thead>
                         <tbody id="table-achats">
-                            <tr><td colspan="7" class="loading">Chargement...</td></tr>
+                            <tr><td colspan="6" class="loading">Chargement...</td></tr>
                         </tbody>
                     </table>
                 </div>
@@ -1041,6 +1050,7 @@
         </div>
 
         <h3 style="margin-top: 15px; font-size: 14px;">Articles</h3>
+        <datalist id="stock-designations"></datalist>
         <div id="lignes-achat"></div>
         <button class="btn btn-sm" onclick="addLigneAchat()">+ Ajouter un article</button>
         <div style="text-align:right; margin-top:10px; font-weight:600;">
@@ -1050,6 +1060,18 @@
         <div class="modal-actions">
             <button class="btn" onclick="closeModal('modal-achat')">Annuler</button>
             <button class="btn btn-primary" onclick="saveAchat()">Enregistrer</button>
+        </div>
+    </div>
+</div>
+
+<!-- MODAL CONFIRMATION -->
+<div class="modal-overlay" id="modal-confirm">
+    <div class="modal">
+        <h3 id="modal-confirm-title">Confirmation</h3>
+        <p id="modal-confirm-message"></p>
+        <div class="modal-actions">
+            <button class="btn" onclick="closeModal('modal-confirm')">Annuler</button>
+            <button class="btn btn-danger" id="modal-confirm-btn">Confirmer</button>
         </div>
     </div>
 </div>

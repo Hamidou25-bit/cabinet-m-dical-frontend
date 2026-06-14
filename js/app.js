@@ -64,6 +64,15 @@ function openModal(id) {
 }
 function closeModal(id) { document.getElementById(id).classList.remove('active'); }
 
+function openConfirmModal(message, onConfirm) {
+    document.getElementById('modal-confirm-message').textContent = message;
+    document.getElementById('modal-confirm-btn').onclick = () => {
+        closeModal('modal-confirm');
+        onConfirm();
+    };
+    openModal('modal-confirm');
+}
+
 // Validation générique des champs obligatoires d'un formulaire/modal
 // fields: [{ id, label, highlightId?, min? }]
 // - id : id de l'input/select contenant la valeur à vérifier
@@ -448,6 +457,24 @@ async function ensureFournisseursLoaded() {
     }
 }
 
+async function ensureStockLoaded() {
+    if (stockData.length) return;
+    try {
+        const data = await apiFetch('/stock').then(r => r.json());
+        stockData = Array.isArray(data) ? data : [];
+    } catch (e) {
+        stockData = [];
+    }
+}
+
+function populateStockDesignationsDatalist() {
+    const datalist = document.getElementById('stock-designations');
+    datalist.innerHTML = stockData.map(s => {
+        const details = [s.Dosage, s.Forme].filter(Boolean).join(' - ');
+        return `<option value="${s.Designation}">${s.Designation}${details ? ' (' + details + ')' : ''}</option>`;
+    }).join('');
+}
+
 async function openNewConsultationModal() {
     document.getElementById('modal-consultation-title').textContent = 'Nouvelle Consultation';
     document.getElementById('co-id').value = '';
@@ -567,7 +594,7 @@ function renderStock(data) {
     const dans30Jours = new Date();
     dans30Jours.setDate(dans30Jours.getDate() + 30);
     tbody.innerHTML = data.map(s => {
-        const statut = s.Quantite <= 0 ? '<span class="status status-danger">Rupture</span>' : s.Quantite <= s.SeuilAlerte ? '<span class="status status-warning">Alerte</span>' : '<span class="status status-ok">Normal</span>';
+        const statut = s.Quantite < 0 ? '<span class="status status-danger">Anomalie</span>' : s.Quantite <= 0 ? '<span class="status status-danger">Rupture</span>' : s.Quantite <= s.SeuilAlerte ? '<span class="status status-warning">Alerte</span>' : '<span class="status status-ok">Normal</span>';
         let peremption = '-';
         if (s.DatePeremption) {
             const datePeremption = new Date(s.DatePeremption);
@@ -1534,13 +1561,16 @@ async function loadDepenses() {
 function renderDepenses(data) {
     const tbody = document.getElementById('table-depenses');
     if (!data.length) { tbody.innerHTML = '<tr><td colspan="5">Aucune dépense</td></tr>'; return; }
-    tbody.innerHTML = data.map(d => `<tr>
+    tbody.innerHTML = data.map(d => {
+        const actions = d.achat_id
+            ? `<span class="status status-ok" title="Générée automatiquement depuis l'achat #${d.achat_id}. Modifiez ou annulez cet achat pour la mettre à jour.">Liée à l'achat #${d.achat_id}</span>`
+            : `<button class="btn btn-sm" onclick="editDepense(${d.id_depense})">Modifier</button>
+               <button class="btn btn-sm btn-danger" onclick="deleteDepense(${d.id_depense})">Supprimer</button>`;
+        return `<tr>
         <td>${d.date_depense}</td><td>${d.type_depense}</td><td>${(d.montant || 0).toLocaleString()} FCFA</td><td>${d.description || '-'}</td>
-        <td>
-            <button class="btn btn-sm" onclick="editDepense(${d.id_depense})">Modifier</button>
-            <button class="btn btn-sm btn-danger" onclick="deleteDepense(${d.id_depense})">Supprimer</button>
-        </td>
-    </tr>`).join('');
+        <td>${actions}</td>
+    </tr>`;
+    }).join('');
 }
 
 function populateTypeDepenseFilter() {
@@ -1548,9 +1578,43 @@ function populateTypeDepenseFilter() {
     select.innerHTML = '<option value="">Tous les types</option>' + typesDepenseData.map(t => `<option value="${t.nom}">${t.nom}</option>`).join('');
 }
 
-function filterDepenses() {
+function getFilteredDepenses() {
     const type = document.getElementById('filter-type-depense').value;
-    renderDepenses(type ? depensesData.filter(d => d.type_depense === type) : depensesData);
+    const dateDebut = document.getElementById('filter-depenses-date-debut').value;
+    const dateFin = document.getElementById('filter-depenses-date-fin').value;
+    return depensesData.filter(d => {
+        const matchType = !type || d.type_depense === type;
+        const matchDateDebut = !dateDebut || (d.date_depense && d.date_depense >= dateDebut);
+        const matchDateFin = !dateFin || (d.date_depense && d.date_depense <= dateFin);
+        return matchType && matchDateDebut && matchDateFin;
+    });
+}
+
+function filterDepenses() {
+    renderDepenses(getFilteredDepenses());
+}
+
+function resetFilterDepenses() {
+    document.getElementById('filter-type-depense').value = '';
+    document.getElementById('filter-depenses-date-debut').value = '';
+    document.getElementById('filter-depenses-date-fin').value = '';
+    renderDepenses(depensesData);
+}
+
+function exportDepensesExcel() {
+    const data = getFilteredDepenses();
+    if (!data.length) { showToast('Aucune dépense à exporter', 'warning'); return; }
+    const rows = data.map(d => ({
+        'Date': d.date_depense || '',
+        'Type': d.type_depense || '',
+        'Montant': d.montant || 0,
+        'Description': d.description || '',
+        "Lié à l'achat": d.achat_id ? `#${d.achat_id}` : '',
+    }));
+    const ws = XLSX.utils.json_to_sheet(rows);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Dépenses');
+    XLSX.writeFile(wb, `depenses_${new Date().toISOString().split('T')[0]}.xlsx`);
 }
 
 function populateTypeDepenseSelect(selected) {
@@ -1643,44 +1707,77 @@ async function deleteDepense(id) {
 // Achats
 let achatsData = [];
 const statutPaiementClasses = { 'Payé': 'status-ok', 'Non payé': 'status-danger', 'Partiel': 'status-warning' };
-const statutFactureClasses = { 'Actif': 'status-ok', 'Annulé': 'status-danger' };
 
 async function loadAchats() {
     try {
         const [achats] = await Promise.all([apiFetch('/achats').then(r => r.json()), ensureFournisseursLoaded()]);
         achatsData = achats;
         renderAchats(achatsData);
-    } catch(e) { document.getElementById('table-achats').innerHTML = '<tr><td colspan="7">Erreur</td></tr>'; }
+    } catch(e) { document.getElementById('table-achats').innerHTML = '<tr><td colspan="6">Erreur</td></tr>'; }
 }
 
 function renderAchats(data) {
     const tbody = document.getElementById('table-achats');
-    if (!data.length) { tbody.innerHTML = '<tr><td colspan="7">Aucun achat</td></tr>'; return; }
+    if (!data.length) { tbody.innerHTML = '<tr><td colspan="6">Aucun achat</td></tr>'; return; }
     tbody.innerHTML = data.map(a => `<tr>
         <td>${a.numero_facture || '-'}</td>
         <td>${a.date_achat || ''}</td>
         <td>${a.fournisseur_nom || '-'}</td>
         <td>${(a.montant_total || 0).toLocaleString()} FCFA</td>
         <td><span class="status ${statutPaiementClasses[a.statut_paiement] || 'status-warning'}">${a.statut_paiement || ''}</span></td>
-        <td><span class="status ${statutFactureClasses[a.statut_facture] || 'status-warning'}">${a.statut_facture || ''}</span></td>
         <td>
             <button class="btn btn-sm" onclick="editAchat(${a.id})">Modifier</button>
-            <button class="btn btn-sm btn-danger" onclick="deleteAchat(${a.id})">Annuler</button>
+            <button class="btn btn-sm btn-danger" onclick="deleteAchat(${a.id})">Supprimer</button>
         </td>
     </tr>`).join('');
 }
 
-function filterAchats() {
+function getFilteredAchats() {
     const q = document.getElementById('search-achats').value.toLowerCase();
-    renderAchats(achatsData.filter(a => (a.numero_facture||'').toLowerCase().includes(q)
-        || (a.fournisseur_nom||'').toLowerCase().includes(q)
-        || (a.statut_paiement||'').toLowerCase().includes(q)));
+    const dateDebut = document.getElementById('filter-achats-date-debut').value;
+    const dateFin = document.getElementById('filter-achats-date-fin').value;
+    return achatsData.filter(a => {
+        const matchQ = (a.numero_facture||'').toLowerCase().includes(q)
+            || (a.fournisseur_nom||'').toLowerCase().includes(q)
+            || (a.statut_paiement||'').toLowerCase().includes(q);
+        const matchDateDebut = !dateDebut || (a.date_achat && a.date_achat >= dateDebut);
+        const matchDateFin = !dateFin || (a.date_achat && a.date_achat <= dateFin);
+        return matchQ && matchDateDebut && matchDateFin;
+    });
+}
+
+function filterAchats() {
+    renderAchats(getFilteredAchats());
+}
+
+function resetFilterAchats() {
+    document.getElementById('search-achats').value = '';
+    document.getElementById('filter-achats-date-debut').value = '';
+    document.getElementById('filter-achats-date-fin').value = '';
+    renderAchats(achatsData);
+}
+
+function exportAchatsExcel() {
+    const data = getFilteredAchats();
+    if (!data.length) { showToast('Aucun achat à exporter', 'warning'); return; }
+    const rows = data.map(a => ({
+        'N° Facture': a.numero_facture || '',
+        'Date': a.date_achat || '',
+        'Fournisseur': a.fournisseur_nom || '',
+        'Montant total': a.montant_total || 0,
+        'Statut paiement': a.statut_paiement || '',
+    }));
+    const ws = XLSX.utils.json_to_sheet(rows);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Achats');
+    XLSX.writeFile(wb, `achats_${new Date().toISOString().split('T')[0]}.xlsx`);
 }
 
 async function openNewAchatModal() {
     document.getElementById('modal-achat-title').textContent = 'Nouvel Achat';
     document.getElementById('ac-id').value = '';
-    await ensureFournisseursLoaded();
+    await Promise.all([ensureFournisseursLoaded(), ensureStockLoaded()]);
+    populateStockDesignationsDatalist();
     populateFournisseurSelect('', 'ac-fournisseur', 'id');
     document.getElementById('ac-numero-facture').value = '';
     document.getElementById('ac-date').value = new Date().toISOString().split('T')[0];
@@ -1696,7 +1793,8 @@ async function editAchat(id) {
     document.getElementById('modal-achat-title').textContent = 'Modifier Achat';
     document.getElementById('ac-id').value = id;
     try {
-        const [, achat] = await Promise.all([ensureFournisseursLoaded(), apiFetch(`/achats/${id}`).then(r => r.json())]);
+        const [, , achat] = await Promise.all([ensureFournisseursLoaded(), ensureStockLoaded(), apiFetch(`/achats/${id}`).then(r => r.json())]);
+        populateStockDesignationsDatalist();
         populateFournisseurSelect(achat.fournisseur_id || '', 'ac-fournisseur', 'id');
         document.getElementById('ac-numero-facture').value = achat.numero_facture || '';
         document.getElementById('ac-date').value = achat.date_achat || '';
@@ -1717,17 +1815,84 @@ async function editAchat(id) {
 
 function addLigneAchat(ligne) {
     const container = document.getElementById('lignes-achat');
-    const div = document.createElement('div');
-    div.className = 'ligne-achat';
-    div.innerHTML = `
-        <input type="text" placeholder="Désignation *" class="la-designation" value="${ligne ? (ligne.designation || '') : ''}">
-        <input type="number" placeholder="Qté *" class="la-quantite" value="${ligne ? (ligne.quantite || 1) : 1}" min="1" oninput="updateLigneAchatMontant(this)">
-        <input type="number" placeholder="Prix unitaire *" class="la-prix-unitaire" value="${ligne ? (ligne.prix_unitaire || 0) : 0}" min="0" oninput="updateLigneAchatMontant(this)">
-        <input type="number" placeholder="Montant" class="la-montant" value="${ligne ? (ligne.montant || 0) : 0}" readonly>
-        <button class="btn-remove" onclick="this.parentElement.remove(); updateAchatTotal();">✕</button>
+    const wrapper = document.createElement('div');
+    wrapper.className = 'ligne-achat-wrapper';
+    wrapper.innerHTML = `
+        <div class="ligne-achat">
+            <input type="text" placeholder="Désignation *" class="la-designation" list="stock-designations" value="${ligne ? (ligne.designation || '') : ''}" oninput="onLigneAchatDesignationInput(this)">
+            <input type="number" placeholder="Qté *" class="la-quantite" value="${ligne ? (ligne.quantite || 1) : 1}" min="1" oninput="updateLigneAchatMontant(this)">
+            <input type="number" placeholder="Prix unitaire *" class="la-prix-unitaire" value="${ligne ? (ligne.prix_unitaire || 0) : 0}" min="0" oninput="updateLigneAchatMontant(this)">
+            <input type="number" placeholder="Montant" class="la-montant" value="${ligne ? (ligne.montant || 0) : 0}" readonly>
+            <button class="btn-remove" onclick="this.closest('.ligne-achat-wrapper').remove(); updateAchatTotal();">✕</button>
+        </div>
+        <input type="hidden" class="la-stock-id" value="${ligne && ligne.stock_id ? ligne.stock_id : ''}">
+        <div class="ligne-achat-info"></div>
+        <div class="ligne-achat-nouvel" style="display:none;">
+            <input type="number" placeholder="Prix de vente" class="la-prix-vente" min="0">
+            <input type="number" placeholder="Seuil alerte" class="la-seuil-alerte" min="0">
+            <input type="text" placeholder="Dosage (ex: 500mg)" class="la-dosage">
+            <select class="la-forme">
+                <option value="">-- Forme --</option>
+                <option value="Comprimé">Comprimé</option>
+                <option value="Sirop">Sirop</option>
+                <option value="Injectable">Injectable</option>
+                <option value="Sachet">Sachet</option>
+                <option value="Pommade">Pommade</option>
+                <option value="Suppositoire">Suppositoire</option>
+                <option value="Goutte">Goutte</option>
+                <option value="Autre">Autre</option>
+            </select>
+            <input type="date" placeholder="Date péremption" class="la-date-peremption">
+        </div>
     `;
-    container.appendChild(div);
+    container.appendChild(wrapper);
+    refreshLigneAchatInfo(wrapper);
     updateAchatTotal();
+}
+
+// Detecte si la designation saisie correspond a un article existant du stock :
+// si oui, lie la ligne a cet article (stock_id) et affiche sa quantite actuelle ;
+// sinon, affiche les champs additionnels pour la creation d'un nouvel article.
+function refreshLigneAchatInfo(wrapper) {
+    const designation = wrapper.querySelector('.la-designation').value.trim();
+    const stockIdField = wrapper.querySelector('.la-stock-id');
+    const infoDiv = wrapper.querySelector('.ligne-achat-info');
+    const nouvelDiv = wrapper.querySelector('.ligne-achat-nouvel');
+
+    let match = null;
+    if (stockIdField.value) {
+        match = stockData.find(s => String(s.idStock) === String(stockIdField.value));
+    }
+    if (!match && designation) {
+        match = stockData.find(s => (s.Designation || '').trim().toLowerCase() === designation.toLowerCase());
+    }
+
+    if (designation && match) {
+        stockIdField.value = match.idStock;
+        const details = [match.Dosage, match.Forme].filter(Boolean).join(' - ');
+        infoDiv.innerHTML = `<span class="status status-ok">Article existant</span> En stock : <strong>${match.Quantite}</strong>` + (details ? ` · ${details}` : '');
+        nouvelDiv.style.display = 'none';
+
+        const prixInput = wrapper.querySelector('.la-prix-unitaire');
+        if ((parseFloat(prixInput.value) || 0) === 0 && match.PrixAchat) {
+            prixInput.value = match.PrixAchat;
+            updateLigneAchatMontant(prixInput);
+        }
+    } else if (designation) {
+        stockIdField.value = '';
+        infoDiv.innerHTML = `<span class="status status-warning">Nouvel article</span> sera ajouté au stock à l'enregistrement`;
+        nouvelDiv.style.display = '';
+    } else {
+        stockIdField.value = '';
+        infoDiv.innerHTML = '';
+        nouvelDiv.style.display = 'none';
+    }
+}
+
+function onLigneAchatDesignationInput(input) {
+    const wrapper = input.closest('.ligne-achat-wrapper');
+    wrapper.querySelector('.la-stock-id').value = '';
+    refreshLigneAchatInfo(wrapper);
 }
 
 function updateLigneAchatMontant(input) {
@@ -1753,11 +1918,29 @@ async function saveAchat() {
     if (!validateLignes('.ligne-achat', '.la-designation', ['.la-quantite', '.la-prix-unitaire'], 'Ajoutez au moins un article')) return;
 
     const id = document.getElementById('ac-id').value;
-    const lignes = Array.from(document.querySelectorAll('.ligne-achat')).map(div => ({
-        designation: div.querySelector('.la-designation').value,
-        quantite: parseFloat(div.querySelector('.la-quantite').value) || 1,
-        prix_unitaire: parseFloat(div.querySelector('.la-prix-unitaire').value) || 0,
-    })).filter(l => l.designation.trim() !== '');
+    const lignes = Array.from(document.querySelectorAll('.ligne-achat-wrapper')).map(wrapper => {
+        const ligne = {
+            designation: wrapper.querySelector('.la-designation').value,
+            quantite: parseFloat(wrapper.querySelector('.la-quantite').value) || 1,
+            prix_unitaire: parseFloat(wrapper.querySelector('.la-prix-unitaire').value) || 0,
+        };
+        const stockId = wrapper.querySelector('.la-stock-id').value;
+        if (stockId) {
+            ligne.stock_id = parseInt(stockId);
+        } else {
+            const prixVente = wrapper.querySelector('.la-prix-vente').value;
+            const seuilAlerte = wrapper.querySelector('.la-seuil-alerte').value;
+            const dosage = wrapper.querySelector('.la-dosage').value;
+            const forme = wrapper.querySelector('.la-forme').value;
+            const datePeremption = wrapper.querySelector('.la-date-peremption').value;
+            if (prixVente) ligne.prix_vente = parseFloat(prixVente);
+            if (seuilAlerte) ligne.seuil_alerte = parseInt(seuilAlerte);
+            if (dosage) ligne.dosage = dosage;
+            if (forme) ligne.forme = forme;
+            if (datePeremption) ligne.date_peremption = datePeremption;
+        }
+        return ligne;
+    }).filter(l => l.designation.trim() !== '');
 
     const fournisseurId = document.getElementById('ac-fournisseur').value;
     const data = {
@@ -1781,11 +1964,12 @@ async function saveAchat() {
     } catch(e) { showToast('Erreur lors de l\'enregistrement : ' + e.message, 'error'); }
 }
 
-async function deleteAchat(id) {
-    if (!confirm('Voulez-vous vraiment annuler cet achat ?')) return;
-    try {
-        await apiFetch(`/achats/${id}`, { method: 'DELETE' });
-        loadAchats();
-        showToast('Achat annulé', 'success');
-    } catch(e) { showToast('Erreur lors de l\'annulation : ' + e.message, 'error'); }
+function deleteAchat(id) {
+    openConfirmModal('Êtes-vous sûr de vouloir supprimer définitivement cet achat ? Cette action est irréversible.', async () => {
+        try {
+            await apiFetch(`/achats/${id}`, { method: 'DELETE' });
+            loadAchats();
+            showToast('Achat supprimé', 'success');
+        } catch(e) { showToast('Erreur lors de la suppression : ' + e.message, 'error'); }
+    });
 }
