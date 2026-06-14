@@ -4,6 +4,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Cabinet Médical BabaMouneissa sangha</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
@@ -34,10 +37,21 @@
         <div class="menu-item" onclick="showPage('ordonnances')">
             <span class="icon">📋</span> Ordonnances
         </div>
+        <div class="menu-item" onclick="showPage('examens')">
+            <span class="icon">🔬</span> Examens
+        </div>
 
         <div class="menu-section">Pharmacie</div>
         <div class="menu-item" onclick="showPage('stock')">
             <span class="icon">💊</span> Stock
+        </div>
+
+        <div class="menu-section" id="menu-section-admin" style="display:none;">Administration</div>
+        <div class="menu-item" id="menu-personnel" style="display:none;" onclick="showPage('personnel')">
+            <span class="icon">👔</span> Personnel
+        </div>
+        <div class="menu-item" id="menu-medecins" style="display:none;" onclick="showPage('medecins')">
+            <span class="icon">🆔</span> Médecins
         </div>
     </div>
 </div>
@@ -46,7 +60,10 @@
 <div class="main">
     <div class="topbar">
         <h1 id="page-title">Tableau de bord</h1>
-        <div class="topbar-right"><span id="user-name" style="margin-right: 15px; font-weight: bold;"></span><button onclick="logout()" style="background: #e74c3c; color: white; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer; margin-right: 15px;">Déconnexion</button><span id="current-date"></span>
+        <div class="topbar-right">
+            <span id="current-date"></span>
+            <span id="user-name"></span>
+            <button class="btn btn-danger btn-sm" onclick="logout()">⏻ Déconnexion</button>
         </div>
     </div>
 
@@ -102,9 +119,12 @@
             <div class="table-container">
                 <div class="table-header">
                     <h3>Liste des patients</h3>
-                    <div style="display:flex; gap:10px;">
+                    <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
                         <input type="text" class="search-box" placeholder="Rechercher..." id="search-patients" oninput="filterPatients()">
-                        <button class="btn btn-primary" onclick="openModal('modal-patient')">+ Nouveau patient</button>
+                        <input type="date" id="filter-patients-date-debut" title="Date d'enregistrement - du" onchange="filterPatients()">
+                        <input type="date" id="filter-patients-date-fin" title="Date d'enregistrement - au" onchange="filterPatients()">
+                        <button class="btn" onclick="exportPatientsExcel()">📊 Exporter Excel</button>
+                        <button class="btn btn-primary" onclick="openNewPatientModal()">+ Nouveau patient</button>
                     </div>
                 </div>
                 <table>
@@ -116,10 +136,11 @@
                             <th>Sexe</th>
                             <th>Téléphone</th>
                             <th>Date enreg.</th>
+                            <th>Actions</th>
                         </tr>
                     </thead>
                     <tbody id="table-patients">
-                        <tr><td colspan="6" class="loading">Chargement...</td></tr>
+                        <tr><td colspan="7" class="loading">Chargement...</td></tr>
                     </tbody>
                 </table>
             </div>
@@ -130,7 +151,13 @@
             <div class="table-container">
                 <div class="table-header">
                     <h3>Liste des rendez-vous</h3>
-                    <button class="btn btn-primary" onclick="openRendezVousModal()">+ Nouveau rendez-vous</button>
+                    <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+                        <input type="text" class="search-box" placeholder="Rechercher..." id="search-rendez_vous" oninput="filterRendezVous()">
+                        <input type="date" id="filter-rendez_vous-date-debut" title="Date - du" onchange="filterRendezVous()">
+                        <input type="date" id="filter-rendez_vous-date-fin" title="Date - au" onchange="filterRendezVous()">
+                        <button class="btn" onclick="exportRendezVousExcel()">📊 Exporter Excel</button>
+                        <button class="btn btn-primary" onclick="openRendezVousModal()">+ Nouveau rendez-vous</button>
+                    </div>
                 </div>
                 <table>
                     <thead>
@@ -140,10 +167,11 @@
                             <th>Médecin</th>
                             <th>Motif</th>
                             <th>Statut</th>
+                            <th>Actions</th>
                         </tr>
                     </thead>
                     <tbody id="table-rendez_vous">
-                        <tr><td colspan="5" class="loading">Chargement...</td></tr>
+                        <tr><td colspan="6" class="loading">Chargement...</td></tr>
                     </tbody>
                 </table>
             </div>
@@ -154,19 +182,28 @@
             <div class="table-container">
                 <div class="table-header">
                     <h3>Liste des consultations</h3>
+                    <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+                        <input type="text" class="search-box" placeholder="Rechercher..." id="search-consultations" oninput="filterConsultations()">
+                        <input type="date" id="filter-consultations-date-debut" title="Date - du" onchange="filterConsultations()">
+                        <input type="date" id="filter-consultations-date-fin" title="Date - au" onchange="filterConsultations()">
+                        <button class="btn" onclick="exportConsultationsExcel()">📊 Exporter Excel</button>
+                        <button class="btn btn-primary" onclick="openNewConsultationModal()">+ Nouvelle consultation</button>
+                    </div>
                 </div>
                 <table>
                     <thead>
                         <tr>
                             <th>Date</th>
                             <th>Patient</th>
+                            <th>Médecin</th>
                             <th>Motif</th>
                             <th>Diagnostic</th>
                             <th>Montant</th>
+                            <th>Actions</th>
                         </tr>
                     </thead>
                     <tbody id="table-consultations">
-                        <tr><td colspan="5" class="loading">Chargement...</td></tr>
+                        <tr><td colspan="7" class="loading">Chargement...</td></tr>
                     </tbody>
                 </table>
             </div>
@@ -176,7 +213,13 @@
             <div class="table-container">
                 <div class="table-header">
                     <h3>Liste des ordonnances</h3>
-                    <button class="btn btn-primary" onclick="openOrdonnanceModal()">+ Nouvelle ordonnance</button>
+                    <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+                        <input type="text" class="search-box" placeholder="Rechercher..." id="search-ordonnances" oninput="filterOrdonnances()">
+                        <input type="date" id="filter-ordonnances-date-debut" title="Date - du" onchange="filterOrdonnances()">
+                        <input type="date" id="filter-ordonnances-date-fin" title="Date - au" onchange="filterOrdonnances()">
+                        <button class="btn" onclick="exportOrdonnancesExcel()">📊 Exporter Excel</button>
+                        <button class="btn btn-primary" onclick="openOrdonnanceModal()">+ Nouvelle ordonnance</button>
+                    </div>
                 </div>
                 <table>
                     <thead>
@@ -186,10 +229,43 @@
                             <th>Motif</th>
                             <th>Bénéficiaire</th>
                             <th>Statut</th>
+                            <th>Actions</th>
                         </tr>
                     </thead>
                     <tbody id="table-ordonnances">
-                        <tr><td colspan="5" class="loading">Chargement...</td></tr>
+                        <tr><td colspan="6" class="loading">Chargement...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- EXAMENS COMPLEMENTAIRES -->
+        <div id="page-examens" class="page">
+            <div class="table-container">
+                <div class="table-header">
+                    <h3>Liste des examens complémentaires</h3>
+                    <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+                        <input type="text" class="search-box" placeholder="Rechercher..." id="search-examens" oninput="filterExamens()">
+                        <input type="date" id="filter-examens-date-debut" title="Date - du" onchange="filterExamens()">
+                        <input type="date" id="filter-examens-date-fin" title="Date - au" onchange="filterExamens()">
+                        <button class="btn" onclick="exportExamensExcel()">📊 Exporter Excel</button>
+                        <button class="btn btn-primary" onclick="openExamenModal()">+ Nouvel examen</button>
+                    </div>
+                </div>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Date</th>
+                            <th>Patient</th>
+                            <th>Type</th>
+                            <th>Examen</th>
+                            <th>Résultat</th>
+                            <th>Prix</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="table-examens">
+                        <tr><td colspan="7" class="loading">Chargement...</td></tr>
                     </tbody>
                 </table>
             </div>
@@ -198,24 +274,115 @@
         <!-- STOCK -->
         <div id="page-stock" class="page">
             <div id="alertes-stock"></div>
+
+            <div style="display:flex; gap:10px; margin-bottom:15px;">
+                <button class="btn btn-primary" id="tab-stock-articles" onclick="showStockTab('articles')">Articles</button>
+                <button class="btn" id="tab-stock-sorties" onclick="showStockTab('sorties')">Historique des sorties</button>
+            </div>
+
+            <!-- ARTICLES -->
+            <div id="stock-tab-articles">
+                <div class="table-container">
+                    <div class="table-header">
+                        <h3>Stock médicaments</h3>
+                        <input type="text" class="search-box" placeholder="Rechercher..." id="search-stock" oninput="filterStock()">
+                    </div>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Désignation</th>
+                                <th>Type</th>
+                                <th>Quantité</th>
+                                <th>Seuil alerte</th>
+                                <th>Prix vente</th>
+                                <th>Statut</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="table-stock">
+                            <tr><td colspan="7" class="loading">Chargement...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- HISTORIQUE DES SORTIES -->
+            <div id="stock-tab-sorties" style="display:none;">
+                <div class="table-container">
+                    <div class="table-header">
+                        <h3>Historique des sorties</h3>
+                    </div>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Date</th>
+                                <th>Désignation</th>
+                                <th>Quantité</th>
+                                <th>Prix vente</th>
+                                <th>Montant</th>
+                                <th>Patient / Destination</th>
+                            </tr>
+                        </thead>
+                        <tbody id="table-sorties">
+                            <tr><td colspan="6" class="loading">Chargement...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- PERSONNEL -->
+        <div id="page-personnel" class="page">
             <div class="table-container">
                 <div class="table-header">
-                    <h3>Stock médicaments</h3>
-                    <input type="text" class="search-box" placeholder="Rechercher..." id="search-stock" oninput="filterStock()">
+                    <h3>Liste du personnel</h3>
+                    <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+                        <input type="text" class="search-box" placeholder="Rechercher..." id="search-personnel" oninput="filterPersonnel()">
+                        <input type="date" id="filter-personnel-date-debut" title="Date d'entrée - du" onchange="filterPersonnel()">
+                        <input type="date" id="filter-personnel-date-fin" title="Date d'entrée - au" onchange="filterPersonnel()">
+                        <button class="btn" onclick="exportPersonnelExcel()">📊 Exporter Excel</button>
+                        <button class="btn btn-primary" onclick="openNewPersonnelModal()">+ Nouveau membre</button>
+                    </div>
                 </div>
                 <table>
                     <thead>
                         <tr>
-                            <th>Désignation</th>
-                            <th>Type</th>
-                            <th>Quantité</th>
-                            <th>Seuil alerte</th>
-                            <th>Prix vente</th>
-                            <th>Statut</th>
+                            <th>Nom</th>
+                            <th>Prénom</th>
+                            <th>Fonction</th>
+                            <th>Téléphone</th>
+                            <th>Date d'entrée</th>
+                            <th>Date de sortie</th>
+                            <th>Compte utilisateur</th>
+                            <th>Actions</th>
                         </tr>
                     </thead>
-                    <tbody id="table-stock">
-                        <tr><td colspan="6" class="loading">Chargement...</td></tr>
+                    <tbody id="table-personnel">
+                        <tr><td colspan="8" class="loading">Chargement...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- MEDECINS -->
+        <div id="page-medecins" class="page">
+            <div class="table-container">
+                <div class="table-header">
+                    <h3>Liste des médecins</h3>
+                    <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+                        <input type="text" class="search-box" placeholder="Rechercher..." id="search-medecins" oninput="filterMedecins()">
+                        <button class="btn btn-primary" onclick="openNewMedecinModal()">+ Nouveau médecin</button>
+                    </div>
+                </div>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Nom</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="table-medecins">
+                        <tr><td colspan="2" class="loading">Chargement...</td></tr>
                     </tbody>
                 </table>
             </div>
@@ -227,7 +394,8 @@
 <!-- MODAL NOUVEAU PATIENT -->
 <div class="modal-overlay" id="modal-patient">
     <div class="modal">
-        <h3>Nouveau Patient</h3>
+        <h3 id="modal-patient-title">Nouveau Patient</h3>
+        <input type="hidden" id="p-id">
         <div class="form-row">
             <div class="form-group">
                 <label>Nom</label>
@@ -274,11 +442,16 @@
 <!-- MODAL NOUVEAU RENDEZ-VOUS -->
 <div class="modal-overlay" id="modal-rendez-vous">
     <div class="modal">
-        <h3>Nouveau Rendez-vous</h3>
+        <h3 id="modal-rendez-vous-title">Nouveau Rendez-vous</h3>
+        <input type="hidden" id="rv-id">
         <div class="form-row">
             <div class="form-group">
                 <label>Patient</label>
-                <select id="rv-patient"></select>
+                <div class="patient-combo" id="rv-patient-combo">
+                    <input type="text" id="rv-patient-search" class="patient-combo-input" placeholder="Rechercher un patient..." autocomplete="off" oninput="filterPatientCombo('rv')" onfocus="filterPatientCombo('rv')">
+                    <input type="hidden" id="rv-patient">
+                    <div class="patient-combo-list" id="rv-patient-list"></div>
+                </div>
             </div>
             <div class="form-group">
                 <label>Médecin</label>
@@ -317,11 +490,16 @@
 <!-- MODAL NOUVELLE ORDONNANCE -->
 <div class="modal-overlay" id="modal-ordonnance">
     <div class="modal" style="width: 700px;">
-        <h3>Nouvelle Ordonnance</h3>
+        <h3 id="modal-ordonnance-title">Nouvelle Ordonnance</h3>
+        <input type="hidden" id="o-id">
         <div class="form-row">
             <div class="form-group">
                 <label>Patient</label>
-                <select id="o-patient"></select>
+                <div class="patient-combo" id="o-patient-combo">
+                    <input type="text" id="o-patient-search" class="patient-combo-input" placeholder="Rechercher un patient..." autocomplete="off" oninput="filterPatientCombo('o')" onfocus="filterPatientCombo('o')">
+                    <input type="hidden" id="o-patient">
+                    <div class="patient-combo-list" id="o-patient-list"></div>
+                </div>
             </div>
             <div class="form-group">
                 <label>Date</label>
@@ -338,6 +516,9 @@
                 <input type="text" id="o-beneficiaire" placeholder="Nom du bénéficiaire (si différent)">
             </div>
         </div>
+        <div class="form-group">
+            <label><input type="checkbox" id="o-est-validee" style="width:auto; margin-right:5px;"> Validée</label>
+        </div>
 
         <h3 style="margin-top: 15px; font-size: 14px;">Médicaments</h3>
         <div id="lignes-ordonnance"></div>
@@ -349,7 +530,257 @@
         </div>
     </div>
 </div>
+<!-- MODAL NOUVEL EXAMEN -->
+<div class="modal-overlay" id="modal-examen">
+    <div class="modal">
+        <h3 id="modal-examen-title">Nouvel Examen Complémentaire</h3>
+        <input type="hidden" id="e-id">
+        <div class="form-row">
+            <div class="form-group">
+                <label>Patient</label>
+                <div class="patient-combo" id="e-patient-combo">
+                    <input type="text" id="e-patient-search" class="patient-combo-input" placeholder="Rechercher un patient..." autocomplete="off" oninput="filterPatientCombo('e')" onfocus="filterPatientCombo('e')">
+                    <input type="hidden" id="e-patient">
+                    <div class="patient-combo-list" id="e-patient-list"></div>
+                </div>
+            </div>
+            <div class="form-group">
+                <label>Date</label>
+                <input type="date" id="e-date">
+            </div>
+        </div>
+        <div class="form-row">
+            <div class="form-group">
+                <label>Type d'examen</label>
+                <select id="e-type-examen" onchange="onTypeExamenChange()"></select>
+            </div>
+            <div class="form-group">
+                <label>Examen</label>
+                <select id="e-sous-type" onchange="onSousTypeChange()"></select>
+            </div>
+        </div>
+        <div class="form-row">
+            <div class="form-group">
+                <label>Prix</label>
+                <input type="number" id="e-prix" placeholder="Prix">
+            </div>
+            <div class="form-group">
+                <label>Médecin</label>
+                <select id="e-medecin"></select>
+            </div>
+        </div>
+        <div class="form-group">
+            <label>Renseignement clinique</label>
+            <textarea id="e-renseignement" rows="2" placeholder="Renseignement clinique"></textarea>
+        </div>
+        <div class="form-group">
+            <label>Résultat</label>
+            <textarea id="e-resultat" rows="2" placeholder="Résultat (si disponible)"></textarea>
+        </div>
+        <div class="modal-actions">
+            <button class="btn" onclick="closeModal('modal-examen')">Annuler</button>
+            <button class="btn btn-primary" onclick="saveExamen()">Enregistrer</button>
+        </div>
+    </div>
+</div>
+<!-- MODAL CONSULTATION -->
+<div class="modal-overlay" id="modal-consultation">
+    <div class="modal">
+        <h3 id="modal-consultation-title">Nouvelle Consultation</h3>
+        <input type="hidden" id="co-id">
+        <div class="form-row">
+            <div class="form-group">
+                <label>Patient</label>
+                <div class="patient-combo" id="co-patient-combo">
+                    <input type="text" id="co-patient-search" class="patient-combo-input" placeholder="Rechercher un patient..." autocomplete="off" oninput="filterPatientCombo('co')" onfocus="filterPatientCombo('co')">
+                    <input type="hidden" id="co-patient">
+                    <div class="patient-combo-list" id="co-patient-list"></div>
+                </div>
+            </div>
+            <div class="form-group">
+                <label>Date</label>
+                <input type="date" id="co-date">
+            </div>
+        </div>
+        <div class="form-row">
+            <div class="form-group">
+                <label>Médecin</label>
+                <select id="co-medecin"></select>
+            </div>
+            <div class="form-group">
+                <label>Motif</label>
+                <input type="text" id="co-motif" placeholder="Motif">
+            </div>
+        </div>
+        <div class="form-row">
+            <div class="form-group">
+                <label>Prix unitaire</label>
+                <input type="number" id="co-prix-unitaire" oninput="onConsultationPrixChange()">
+            </div>
+            <div class="form-group">
+                <label>Montant total</label>
+                <input type="number" id="co-montant-total">
+            </div>
+        </div>
+        <div class="form-group">
+            <label>Diagnostic</label>
+            <textarea id="co-diagnostic" rows="2" placeholder="Diagnostic"></textarea>
+        </div>
+        <div class="form-group">
+            <label>Observation</label>
+            <textarea id="co-observation" rows="2" placeholder="Observation"></textarea>
+        </div>
+        <div class="form-group">
+            <label>Traitement après diagnostic</label>
+            <textarea id="co-traitement" rows="2" placeholder="Traitement après diagnostic"></textarea>
+        </div>
+        <div class="modal-actions">
+            <button class="btn" onclick="closeModal('modal-consultation')">Annuler</button>
+            <button class="btn btn-primary" onclick="saveConsultation()">Enregistrer</button>
+        </div>
+    </div>
+</div>
+<!-- MODAL MODIFIER ARTICLE STOCK -->
+<div class="modal-overlay" id="modal-stock-edit">
+    <div class="modal">
+        <h3>Modifier Article</h3>
+        <input type="hidden" id="st-id">
+        <input type="hidden" id="st-date-entree">
+        <div class="form-row">
+            <div class="form-group">
+                <label>Désignation</label>
+                <input type="text" id="st-designation">
+            </div>
+            <div class="form-group">
+                <label>Type</label>
+                <input type="text" id="st-type">
+            </div>
+        </div>
+        <div class="form-row">
+            <div class="form-group">
+                <label>Fournisseur</label>
+                <input type="text" id="st-fournisseur">
+            </div>
+            <div class="form-group">
+                <label>Quantité</label>
+                <input type="number" id="st-quantite">
+            </div>
+        </div>
+        <div class="form-row">
+            <div class="form-group">
+                <label>Seuil alerte</label>
+                <input type="number" id="st-seuil">
+            </div>
+            <div class="form-group">
+                <label>Prix vente</label>
+                <input type="number" id="st-prix-vente">
+            </div>
+        </div>
+        <div class="form-group">
+            <label>Prix achat</label>
+            <input type="number" id="st-prix-achat">
+        </div>
+        <div class="modal-actions">
+            <button class="btn" onclick="closeModal('modal-stock-edit')">Annuler</button>
+            <button class="btn btn-primary" onclick="saveStockArticle()">Enregistrer</button>
+        </div>
+    </div>
+</div>
+<!-- MODAL SORTIE DE STOCK -->
+<div class="modal-overlay" id="modal-sortie">
+    <div class="modal">
+        <h3>Enregistrer une sortie</h3>
+        <input type="hidden" id="so-designation">
+        <div class="form-group">
+            <label>Article</label>
+            <input type="text" id="so-article-label" disabled>
+        </div>
+        <div class="form-row">
+            <div class="form-group">
+                <label>Date</label>
+                <input type="date" id="so-date">
+            </div>
+            <div class="form-group">
+                <label>Quantité</label>
+                <input type="number" id="so-quantite" min="1" value="1">
+            </div>
+        </div>
+        <div class="form-row">
+            <div class="form-group">
+                <label>Prix vente unitaire</label>
+                <input type="number" id="so-prix-vente">
+            </div>
+            <div class="form-group">
+                <label>Patient / Destination</label>
+                <input type="text" id="so-patient" placeholder="Nom du patient ou destination">
+            </div>
+        </div>
+        <div class="modal-actions">
+            <button class="btn" onclick="closeModal('modal-sortie')">Annuler</button>
+            <button class="btn btn-primary" onclick="saveSortie()">Enregistrer</button>
+        </div>
+    </div>
+</div>
 
+<!-- MODAL PERSONNEL -->
+<div class="modal-overlay" id="modal-personnel">
+    <div class="modal">
+        <h3 id="modal-personnel-title">Nouveau Membre du Personnel</h3>
+        <input type="hidden" id="pe-id">
+        <div class="form-row">
+            <div class="form-group">
+                <label>Nom</label>
+                <input type="text" id="pe-nom" placeholder="Nom">
+            </div>
+            <div class="form-group">
+                <label>Prénom</label>
+                <input type="text" id="pe-prenom" placeholder="Prénom">
+            </div>
+        </div>
+        <div class="form-row">
+            <div class="form-group">
+                <label>Fonction</label>
+                <input type="text" id="pe-fonction" placeholder="Fonction">
+            </div>
+            <div class="form-group">
+                <label>Téléphone</label>
+                <input type="text" id="pe-telephone" placeholder="Téléphone">
+            </div>
+        </div>
+        <div class="form-row">
+            <div class="form-group">
+                <label>Date d'entrée</label>
+                <input type="date" id="pe-date-entree">
+            </div>
+            <div class="form-group">
+                <label>Date de sortie</label>
+                <input type="date" id="pe-date-sortie">
+            </div>
+        </div>
+        <div class="modal-actions">
+            <button class="btn" onclick="closeModal('modal-personnel')">Annuler</button>
+            <button class="btn btn-primary" onclick="savePersonnel()">Enregistrer</button>
+        </div>
+    </div>
+</div>
+
+<!-- MODAL MEDECIN -->
+<div class="modal-overlay" id="modal-medecin">
+    <div class="modal">
+        <h3 id="modal-medecin-title">Nouveau Médecin</h3>
+        <input type="hidden" id="me-id">
+        <div class="form-group">
+            <label>Nom</label>
+            <input type="text" id="me-nom" placeholder="Nom du médecin">
+        </div>
+        <div class="modal-actions">
+            <button class="btn" onclick="closeModal('modal-medecin')">Annuler</button>
+            <button class="btn btn-primary" onclick="saveMedecin()">Enregistrer</button>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.sheetjs.com/xlsx-0.20.2/package/dist/xlsx.full.min.js"></script>
 <script src="js/app.js"></script>
 </body>
 </html>
