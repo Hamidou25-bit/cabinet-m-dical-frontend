@@ -1555,8 +1555,16 @@ function filterDepenses() {
 
 function populateTypeDepenseSelect(selected) {
     const select = document.getElementById('de-type');
-    select.innerHTML = typesDepenseData.map(t => `<option value="${t.nom}">${t.nom}</option>`).join('');
+    select.innerHTML = typesDepenseData.map(t => `<option value="${t.nom}">${t.nom}</option>`).join('')
+        + '<option value="__new__">+ Nouveau type...</option>';
     if (selected) select.value = selected;
+    toggleNewTypeDepense();
+}
+
+function toggleNewTypeDepense() {
+    const isNew = document.getElementById('de-type').value === '__new__';
+    document.getElementById('de-type-new-row').style.display = isNew ? '' : 'none';
+    if (!isNew) document.getElementById('de-type-new').value = '';
 }
 
 function openNewDepenseModal() {
@@ -1582,16 +1590,32 @@ function editDepense(id) {
 }
 
 async function saveDepense() {
-    if (!validateRequiredFields([
+    const isNewType = document.getElementById('de-type').value === '__new__';
+    const fields = [
         { id: 'de-date', label: 'Date' },
         { id: 'de-type', label: 'Type' },
         { id: 'de-montant', label: 'Montant', min: 0.01 },
-    ])) return;
+    ];
+    if (isNewType) fields.push({ id: 'de-type-new', label: 'Nouveau type de dépense' });
+    if (!validateRequiredFields(fields)) return;
 
     const id = document.getElementById('de-id').value;
+    let typeDepense = document.getElementById('de-type').value;
+
+    if (isNewType) {
+        const nouveauType = document.getElementById('de-type-new').value.trim();
+        try {
+            await apiFetch('/type-depense/', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ nom: nouveauType }) });
+        } catch(e) {
+            showToast('Erreur lors de la création du type de dépense : ' + e.message, 'error');
+            return;
+        }
+        typeDepense = nouveauType;
+    }
+
     const depense = {
         date_depense: document.getElementById('de-date').value,
-        type_depense: document.getElementById('de-type').value,
+        type_depense: typeDepense,
         montant: parseFloat(document.getElementById('de-montant').value) || 0,
         description: document.getElementById('de-description').value,
     };

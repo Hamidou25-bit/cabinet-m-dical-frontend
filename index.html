@@ -978,7 +978,13 @@
             </div>
             <div class="form-group">
                 <label>Type<span class="required-mark">*</span></label>
-                <select id="de-type"></select>
+                <select id="de-type" onchange="toggleNewTypeDepense()"></select>
+            </div>
+        </div>
+        <div class="form-row" id="de-type-new-row" style="display:none;">
+            <div class="form-group">
+                <label>Nouveau type de dépense<span class="required-mark">*</span></label>
+                <input type="text" id="de-type-new" placeholder="Nom du nouveau type">
             </div>
         </div>
         <div class="form-row">
