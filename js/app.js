@@ -12,6 +12,18 @@ function escapeHtml(str) {
     return String(str ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
 
+// Formate une date stockée au format ISO (YYYY-MM-DD ou YYYY-MM-DD HH:MM)
+// en affichage JJ/MM/AAAA. Retourne la valeur d'origine si elle ne
+// correspond pas au format attendu (ou une chaîne vide si non définie).
+function formatDateFR(dateStr) {
+    if (!dateStr) return '';
+    const datePart = String(dateStr).split(/[ T]/)[0];
+    const match = datePart.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (!match) return dateStr;
+    const [, y, m, d] = match;
+    return `${d}/${m}/${y}`;
+}
+
 // 1. Initialisation sécurisée (on vérifie si l'élément existe)
 document.addEventListener('DOMContentLoaded', function() {
     // Date
@@ -34,6 +46,7 @@ document.addEventListener('DOMContentLoaded', function() {
         document.getElementById('menu-section-admin').style.display = '';
         document.getElementById('menu-personnel').style.display = '';
         document.getElementById('menu-medecins').style.display = '';
+        document.getElementById('menu-examens-config').style.display = '';
         document.getElementById('menu-comptabilite').style.display = '';
     }
 
@@ -54,7 +67,7 @@ function showPage(page) {
         : document.querySelector(`.menu-item[onclick*="showPage('${page}')"]`);
     if (menuItem) menuItem.classList.add('active');
 
-    const titles = { dashboard: 'Tableau de bord', patients: 'Patients', consultations: 'Consultations', stock: 'Stock',ordonnances: 'Ordonnances', examens: 'Examens complémentaires', personnel: 'Personnel', medecins: 'Médecins', comptabilite: 'Comptabilité' };
+    const titles = { dashboard: 'Tableau de bord', patients: 'Patients', consultations: 'Consultations', stock: 'Stock',ordonnances: 'Ordonnances', examens: 'Examens complémentaires', personnel: 'Personnel', medecins: 'Médecins', 'examens-config': "Types d'examens", comptabilite: 'Comptabilité' };
     if (titles[page]) document.getElementById('page-title').textContent = titles[page];
 
     if (page === 'patients') loadPatients();
@@ -64,6 +77,7 @@ function showPage(page) {
     if (page === 'examens') loadExamens();
     if (page === 'personnel') loadPersonnel();
     if (page === 'medecins') loadMedecins();
+    if (page === 'examens-config') loadExamensConfig();
     if (page === 'comptabilite') loadFournisseurs();
 }
 
@@ -198,7 +212,7 @@ async function loadDashboard() {
         const tbody = document.getElementById('recent-consultations');
         tbody.innerHTML = consultations.slice(0, 10).map(c => `
             <tr>
-                <td>${c.date_consult || ''}</td>
+                <td>${formatDateFR(c.date_consult)}</td>
                 <td>${c.nom || ''} ${c.prenom || ''}</td>
                 <td>${c.motif || '-'}</td>
                 <td>${(c.montant_total || 0).toLocaleString()} FCFA</td>
@@ -219,7 +233,7 @@ function renderPatients(data) {
     const tbody = document.getElementById('table-patients');
     if (!data.length) { tbody.innerHTML = '<tr><td colspan="9">Aucun patient</td></tr>'; return; }
     tbody.innerHTML = data.map(p => `<tr>
-        <td>${p.nom}</td><td>${p.prenom}</td><td>${p.age}</td><td>${p.sexe}</td><td>${p.telephone || '-'}</td><td>${p.numero_dossier || '-'}</td><td>${p.email || '-'}</td><td>${p.date_enregistrement}</td>
+        <td>${p.nom}</td><td>${p.prenom}</td><td>${p.age}</td><td>${p.sexe}</td><td>${p.telephone || '-'}</td><td>${p.numero_dossier || '-'}</td><td>${p.email || '-'}</td><td>${formatDateFR(p.date_enregistrement)}</td>
         <td>
             <button class="btn btn-sm" onclick="editPatient(${p.id})">Modifier</button>
             <button class="btn btn-sm btn-danger" onclick="deletePatient(${p.id})">Supprimer</button>
@@ -257,7 +271,7 @@ function exportPatientsExcel() {
         'N° Dossier': p.numero_dossier || '',
         'Email': p.email || '',
         'Ethnie': p.ethnie || '',
-        "Date d'enregistrement": p.date_enregistrement
+        "Date d'enregistrement": formatDateFR(p.date_enregistrement)
     }));
     const ws = XLSX.utils.json_to_sheet(rows);
     const wb = XLSX.utils.book_new();
@@ -397,7 +411,7 @@ function renderConsultations(data) {
     const tbody = document.getElementById('table-consultations');
     if (!data.length) { tbody.innerHTML = '<tr><td colspan="7">Aucune consultation</td></tr>'; return; }
     tbody.innerHTML = data.map(c => `<tr>
-        <td>${c.date_consult || ''}</td>
+        <td>${formatDateFR(c.date_consult)}</td>
         <td>${c.nom || ''} ${c.prenom || ''}</td>
         <td>${c.medecin_nom || '-'}</td>
         <td>${c.motif || '-'}</td>
@@ -432,7 +446,7 @@ function exportConsultationsExcel() {
     const data = getFilteredConsultations();
     if (!data.length) { showToast('Aucune consultation à exporter', 'warning'); return; }
     const rows = data.map(c => ({
-        'Date': c.date_consult,
+        'Date': formatDateFR(c.date_consult),
         'Patient': `${c.nom || ''} ${c.prenom || ''}`.trim(),
         'Médecin': c.medecin_nom || '',
         'Motif': c.motif || '',
@@ -606,9 +620,10 @@ function renderStock(data) {
         if (s.DatePeremption) {
             const datePeremption = new Date(s.DatePeremption);
             const classe = datePeremption <= new Date() ? 'status-danger' : datePeremption <= dans30Jours ? 'status-warning' : 'status-ok';
-            peremption = `<span class="status ${classe}">${s.DatePeremption}</span>`;
+            peremption = `<span class="status ${classe}">${formatDateFR(s.DatePeremption)}</span>`;
         }
-        return `<tr>
+        const rowClass = s.Quantite <= 0 ? 'row-danger' : s.Quantite <= s.SeuilAlerte ? 'row-alert' : '';
+        return `<tr class="${rowClass}">
             <td>${s.Designation||''}</td><td>${s.Type||''}</td><td>${s.Dosage||'-'}</td><td>${s.Forme||'-'}</td><td>${s.Quantite||0}</td><td>${s.SeuilAlerte||0}</td><td>${(s.PrixVente||0).toLocaleString()} FCFA</td><td>${peremption}</td><td>${statut}</td>
             <td>
                 <button class="btn btn-sm" onclick="editStockArticle(${s.idStock})">Modifier</button>
@@ -623,13 +638,27 @@ function filterStock() {
     renderStock(stockData.filter(s => (s.Designation||'').toLowerCase().includes(q)));
 }
 
-// Onglets Stock
-function showStockTab(tab) {
-    document.getElementById('stock-tab-articles').style.display = tab === 'articles' ? '' : 'none';
-    document.getElementById('stock-tab-sorties').style.display = tab === 'sorties' ? '' : 'none';
-    document.getElementById('tab-stock-articles').className = tab === 'articles' ? 'btn btn-primary' : 'btn';
-    document.getElementById('tab-stock-sorties').className = tab === 'sorties' ? 'btn btn-primary' : 'btn';
-    if (tab === 'sorties') loadSorties();
+function exportStockExcel() {
+    const q = document.getElementById('search-stock').value.toLowerCase();
+    const data = stockData.filter(s => (s.Designation||'').toLowerCase().includes(q));
+    if (!data.length) { showToast('Aucun article à exporter', 'warning'); return; }
+    const rows = data.map(s => ({
+        'Désignation': s.Designation || '',
+        'Type': s.Type || '',
+        'Dosage': s.Dosage || '',
+        'Forme': s.Forme || '',
+        'Quantité': s.Quantite || 0,
+        'Seuil alerte': s.SeuilAlerte || 0,
+        'Prix vente': s.PrixVente || 0,
+        'Prix achat': s.PrixAchat || 0,
+        'Fournisseur': s.Fournisseur || '',
+        'Date entrée': formatDateFR(s.DateEntree),
+        'Péremption': formatDateFR(s.DatePeremption)
+    }));
+    const ws = XLSX.utils.json_to_sheet(rows);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Stock');
+    XLSX.writeFile(wb, `stock_${new Date().toISOString().split('T')[0]}.xlsx`);
 }
 
 // Onglets Comptabilité
@@ -826,22 +855,6 @@ async function saveSortie() {
     } catch(e) { showToast('Erreur lors de l\'enregistrement : ' + e.message, 'error'); }
 }
 
-async function loadSorties() {
-    try {
-        const data = await apiFetch('/stock/sorties').then(r => r.json());
-        const tbody = document.getElementById('table-sorties');
-        if (!data.length) { tbody.innerHTML = '<tr><td colspan="6">Aucune sortie</td></tr>'; return; }
-        tbody.innerHTML = data.map(s => `<tr>
-            <td>${s.DateSortie || ''}</td>
-            <td>${s.Designation || ''}</td>
-            <td>${s.QuantiteSortie || 0}</td>
-            <td>${(s.PrixVente || 0).toLocaleString()} FCFA</td>
-            <td>${(s.Montant || 0).toLocaleString()} FCFA</td>
-            <td>${s.Patient || '-'}</td>
-        </tr>`).join('');
-    } catch(e) { document.getElementById('table-sorties').innerHTML = '<tr><td colspan="6">Erreur</td></tr>'; }
-}
-
 // Ordonnances
 let dosagesData = [];
 let formesData = [];
@@ -890,7 +903,7 @@ function renderOrdonnancesTab(type) {
         const beneficiaire = type === 'patient' ? `${o.nom || ''} ${o.prenom || ''}`.trim() || '-' : (o.beneficiaire || '-');
         const statut = o.est_validee ? '<span class="status status-ok">Validée</span>' : '<span class="status status-warning">En attente</span>';
         return `<tr ondblclick="editOrdonnance(${o.id})">
-            <td>${o.date_ordonnance || ''}</td>
+            <td>${formatDateFR(o.date_ordonnance)}</td>
             <td>${escapeHtml(beneficiaire)}</td>
             <td>${escapeHtml(o.motif || '-')}</td>
             <td>${(o.montant_total || 0).toLocaleString()} FCFA</td>
@@ -930,7 +943,7 @@ async function exportOrdonnancesExcel(type) {
         ordonnances.forEach(o => {
             const beneficiaire = type === 'patient' ? `${o.nom || ''} ${o.prenom || ''}`.trim() : (o.beneficiaire || '');
             syntheseRows.push({
-                'Date': o.date_ordonnance,
+                'Date': formatDateFR(o.date_ordonnance),
                 'Bénéficiaire': beneficiaire,
                 'Motif': o.motif || '',
                 'Total': o.montant_total || 0,
@@ -939,7 +952,7 @@ async function exportOrdonnancesExcel(type) {
             (o.lignes || []).forEach(l => {
                 lignesRows.push({
                     'Ordonnance': o.id,
-                    'Date': o.date_ordonnance,
+                    'Date': formatDateFR(o.date_ordonnance),
                     'Bénéficiaire': beneficiaire,
                     'Article': l.designation || '',
                     'Forme': l.forme || '',
@@ -1011,7 +1024,7 @@ function buildOrdonnanceHtml(ordonnance) {
     </div>
     <div class="info">
         <p><strong>Bénéficiaire :</strong> ${escapeHtml(beneficiaire)}</p>
-        <p><strong>Date :</strong> ${escapeHtml(ordonnance.date_ordonnance || '')}</p>
+        <p><strong>Date :</strong> ${escapeHtml(formatDateFR(ordonnance.date_ordonnance))}</p>
         ${ordonnance.motif ? `<p><strong>Motif :</strong> ${escapeHtml(ordonnance.motif)}</p>` : ''}
     </div>
     <table>
@@ -1064,7 +1077,7 @@ function exportOrdonnancePDF(ordonnance) {
     let y = 35;
     doc.text(`Bénéficiaire : ${beneficiaire}`, 14, y);
     y += 6;
-    doc.text(`Date : ${ordonnance.date_ordonnance || ''}`, 14, y);
+    doc.text(`Date : ${formatDateFR(ordonnance.date_ordonnance)}`, 14, y);
     if (ordonnance.motif) {
         y += 6;
         doc.text(`Motif : ${ordonnance.motif}`, 14, y);
@@ -1362,7 +1375,7 @@ function renderExamens(data) {
     const tbody = document.getElementById('table-examens');
     if (!data.length) { tbody.innerHTML = '<tr><td colspan="7">Aucun examen</td></tr>'; return; }
     tbody.innerHTML = data.map(e => `<tr>
-        <td>${e.date_examen || ''}</td>
+        <td>${formatDateFR(e.date_examen)}</td>
         <td>${e.nom || ''} ${e.prenom || ''}</td>
         <td>${e.type_nom || '-'}</td>
         <td>${e.examen_nom || '-'}</td>
@@ -1397,7 +1410,7 @@ function exportExamensExcel() {
     const data = getFilteredExamens();
     if (!data.length) { showToast('Aucun examen à exporter', 'warning'); return; }
     const rows = data.map(e => ({
-        'Date': e.date_examen,
+        'Date': formatDateFR(e.date_examen),
         'Patient': `${e.nom || ''} ${e.prenom || ''}`.trim(),
         'Type': e.type_nom || '',
         'Examen': e.examen_nom || '',
@@ -1415,15 +1428,72 @@ function exportExamensExcel() {
 async function loadExamenRefs() {
     const tasks = [];
     if (!medecinsData.length) tasks.push(ensureMedecinsLoaded());
-    if (!typesExamensData.length) tasks.push(apiFetch('/examens-complementaires/refs/types').then(r => r.json()).then(d => typesExamensData = Array.isArray(d) ? d : []).catch(() => typesExamensData = []));
+    if (!typesExamensData.length) tasks.push(apiFetch('/examens-types/').then(r => r.json()).then(d => typesExamensData = Array.isArray(d) ? d : []).catch(() => typesExamensData = []));
     if (tasks.length) await Promise.all(tasks);
 
     const medecinSelect = document.getElementById('e-medecin');
     medecinSelect.innerHTML = '<option value="">-- Aucun --</option>' + medecinsData.map(m => `<option value="${m.id}">${m.nom}</option>`).join('');
+}
 
-    const typeNoms = [...new Set(typesExamensData.map(t => t.type_nom))];
-    const typeSelect = document.getElementById('e-type-examen');
-    typeSelect.innerHTML = typeNoms.map(t => `<option value="${t}">${t}</option>`).join('');
+// Retourne la liste des catégories d'examens (id + nom) déduite des types d'examens chargés
+function getExamenCategoriesList() {
+    const map = new Map();
+    typesExamensData.forEach(t => { if (!map.has(t.type_examen_id)) map.set(t.type_examen_id, t.type_nom); });
+    return [...map.entries()].map(([id, nom]) => ({ id, nom }));
+}
+
+function addLigneExamen() {
+    const container = document.getElementById('examen-lignes-container');
+    const categories = getExamenCategoriesList();
+    const catOptions = categories.map(c => `<option value="${c.id}">${c.nom}</option>`).join('');
+    const wrapper = document.createElement('div');
+    wrapper.className = 'ligne-examen-wrapper';
+    wrapper.innerHTML = `
+        <div class="ligne-examen">
+            <select class="le-categorie" onchange="onLigneExamenCategorieChange(this)">${catOptions}</select>
+            <select class="le-type" onchange="onLigneExamenTypeChange(this)"></select>
+            <input type="number" class="le-prix" placeholder="Prix" min="0" oninput="updateExamenTotalDisplay()">
+            <button class="btn-remove" onclick="removeLigneExamen(this)">✕</button>
+        </div>
+    `;
+    container.appendChild(wrapper);
+    onLigneExamenCategorieChange(wrapper.querySelector('.le-categorie'));
+    updateExamenLignesRemoveButtons();
+}
+
+function removeLigneExamen(btn) {
+    btn.closest('.ligne-examen-wrapper').remove();
+    updateExamenLignesRemoveButtons();
+    updateExamenTotalDisplay();
+}
+
+function updateExamenLignesRemoveButtons() {
+    const wrappers = document.querySelectorAll('#examen-lignes-container .ligne-examen-wrapper');
+    wrappers.forEach(w => {
+        w.querySelector('.btn-remove').style.display = wrappers.length > 1 ? '' : 'none';
+    });
+}
+
+function onLigneExamenCategorieChange(select) {
+    const wrapper = select.closest('.ligne-examen-wrapper');
+    const typeSelect = wrapper.querySelector('.le-type');
+    const categorieId = parseInt(select.value);
+    const types = typesExamensData.filter(t => t.type_examen_id === categorieId);
+    typeSelect.innerHTML = types.map(t => `<option value="${t.id}" data-tarif="${t.tarif}">${t.nom}</option>`).join('');
+    onLigneExamenTypeChange(typeSelect);
+}
+
+function onLigneExamenTypeChange(select) {
+    const wrapper = select.closest('.ligne-examen-wrapper');
+    const selected = select.options[select.selectedIndex];
+    wrapper.querySelector('.le-prix').value = selected ? (selected.dataset.tarif || 0) : 0;
+    updateExamenTotalDisplay();
+}
+
+function updateExamenTotalDisplay() {
+    let total = 0;
+    document.querySelectorAll('#examen-lignes-container .le-prix').forEach(input => total += parseFloat(input.value) || 0);
+    document.getElementById('e-total').value = total.toLocaleString() + ' FCFA';
 }
 
 async function openExamenModal() {
@@ -1438,9 +1508,12 @@ async function openExamenModal() {
     document.getElementById('e-date').value = new Date().toISOString().split('T')[0];
     document.getElementById('e-renseignement').value = '';
     document.getElementById('e-resultat').value = '';
-    document.getElementById('e-prix').value = '';
 
-    onTypeExamenChange();
+    document.getElementById('examen-lignes-container').innerHTML = '';
+    addLigneExamen();
+    document.getElementById('btn-add-ligne-examen').style.display = '';
+    updateExamenTotalDisplay();
+
     openModal('modal-examen');
 }
 
@@ -1456,15 +1529,20 @@ async function editExamen(id) {
     await Promise.all(tasks);
     setPatientComboValue('e', examen.patient_id);
 
+    document.getElementById('examen-lignes-container').innerHTML = '';
+    addLigneExamen();
+    const wrapper = document.querySelector('#examen-lignes-container .ligne-examen-wrapper');
     const sousType = typesExamensData.find(t => t.id === examen.sous_type_examen_id);
     if (sousType) {
-        document.getElementById('e-type-examen').value = sousType.type_nom;
-        onTypeExamenChange();
-        document.getElementById('e-sous-type').value = examen.sous_type_examen_id;
+        wrapper.querySelector('.le-categorie').value = sousType.type_examen_id;
+        onLigneExamenCategorieChange(wrapper.querySelector('.le-categorie'));
+        wrapper.querySelector('.le-type').value = examen.sous_type_examen_id;
     }
+    wrapper.querySelector('.le-prix').value = examen.prix || 0;
+    document.getElementById('btn-add-ligne-examen').style.display = 'none';
+    updateExamenTotalDisplay();
 
     document.getElementById('e-date').value = examen.date_examen || '';
-    document.getElementById('e-prix').value = examen.prix || 0;
     document.getElementById('e-medecin').value = examen.medecin_id || '';
     document.getElementById('e-renseignement').value = examen.renseignement_clinique || '';
     document.getElementById('e-resultat').value = examen.resultat || '';
@@ -1472,44 +1550,54 @@ async function editExamen(id) {
     openModal('modal-examen');
 }
 
-function onTypeExamenChange() {
-    const typeNom = document.getElementById('e-type-examen').value;
-    const sousTypeSelect = document.getElementById('e-sous-type');
-    const sousTypes = typesExamensData.filter(t => t.type_nom === typeNom);
-    sousTypeSelect.innerHTML = sousTypes.map(t => `<option value="${t.id}" data-tarif="${t.tarif}">${t.nom}</option>`).join('');
-    onSousTypeChange();
-}
-
-function onSousTypeChange() {
-    const sousTypeSelect = document.getElementById('e-sous-type');
-    const selected = sousTypeSelect.options[sousTypeSelect.selectedIndex];
-    document.getElementById('e-prix').value = selected ? selected.dataset.tarif : 0;
-}
-
 async function saveExamen() {
     if (!validateRequiredFields([
         { id: 'e-patient', label: 'Patient', highlightId: 'e-patient-search' },
         { id: 'e-date', label: 'Date' },
-        { id: 'e-sous-type', label: "Examen" },
     ])) return;
+
+    const lignes = document.querySelectorAll('#examen-lignes-container .ligne-examen-wrapper');
+    for (const ligne of lignes) {
+        const sousType = ligne.querySelector('.le-type');
+        if (!sousType.value) {
+            showToast('Veuillez sélectionner un examen pour chaque ligne', 'error');
+            return;
+        }
+    }
 
     const id = document.getElementById('e-id').value;
     const patientId = parseInt(document.getElementById('e-patient').value);
-    const data = {
-        patient_id: patientId,
-        sous_type_examen_id: parseInt(document.getElementById('e-sous-type').value),
-        date_examen: document.getElementById('e-date').value,
-        prix: parseFloat(document.getElementById('e-prix').value) || 0,
-        medecin_id: document.getElementById('e-medecin').value ? parseInt(document.getElementById('e-medecin').value) : null,
-        renseignement_clinique: document.getElementById('e-renseignement').value,
-        resultat: document.getElementById('e-resultat').value || null
-    };
+    const dateExamen = document.getElementById('e-date').value;
+    const medecinId = document.getElementById('e-medecin').value ? parseInt(document.getElementById('e-medecin').value) : null;
+    const renseignement = document.getElementById('e-renseignement').value;
+    const resultat = document.getElementById('e-resultat').value || null;
 
     try {
         if (id) {
+            const ligne = lignes[0];
+            const data = {
+                patient_id: patientId,
+                sous_type_examen_id: parseInt(ligne.querySelector('.le-type').value),
+                date_examen: dateExamen,
+                prix: parseFloat(ligne.querySelector('.le-prix').value) || 0,
+                medecin_id: medecinId,
+                renseignement_clinique: renseignement,
+                resultat: resultat
+            };
             await apiFetch(`/examens-complementaires/${id}`, { method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(data) });
         } else {
-            await apiFetch('/examens-complementaires', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(data) });
+            for (const ligne of lignes) {
+                const data = {
+                    patient_id: patientId,
+                    sous_type_examen_id: parseInt(ligne.querySelector('.le-type').value),
+                    date_examen: dateExamen,
+                    prix: parseFloat(ligne.querySelector('.le-prix').value) || 0,
+                    medecin_id: medecinId,
+                    renseignement_clinique: renseignement,
+                    resultat: resultat
+                };
+                await apiFetch('/examens-complementaires', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(data) });
+            }
         }
         closeModal('modal-examen');
         loadExamens();
@@ -1560,8 +1648,8 @@ function exportPersonnelExcel() {
         'Prénom': p.prenom,
         'Fonction': p.fonction || '',
         'Téléphone': p.telephone || '',
-        'Date d\'entrée': p.date_entree || '',
-        'Date de sortie': p.date_sortie || '',
+        'Date d\'entrée': formatDateFR(p.date_entree),
+        'Date de sortie': formatDateFR(p.date_sortie),
         'Compte utilisateur': p.nom_utilisateur ? `${p.nom_utilisateur} (${p.role})${p.actif ? '' : ' - inactif'}` : ''
     }));
     const ws = XLSX.utils.json_to_sheet(rows);
@@ -1579,7 +1667,7 @@ function renderPersonnel(data) {
             : '-';
         return `<tr>
             <td>${p.nom}</td><td>${p.prenom}</td><td>${p.fonction || '-'}</td><td>${p.telephone || '-'}</td>
-            <td>${p.date_entree || '-'}</td><td>${p.date_sortie || '-'}</td><td>${compte}</td>
+            <td>${formatDateFR(p.date_entree) || '-'}</td><td>${formatDateFR(p.date_sortie) || '-'}</td><td>${compte}</td>
             <td>
                 <button class="btn btn-sm" onclick="editPersonnel(${p.id})">Modifier</button>
                 <button class="btn btn-sm btn-danger" onclick="deactivatePersonnel(${p.id})">Désactiver</button>
@@ -1723,6 +1811,162 @@ async function deleteMedecin(id) {
     }
 }
 
+// Examens - Configuration (Catégories & Types)
+let categoriesExamensData = [];
+
+async function loadExamensConfig() {
+    try {
+        const [categories, types] = await Promise.all([
+            apiFetch('/examens-categories').then(r => r.json()),
+            apiFetch('/examens-types').then(r => r.json())
+        ]);
+        categoriesExamensData = categories;
+        typesExamensData = types;
+        renderCategoriesExamens(categoriesExamensData);
+        renderTypesExamens(typesExamensData);
+    } catch(e) {
+        document.getElementById('table-categories-examens').innerHTML = '<tr><td colspan="2">Erreur</td></tr>';
+        document.getElementById('table-types-examens').innerHTML = '<tr><td colspan="4">Erreur</td></tr>';
+    }
+}
+
+function renderCategoriesExamens(data) {
+    const tbody = document.getElementById('table-categories-examens');
+    if (!data.length) { tbody.innerHTML = '<tr><td colspan="2">Aucune catégorie</td></tr>'; return; }
+    tbody.innerHTML = data.map(c => `<tr>
+        <td>${c.nom}</td>
+        <td>
+            <button class="btn btn-sm" onclick="editCategorieExamen(${c.id})">Modifier</button>
+            <button class="btn btn-sm btn-danger" onclick="deleteCategorieExamen(${c.id})">Supprimer</button>
+        </td>
+    </tr>`).join('');
+}
+
+function renderTypesExamens(data) {
+    const tbody = document.getElementById('table-types-examens');
+    if (!data.length) { tbody.innerHTML = '<tr><td colspan="4">Aucun type d\'examen</td></tr>'; return; }
+    tbody.innerHTML = data.map(t => `<tr>
+        <td>${t.type_nom || '-'}</td>
+        <td>${t.nom}</td>
+        <td>${(t.tarif || 0).toLocaleString()} FCFA</td>
+        <td>
+            <button class="btn btn-sm" onclick="editTypeExamen(${t.id})">Modifier</button>
+            <button class="btn btn-sm btn-danger" onclick="deleteTypeExamen(${t.id})">Supprimer</button>
+        </td>
+    </tr>`).join('');
+}
+
+function populateCategorieExamenSelect(selected) {
+    const select = document.getElementById('te-categorie');
+    select.innerHTML = categoriesExamensData.map(c => `<option value="${c.id}">${c.nom}</option>`).join('');
+    select.value = selected || '';
+}
+
+function openNewCategorieExamenModal() {
+    document.getElementById('modal-categorie-examen-title').textContent = 'Nouvelle Catégorie';
+    document.getElementById('ce-id').value = '';
+    document.getElementById('ce-nom').value = '';
+    openModal('modal-categorie-examen');
+}
+
+function editCategorieExamen(id) {
+    const categorie = categoriesExamensData.find(c => c.id === id);
+    if (!categorie) return;
+    document.getElementById('modal-categorie-examen-title').textContent = 'Modifier Catégorie';
+    document.getElementById('ce-id').value = categorie.id;
+    document.getElementById('ce-nom').value = categorie.nom || '';
+    openModal('modal-categorie-examen');
+}
+
+async function saveCategorieExamen() {
+    if (!validateRequiredFields([
+        { id: 'ce-nom', label: 'Nom' },
+    ])) return;
+
+    const id = document.getElementById('ce-id').value;
+    const categorie = { nom: document.getElementById('ce-nom').value };
+    try {
+        if (id) {
+            await apiFetch(`/examens-categories/${id}`, { method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(categorie) });
+        } else {
+            await apiFetch('/examens-categories', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(categorie) });
+        }
+        closeModal('modal-categorie-examen');
+        typesExamensData = [];
+        loadExamensConfig();
+        showToast('Catégorie enregistrée !', 'success');
+    } catch(e) { showToast('Erreur lors de l\'enregistrement : ' + e.message, 'error'); }
+}
+
+async function deleteCategorieExamen(id) {
+    if (!confirm('Voulez-vous vraiment supprimer cette catégorie ?')) return;
+    try {
+        await apiFetch(`/examens-categories/${id}`, { method: 'DELETE' });
+        loadExamensConfig();
+    } catch(e) {
+        if (e.status === 409) showToast(e.detail, 'error');
+        else showToast('Erreur lors de la suppression : ' + e.message, 'error');
+    }
+}
+
+function openNewTypeExamenModal() {
+    document.getElementById('modal-type-examen-title').textContent = "Nouveau Type d'examen";
+    document.getElementById('te-id').value = '';
+    populateCategorieExamenSelect('');
+    document.getElementById('te-nom').value = '';
+    document.getElementById('te-prix').value = '';
+    openModal('modal-type-examen');
+}
+
+function editTypeExamen(id) {
+    const type = typesExamensData.find(t => t.id === id);
+    if (!type) return;
+    document.getElementById('modal-type-examen-title').textContent = "Modifier Type d'examen";
+    document.getElementById('te-id').value = type.id;
+    populateCategorieExamenSelect(type.type_examen_id);
+    document.getElementById('te-nom').value = type.nom || '';
+    document.getElementById('te-prix').value = type.tarif || 0;
+    openModal('modal-type-examen');
+}
+
+async function saveTypeExamen() {
+    if (!validateRequiredFields([
+        { id: 'te-categorie', label: 'Catégorie' },
+        { id: 'te-nom', label: 'Nom' },
+        { id: 'te-prix', label: 'Prix', min: 0 },
+    ])) return;
+
+    const id = document.getElementById('te-id').value;
+    const type = {
+        type_examen_id: parseInt(document.getElementById('te-categorie').value),
+        nom: document.getElementById('te-nom').value,
+        tarif: parseFloat(document.getElementById('te-prix').value) || 0,
+    };
+    try {
+        if (id) {
+            await apiFetch(`/examens-types/${id}`, { method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(type) });
+        } else {
+            await apiFetch('/examens-types', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(type) });
+        }
+        closeModal('modal-type-examen');
+        typesExamensData = [];
+        loadExamensConfig();
+        showToast('Type d\'examen enregistré !', 'success');
+    } catch(e) { showToast('Erreur lors de l\'enregistrement : ' + e.message, 'error'); }
+}
+
+async function deleteTypeExamen(id) {
+    if (!confirm('Voulez-vous vraiment supprimer ce type d\'examen ?')) return;
+    try {
+        await apiFetch(`/examens-types/${id}`, { method: 'DELETE' });
+        typesExamensData = [];
+        loadExamensConfig();
+    } catch(e) {
+        if (e.status === 409) showToast(e.detail, 'error');
+        else showToast('Erreur lors de la suppression : ' + e.message, 'error');
+    }
+}
+
 // Fournisseurs
 async function loadFournisseurs() {
     try {
@@ -1830,7 +2074,7 @@ function renderDepenses(data) {
             : `<button class="btn btn-sm" onclick="editDepense(${d.id_depense})">Modifier</button>
                <button class="btn btn-sm btn-danger" onclick="deleteDepense(${d.id_depense})">Supprimer</button>`;
         return `<tr>
-        <td>${d.date_depense}</td><td>${d.type_depense}</td><td>${(d.montant || 0).toLocaleString()} FCFA</td><td>${d.description || '-'}</td>
+        <td>${formatDateFR(d.date_depense)}</td><td>${d.type_depense}</td><td>${(d.montant || 0).toLocaleString()} FCFA</td><td>${d.description || '-'}</td>
         <td>${actions}</td>
     </tr>`;
     }).join('');
@@ -1868,7 +2112,7 @@ function exportDepensesExcel() {
     const data = getFilteredDepenses();
     if (!data.length) { showToast('Aucune dépense à exporter', 'warning'); return; }
     const rows = data.map(d => ({
-        'Date': d.date_depense || '',
+        'Date': formatDateFR(d.date_depense),
         'Type': d.type_depense || '',
         'Montant': d.montant || 0,
         'Description': d.description || '',
@@ -1984,7 +2228,7 @@ function renderAchats(data) {
     if (!data.length) { tbody.innerHTML = '<tr><td colspan="6">Aucun achat</td></tr>'; return; }
     tbody.innerHTML = data.map(a => `<tr>
         <td>${a.numero_facture || '-'}</td>
-        <td>${a.date_achat || ''}</td>
+        <td>${formatDateFR(a.date_achat)}</td>
         <td>${a.fournisseur_nom || '-'}</td>
         <td>${(a.montant_total || 0).toLocaleString()} FCFA</td>
         <td><span class="status ${statutPaiementClasses[a.statut_paiement] || 'status-warning'}">${a.statut_paiement || ''}</span></td>
@@ -2025,7 +2269,7 @@ function exportAchatsExcel() {
     if (!data.length) { showToast('Aucun achat à exporter', 'warning'); return; }
     const rows = data.map(a => ({
         'N° Facture': a.numero_facture || '',
-        'Date': a.date_achat || '',
+        'Date': formatDateFR(a.date_achat),
         'Fournisseur': a.fournisseur_nom || '',
         'Montant total': a.montant_total || 0,
         'Statut paiement': a.statut_paiement || '',

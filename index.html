@@ -50,6 +50,9 @@
         <div class="menu-item" id="menu-medecins" style="display:none;" onclick="showPage('medecins')">
             <span class="icon">🆔</span> Médecins
         </div>
+        <div class="menu-item" id="menu-examens-config" style="display:none;" onclick="showPage('examens-config')">
+            <span class="icon">⚙️</span> Types d'examens
+        </div>
         <div class="menu-item" id="menu-comptabilite" style="display:none;" onclick="showPage('comptabilite')">
             <span class="icon">💰</span> Comptabilité
         </div>
@@ -372,62 +375,33 @@
         <div id="page-stock" class="page">
             <div id="alertes-stock"></div>
 
-            <div style="display:flex; gap:10px; margin-bottom:15px;">
-                <button class="btn btn-primary" id="tab-stock-articles" onclick="showStockTab('articles')">Articles</button>
-                <button class="btn" id="tab-stock-sorties" onclick="showStockTab('sorties')">Historique des sorties</button>
-            </div>
-
-            <!-- ARTICLES -->
-            <div id="stock-tab-articles">
-                <div class="table-container">
-                    <div class="table-header">
-                        <h3>Stock médicaments</h3>
+            <div class="table-container">
+                <div class="table-header">
+                    <h3>Stock médicaments</h3>
+                    <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
                         <input type="text" class="search-box" placeholder="Rechercher..." id="search-stock" oninput="filterStock()">
+                        <button class="btn" onclick="exportStockExcel()">📊 Exporter Excel</button>
                     </div>
-                    <table>
-                        <thead>
-                            <tr>
-                                <th>Désignation</th>
-                                <th>Type</th>
-                                <th>Dosage</th>
-                                <th>Forme</th>
-                                <th>Quantité</th>
-                                <th>Seuil alerte</th>
-                                <th>Prix vente</th>
-                                <th>Péremption</th>
-                                <th>Statut</th>
-                                <th>Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody id="table-stock">
-                            <tr><td colspan="10" class="loading">Chargement...</td></tr>
-                        </tbody>
-                    </table>
                 </div>
-            </div>
-
-            <!-- HISTORIQUE DES SORTIES -->
-            <div id="stock-tab-sorties" style="display:none;">
-                <div class="table-container">
-                    <div class="table-header">
-                        <h3>Historique des sorties</h3>
-                    </div>
-                    <table>
-                        <thead>
-                            <tr>
-                                <th>Date</th>
-                                <th>Désignation</th>
-                                <th>Quantité</th>
-                                <th>Prix vente</th>
-                                <th>Montant</th>
-                                <th>Patient / Destination</th>
-                            </tr>
-                        </thead>
-                        <tbody id="table-sorties">
-                            <tr><td colspan="6" class="loading">Chargement...</td></tr>
-                        </tbody>
-                    </table>
-                </div>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Désignation</th>
+                            <th>Type</th>
+                            <th>Dosage</th>
+                            <th>Forme</th>
+                            <th>Quantité</th>
+                            <th>Seuil alerte</th>
+                            <th>Prix vente</th>
+                            <th>Péremption</th>
+                            <th>Statut</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="table-stock">
+                        <tr><td colspan="10" class="loading">Chargement...</td></tr>
+                    </tbody>
+                </table>
             </div>
         </div>
 
@@ -483,6 +457,47 @@
                     </thead>
                     <tbody id="table-medecins">
                         <tr><td colspan="2" class="loading">Chargement...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- CONFIGURATION EXAMENS (Catégories & Types) -->
+        <div id="page-examens-config" class="page">
+            <div class="table-container">
+                <div class="table-header">
+                    <h3>Catégories d'examens</h3>
+                    <button class="btn btn-primary" onclick="openNewCategorieExamenModal()">+ Nouvelle catégorie</button>
+                </div>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Nom</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="table-categories-examens">
+                        <tr><td colspan="2" class="loading">Chargement...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="table-container">
+                <div class="table-header">
+                    <h3>Types d'examens</h3>
+                    <button class="btn btn-primary" onclick="openNewTypeExamenModal()">+ Nouveau type d'examen</button>
+                </div>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Catégorie</th>
+                            <th>Nom</th>
+                            <th>Prix</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="table-types-examens">
+                        <tr><td colspan="4" class="loading">Chargement...</td></tr>
                     </tbody>
                 </table>
             </div>
@@ -731,20 +746,15 @@
                 <input type="date" id="e-date">
             </div>
         </div>
-        <div class="form-row">
-            <div class="form-group">
-                <label>Type d'examen</label>
-                <select id="e-type-examen" onchange="onTypeExamenChange()"></select>
-            </div>
-            <div class="form-group">
-                <label>Examen<span class="required-mark">*</span></label>
-                <select id="e-sous-type" onchange="onSousTypeChange()"></select>
-            </div>
+        <div class="form-group">
+            <label>Examens<span class="required-mark">*</span></label>
+            <div id="examen-lignes-container"></div>
+            <button type="button" class="btn btn-sm" id="btn-add-ligne-examen" onclick="addLigneExamen()">+ Ajouter un examen</button>
         </div>
         <div class="form-row">
             <div class="form-group">
-                <label>Prix</label>
-                <input type="number" id="e-prix" placeholder="Prix">
+                <label>Total</label>
+                <input type="text" id="e-total" readonly>
             </div>
             <div class="form-group">
                 <label>Médecin</label>
@@ -982,6 +992,46 @@
         <div class="modal-actions">
             <button class="btn" onclick="closeModal('modal-medecin')">Annuler</button>
             <button class="btn btn-primary" onclick="saveMedecin()">Enregistrer</button>
+        </div>
+    </div>
+</div>
+
+<!-- MODAL CATEGORIE EXAMEN -->
+<div class="modal-overlay" id="modal-categorie-examen">
+    <div class="modal">
+        <h3 id="modal-categorie-examen-title">Nouvelle Catégorie</h3>
+        <input type="hidden" id="ce-id">
+        <div class="form-group">
+            <label>Nom<span class="required-mark">*</span></label>
+            <input type="text" id="ce-nom" placeholder="Nom de la catégorie">
+        </div>
+        <div class="modal-actions">
+            <button class="btn" onclick="closeModal('modal-categorie-examen')">Annuler</button>
+            <button class="btn btn-primary" onclick="saveCategorieExamen()">Enregistrer</button>
+        </div>
+    </div>
+</div>
+
+<!-- MODAL TYPE EXAMEN -->
+<div class="modal-overlay" id="modal-type-examen">
+    <div class="modal">
+        <h3 id="modal-type-examen-title">Nouveau Type d'examen</h3>
+        <input type="hidden" id="te-id">
+        <div class="form-group">
+            <label>Catégorie<span class="required-mark">*</span></label>
+            <select id="te-categorie"></select>
+        </div>
+        <div class="form-group">
+            <label>Nom<span class="required-mark">*</span></label>
+            <input type="text" id="te-nom" placeholder="Nom du type d'examen">
+        </div>
+        <div class="form-group">
+            <label>Prix<span class="required-mark">*</span></label>
+            <input type="number" id="te-prix" placeholder="Prix" min="0">
+        </div>
+        <div class="modal-actions">
+            <button class="btn" onclick="closeModal('modal-type-examen')">Annuler</button>
+            <button class="btn btn-primary" onclick="saveTypeExamen()">Enregistrer</button>
         </div>
     </div>
 </div>
