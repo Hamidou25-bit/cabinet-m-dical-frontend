@@ -215,32 +215,109 @@
         </div>
         <!-- ORDONNANCES -->
         <div id="page-ordonnances" class="page">
-            <div class="table-container">
-                <div class="table-header">
-                    <h3>Liste des ordonnances</h3>
-                    <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
-                        <input type="text" class="search-box" placeholder="Rechercher..." id="search-ordonnances" oninput="filterOrdonnances()">
-                        <input type="date" id="filter-ordonnances-date-debut" title="Date - du" onchange="filterOrdonnances()">
-                        <input type="date" id="filter-ordonnances-date-fin" title="Date - au" onchange="filterOrdonnances()">
-                        <button class="btn" onclick="exportOrdonnancesExcel()">📊 Exporter Excel</button>
-                        <button class="btn btn-primary" onclick="openOrdonnanceModal()">+ Nouvelle ordonnance</button>
+            <div style="display:flex; gap:10px; margin-bottom:15px;">
+                <button class="btn btn-primary" id="tab-ordonnances-patient" onclick="showOrdonnancesTab('patient')">Ordonnances Patients</button>
+                <button class="btn" id="tab-ordonnances-tiers" onclick="showOrdonnancesTab('tiers')">Ventes à des tiers</button>
+                <button class="btn" id="tab-ordonnances-interne" onclick="showOrdonnancesTab('interne')">Usage interne</button>
+            </div>
+
+            <!-- VOLET PATIENTS -->
+            <div id="ordonnances-tab-patient">
+                <div class="table-container">
+                    <div class="table-header">
+                        <h3>Ordonnances Patients</h3>
+                        <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+                            <input type="text" class="search-box" placeholder="Rechercher..." id="search-ordonnances-patient" oninput="filterOrdonnancesTab('patient')">
+                            <input type="date" id="filter-ordonnances-patient-date-debut" title="Date - du">
+                            <input type="date" id="filter-ordonnances-patient-date-fin" title="Date - au">
+                            <button class="btn" onclick="loadOrdonnancesTab('patient')">Filtrer</button>
+                            <button class="btn" onclick="resetFilterOrdonnances('patient')">Réinitialiser</button>
+                            <button class="btn" onclick="exportOrdonnancesExcel('patient')">📊 Exporter Excel</button>
+                            <button class="btn btn-primary" onclick="openOrdonnanceModal('patient')">+ Nouvelle ordonnance</button>
+                        </div>
                     </div>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Date</th>
+                                <th>Patient</th>
+                                <th>Motif</th>
+                                <th>Total</th>
+                                <th>Statut</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="table-ordonnances-patient">
+                            <tr><td colspan="6" class="loading">Chargement...</td></tr>
+                        </tbody>
+                    </table>
                 </div>
-                <table>
-                    <thead>
-                        <tr>
-                            <th>Date</th>
-                            <th>Patient</th>
-                            <th>Motif</th>
-                            <th>Bénéficiaire</th>
-                            <th>Statut</th>
-                            <th>Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody id="table-ordonnances">
-                        <tr><td colspan="6" class="loading">Chargement...</td></tr>
-                    </tbody>
-                </table>
+            </div>
+
+            <!-- VOLET VENTES A DES TIERS -->
+            <div id="ordonnances-tab-tiers" style="display:none;">
+                <div class="table-container">
+                    <div class="table-header">
+                        <h3>Ventes à des tiers</h3>
+                        <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+                            <input type="text" class="search-box" placeholder="Rechercher..." id="search-ordonnances-tiers" oninput="filterOrdonnancesTab('tiers')">
+                            <input type="date" id="filter-ordonnances-tiers-date-debut" title="Date - du">
+                            <input type="date" id="filter-ordonnances-tiers-date-fin" title="Date - au">
+                            <button class="btn" onclick="loadOrdonnancesTab('tiers')">Filtrer</button>
+                            <button class="btn" onclick="resetFilterOrdonnances('tiers')">Réinitialiser</button>
+                            <button class="btn" onclick="exportOrdonnancesExcel('tiers')">📊 Exporter Excel</button>
+                            <button class="btn btn-primary" onclick="openOrdonnanceModal('tiers')">+ Nouvelle ordonnance</button>
+                        </div>
+                    </div>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Date</th>
+                                <th>Bénéficiaire</th>
+                                <th>Motif</th>
+                                <th>Total</th>
+                                <th>Statut</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="table-ordonnances-tiers">
+                            <tr><td colspan="6" class="loading">Chargement...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- VOLET USAGE INTERNE -->
+            <div id="ordonnances-tab-interne" style="display:none;">
+                <div class="table-container">
+                    <div class="table-header">
+                        <h3>Usage interne</h3>
+                        <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+                            <input type="text" class="search-box" placeholder="Rechercher..." id="search-ordonnances-interne" oninput="filterOrdonnancesTab('interne')">
+                            <input type="date" id="filter-ordonnances-interne-date-debut" title="Date - du">
+                            <input type="date" id="filter-ordonnances-interne-date-fin" title="Date - au">
+                            <button class="btn" onclick="loadOrdonnancesTab('interne')">Filtrer</button>
+                            <button class="btn" onclick="resetFilterOrdonnances('interne')">Réinitialiser</button>
+                            <button class="btn" onclick="exportOrdonnancesExcel('interne')">📊 Exporter Excel</button>
+                            <button class="btn btn-primary" onclick="openOrdonnanceModal('interne')">+ Nouvelle ordonnance</button>
+                        </div>
+                    </div>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Date</th>
+                                <th>Bénéficiaire</th>
+                                <th>Motif</th>
+                                <th>Total</th>
+                                <th>Statut</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="table-ordonnances-interne">
+                            <tr><td colspan="6" class="loading">Chargement...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
             </div>
         </div>
 
@@ -291,6 +368,8 @@
                 <h3 style="margin-top: 15px; font-size: 14px;">Médicaments</h3>
                 <div id="lignes-ordonnance"></div>
                 <button class="btn btn-sm" onclick="addLigneOrdonnance()">+ Ajouter un médicament</button>
+
+                <div id="o-montant-total" style="margin-top: 15px; font-size: 15px; font-weight: bold; text-align: right;">Total : 0 FCFA</div>
 
                 <div class="modal-actions">
                     <button class="btn" onclick="showPage('ordonnances')">Annuler</button>

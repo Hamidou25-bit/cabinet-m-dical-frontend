@@ -6,6 +6,12 @@ let fournisseursData = [];
 let depensesData = [];
 let typesDepenseData = [];
 
+// Echappe les caractères HTML sensibles pour éviter d'injecter du HTML
+// dans les pages générées dynamiquement (impression, etc.)
+function escapeHtml(str) {
+    return String(str ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
 // 1. Initialisation sécurisée (on vérifie si l'élément existe)
 document.addEventListener('DOMContentLoaded', function() {
     // Date
@@ -844,65 +850,183 @@ async function loadSorties() {
 // Ordonnances
 let dosagesData = [];
 let formesData = [];
-let ordonnancesData = [];
+const ordonnancesData = { patient: [], tiers: [], interne: [] };
+let ordonnanceFormReturnTab = 'patient';
 
 async function loadOrdonnances() {
-    try {
-        ordonnancesData = await apiFetch('/ordonnances').then(r => r.json());
-        renderOrdonnances(ordonnancesData);
-    } catch(e) { document.getElementById('table-ordonnances').innerHTML = '<tr><td colspan="6">Erreur</td></tr>'; }
+    showOrdonnancesTab(ordonnanceFormReturnTab);
 }
 
-function renderOrdonnances(data) {
-    const tbody = document.getElementById('table-ordonnances');
+function showOrdonnancesTab(type) {
+    Object.keys(ordonnancesData).forEach(t => {
+        document.getElementById('ordonnances-tab-' + t).style.display = t === type ? '' : 'none';
+        document.getElementById('tab-ordonnances-' + t).className = t === type ? 'btn btn-primary' : 'btn';
+    });
+    loadOrdonnancesTab(type);
+}
+
+async function loadOrdonnancesTab(type) {
+    const tbody = document.getElementById('table-ordonnances-' + type);
+    tbody.innerHTML = '<tr><td colspan="6" class="loading">Chargement...</td></tr>';
+    try {
+        const params = new URLSearchParams({ type_beneficiaire: type });
+        const dateDebut = document.getElementById(`filter-ordonnances-${type}-date-debut`).value;
+        const dateFin = document.getElementById(`filter-ordonnances-${type}-date-fin`).value;
+        if (dateDebut) params.set('date_debut', dateDebut);
+        if (dateFin) params.set('date_fin', dateFin);
+        ordonnancesData[type] = await apiFetch(`/ordonnances/?${params.toString()}`).then(r => r.json());
+        renderOrdonnancesTab(type);
+    } catch(e) { tbody.innerHTML = '<tr><td colspan="6">Erreur</td></tr>'; }
+}
+
+function getFilteredOrdonnancesTab(type) {
+    const q = document.getElementById('search-ordonnances-' + type).value.toLowerCase();
+    return ordonnancesData[type].filter(o => {
+        const beneficiaire = type === 'patient' ? `${o.nom || ''} ${o.prenom || ''}` : (o.beneficiaire || '');
+        return beneficiaire.toLowerCase().includes(q) || (o.motif || '').toLowerCase().includes(q);
+    });
+}
+
+function renderOrdonnancesTab(type) {
+    const tbody = document.getElementById('table-ordonnances-' + type);
+    const data = getFilteredOrdonnancesTab(type);
     if (!data.length) { tbody.innerHTML = '<tr><td colspan="6">Aucune ordonnance</td></tr>'; return; }
     tbody.innerHTML = data.map(o => {
+        const beneficiaire = type === 'patient' ? `${o.nom || ''} ${o.prenom || ''}`.trim() || '-' : (o.beneficiaire || '-');
         const statut = o.est_validee ? '<span class="status status-ok">Validée</span>' : '<span class="status status-warning">En attente</span>';
-        return `<tr>
+        return `<tr ondblclick="editOrdonnance(${o.id})">
             <td>${o.date_ordonnance || ''}</td>
-            <td>${o.nom || ''} ${o.prenom || ''}</td>
-            <td>${o.motif || '-'}</td>
-            <td>${o.beneficiaire || '-'}</td>
+            <td>${escapeHtml(beneficiaire)}</td>
+            <td>${escapeHtml(o.motif || '-')}</td>
+            <td>${(o.montant_total || 0).toLocaleString()} FCFA</td>
             <td>${statut}</td>
             <td>
                 <button class="btn btn-sm" onclick="editOrdonnance(${o.id})">Modifier</button>
-                <button class="btn btn-sm btn-danger" onclick="deleteOrdonnance(${o.id})">Supprimer</button>
+                <button class="btn btn-sm" onclick="printOrdonnance(${o.id})">Imprimer</button>
+                <button class="btn btn-sm btn-danger" onclick="deleteOrdonnance(${o.id}, '${type}')">Supprimer</button>
             </td>
         </tr>`;
     }).join('');
 }
 
-function getFilteredOrdonnances() {
-    const q = document.getElementById('search-ordonnances').value.toLowerCase();
-    const dateDebut = document.getElementById('filter-ordonnances-date-debut').value;
-    const dateFin = document.getElementById('filter-ordonnances-date-fin').value;
-    return ordonnancesData.filter(o => {
-        const matchQ = (o.nom||'').toLowerCase().includes(q) || (o.prenom||'').toLowerCase().includes(q)
-            || (o.motif||'').toLowerCase().includes(q) || (o.beneficiaire||'').toLowerCase().includes(q);
-        const matchDateDebut = !dateDebut || (o.date_ordonnance && o.date_ordonnance >= dateDebut);
-        const matchDateFin = !dateFin || (o.date_ordonnance && o.date_ordonnance <= dateFin);
-        return matchQ && matchDateDebut && matchDateFin;
-    });
+function filterOrdonnancesTab(type) {
+    renderOrdonnancesTab(type);
 }
 
-function filterOrdonnances() {
-    renderOrdonnances(getFilteredOrdonnances());
+function resetFilterOrdonnances(type) {
+    document.getElementById(`filter-ordonnances-${type}-date-debut`).value = '';
+    document.getElementById(`filter-ordonnances-${type}-date-fin`).value = '';
+    document.getElementById('search-ordonnances-' + type).value = '';
+    loadOrdonnancesTab(type);
 }
 
-function exportOrdonnancesExcel() {
-    const data = getFilteredOrdonnances();
-    if (!data.length) { showToast('Aucune ordonnance à exporter', 'warning'); return; }
-    const rows = data.map(o => ({
-        'Date': o.date_ordonnance,
-        'Patient': `${o.nom || ''} ${o.prenom || ''}`.trim(),
-        'Motif': o.motif || '',
-        'Bénéficiaire': o.beneficiaire || '',
-        'Statut': o.est_validee ? 'Validée' : 'En attente'
-    }));
-    const ws = XLSX.utils.json_to_sheet(rows);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Ordonnances');
-    XLSX.writeFile(wb, `ordonnances_${new Date().toISOString().split('T')[0]}.xlsx`);
+async function exportOrdonnancesExcel(type) {
+    try {
+        const params = new URLSearchParams({ type_beneficiaire: type });
+        const dateDebut = document.getElementById(`filter-ordonnances-${type}-date-debut`).value;
+        const dateFin = document.getElementById(`filter-ordonnances-${type}-date-fin`).value;
+        if (dateDebut) params.set('date_debut', dateDebut);
+        if (dateFin) params.set('date_fin', dateFin);
+        const { ordonnances } = await apiFetch(`/ordonnances/export?${params.toString()}`).then(r => r.json());
+        if (!ordonnances.length) { showToast('Aucune ordonnance à exporter', 'warning'); return; }
+
+        const lignesRows = [];
+        const syntheseRows = [];
+        ordonnances.forEach(o => {
+            const beneficiaire = type === 'patient' ? `${o.nom || ''} ${o.prenom || ''}`.trim() : (o.beneficiaire || '');
+            syntheseRows.push({
+                'Date': o.date_ordonnance,
+                'Bénéficiaire': beneficiaire,
+                'Motif': o.motif || '',
+                'Total': o.montant_total || 0,
+                'Statut': o.est_validee ? 'Validée' : 'En attente'
+            });
+            (o.lignes || []).forEach(l => {
+                lignesRows.push({
+                    'Ordonnance': o.id,
+                    'Date': o.date_ordonnance,
+                    'Bénéficiaire': beneficiaire,
+                    'Article': l.designation || '',
+                    'Forme': l.forme || '',
+                    'Dosage': l.dosage || '',
+                    'Quantité': l.quantite || 0,
+                    'Prix unitaire': l.quantite ? (l.montant || 0) / l.quantite : 0,
+                    'Montant': l.montant || 0
+                });
+            });
+        });
+
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(lignesRows), 'Détail');
+        XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(syntheseRows), 'Synthèse');
+        XLSX.writeFile(wb, `ordonnances_${type}_${new Date().toISOString().split('T')[0]}.xlsx`);
+    } catch(e) { showToast('Erreur lors de l\'export Excel', 'error'); }
+}
+
+async function printOrdonnance(id) {
+    // Ouvrir la fenêtre immédiatement (synchrone, dans le contexte du clic)
+    // pour éviter qu'elle soit bloquée par le bloqueur de popups une fois la requête API résolue.
+    const printWindow = window.open('', '_blank');
+    try {
+        const ordonnance = await apiFetch(`/ordonnances/${id}`).then(r => r.json());
+        const beneficiaire = ordonnance.patient_id
+            ? `${ordonnance.nom || ''} ${ordonnance.prenom || ''}`.trim()
+            : (ordonnance.beneficiaire || '-');
+
+        const lignesHtml = (ordonnance.lignes || []).map(l => `
+            <tr>
+                <td>${escapeHtml(l.designation || '')}</td>
+                <td>${escapeHtml(l.forme || '')}</td>
+                <td>${escapeHtml(l.dosage || '')}</td>
+                <td>${l.quantite || ''}</td>
+                <td>${escapeHtml(l.posologie || '')}${l.duree_jours ? ' — ' + l.duree_jours + ' jour(s)' : ''}</td>
+            </tr>`).join('');
+
+        const html = `<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<title>Ordonnance</title>
+<style>
+    body { font-family: 'Segoe UI', Arial, sans-serif; color: #1E293B; padding: 30px; }
+    .header { text-align: center; border-bottom: 2px solid #0D9488; padding-bottom: 12px; margin-bottom: 20px; }
+    .header h1 { color: #0F766E; margin: 0 0 4px; font-size: 22px; }
+    .header p { margin: 0; color: #64748B; }
+    .info p { margin: 4px 0; font-size: 14px; }
+    table { width: 100%; border-collapse: collapse; margin-top: 16px; }
+    th, td { border: 1px solid #E2E8F0; padding: 8px; font-size: 13px; text-align: left; }
+    th { background: #F1F5F9; }
+    .total { margin-top: 16px; text-align: right; font-size: 15px; font-weight: bold; }
+    @media print { body { padding: 0; } }
+</style>
+</head>
+<body>
+    <div class="header">
+        <h1>🏥 Cabinet Médical BabaMouneissa</h1>
+        <p>Ordonnance médicale</p>
+    </div>
+    <div class="info">
+        <p><strong>Bénéficiaire :</strong> ${escapeHtml(beneficiaire)}</p>
+        <p><strong>Date :</strong> ${escapeHtml(ordonnance.date_ordonnance || '')}</p>
+        ${ordonnance.motif ? `<p><strong>Motif :</strong> ${escapeHtml(ordonnance.motif)}</p>` : ''}
+    </div>
+    <table>
+        <thead>
+            <tr><th>Médicament</th><th>Forme</th><th>Dosage</th><th>Qté</th><th>Posologie</th></tr>
+        </thead>
+        <tbody>${lignesHtml}</tbody>
+    </table>
+    <div class="total">Total : ${(ordonnance.montant_total || 0).toLocaleString()} FCFA</div>
+</body>
+</html>`;
+
+        printWindow.document.write(html);
+        printWindow.document.close();
+        printWindow.onload = () => { printWindow.focus(); printWindow.print(); };
+    } catch(e) {
+        if (printWindow) printWindow.close();
+        showToast('Erreur lors de la préparation de l\'impression', 'error');
+    }
 }
 
 async function loadOrdonnanceRefs() {
@@ -932,10 +1056,11 @@ function onTypeBeneficiaireChange() {
     }
 }
 
-async function openOrdonnanceModal() {
+async function openOrdonnanceModal(type) {
     document.getElementById('ordonnance-form-title').textContent = 'Nouvelle Ordonnance';
     document.getElementById('page-title').textContent = 'Nouvelle Ordonnance';
     document.getElementById('o-id').value = '';
+    ordonnanceFormReturnTab = type || 'patient';
 
     // Remplir la liste des patients + charger dosages/formes/stock en parallèle
     const tasks = [loadOrdonnanceRefs(), ensureStockLoaded()];
@@ -949,7 +1074,7 @@ async function openOrdonnanceModal() {
     document.getElementById('o-motif').value = '';
     document.getElementById('o-beneficiaire').value = '';
     document.getElementById('o-est-validee').checked = false;
-    document.getElementById('o-type-beneficiaire').value = 'patient';
+    document.getElementById('o-type-beneficiaire').value = ordonnanceFormReturnTab;
     onTypeBeneficiaireChange();
 
     // Réinitialiser les lignes
@@ -971,7 +1096,8 @@ async function editOrdonnance(id) {
         const [, , ordonnance] = await Promise.all(tasks);
         populateStockDesignationsDatalist();
 
-        document.getElementById('o-type-beneficiaire').value = ordonnance.type_beneficiaire || 'patient';
+        ordonnanceFormReturnTab = ordonnance.type_beneficiaire || 'patient';
+        document.getElementById('o-type-beneficiaire').value = ordonnanceFormReturnTab;
         onTypeBeneficiaireChange();
 
         if (ordonnance.patient_id) {
@@ -1007,14 +1133,27 @@ function addLigneOrdonnance(ligne) {
             <input type="number" placeholder="Qté" class="lo-quantite" value="${ligne ? (ligne.quantite || 1) : 1}" min="1" oninput="updateLigneOrdonnanceMontant(this)">
             <input type="text" placeholder="Posologie" class="lo-posologie" value="${ligne ? (ligne.posologie || '') : ''}">
             <input type="number" placeholder="Jours" class="lo-duree" value="${ligne && ligne.duree_jours ? ligne.duree_jours : ''}">
-            <input type="number" placeholder="Montant" class="lo-montant" value="${ligne ? (ligne.montant || 0) : 0}" min="0">
-            <button class="btn-remove" onclick="this.closest('.ligne-ordonnance-wrapper').remove()">✕</button>
+            <input type="number" placeholder="Montant" class="lo-montant" value="${ligne ? (ligne.montant || 0) : 0}" min="0" oninput="updateOrdonnanceTotalDisplay()">
+            <button class="btn-remove" onclick="removeLigneOrdonnance(this)">✕</button>
         </div>
         <input type="hidden" class="lo-stock-id" value="${ligne && ligne.stock_id ? ligne.stock_id : ''}">
         <div class="ligne-ordonnance-info"></div>
     `;
     container.appendChild(wrapper);
     refreshLigneOrdonnanceInfo(wrapper);
+}
+
+function removeLigneOrdonnance(button) {
+    button.closest('.ligne-ordonnance-wrapper').remove();
+    updateOrdonnanceTotalDisplay();
+}
+
+function updateOrdonnanceTotalDisplay() {
+    const total = Array.from(document.querySelectorAll('.ligne-ordonnance-wrapper')).reduce((sum, wrapper) => {
+        return sum + (parseFloat(wrapper.querySelector('.lo-montant').value) || 0);
+    }, 0);
+    const totalDiv = document.getElementById('o-montant-total');
+    if (totalDiv) totalDiv.textContent = `Total : ${total.toLocaleString()} FCFA`;
 }
 
 // Detecte si la designation saisie correspond a un article du stock :
@@ -1050,12 +1189,24 @@ function refreshLigneOrdonnanceInfo(wrapper) {
         infoDiv.innerHTML = '';
         montantInput.readOnly = false;
     }
+    updateOrdonnanceTotalDisplay();
 }
 
+// Quand l'utilisateur saisit/selectionne un medicament, si celui-ci correspond
+// a un article du stock, pre-remplit forme et dosage a partir de cet article
+// (laisse les champs vides et modifiables si l'article n'a pas de forme/dosage,
+// ou s'il s'agit d'un medicament externe).
 function onLigneOrdonnanceDesignationInput(input) {
     const wrapper = input.closest('.ligne-ordonnance-wrapper');
     wrapper.querySelector('.lo-stock-id').value = '';
     refreshLigneOrdonnanceInfo(wrapper);
+
+    const stockId = wrapper.querySelector('.lo-stock-id').value;
+    const dosageSelect = wrapper.querySelector('.lo-dosage');
+    const formeSelect = wrapper.querySelector('.lo-forme');
+    const match = stockId ? stockData.find(s => String(s.idStock) === String(stockId)) : null;
+    dosageSelect.value = (match && match.Dosage && [...dosageSelect.options].some(o => o.value === match.Dosage)) ? match.Dosage : '';
+    formeSelect.value = (match && match.Forme && [...formeSelect.options].some(o => o.value === match.Forme)) ? match.Forme : '';
 }
 
 function updateLigneOrdonnanceMontant(input) {
@@ -1119,16 +1270,16 @@ async function saveOrdonnance() {
             await apiFetch('/ordonnances', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(data) });
         }
         showPage('ordonnances');
-        loadOrdonnances();
+        showOrdonnancesTab(typeBeneficiaire);
         showToast('Ordonnance enregistrée !', 'success');
     } catch(e) { showToast('Erreur lors de l\'enregistrement : ' + e.message, 'error'); }
 }
 
-async function deleteOrdonnance(id) {
+async function deleteOrdonnance(id, type) {
     if (!confirm('Voulez-vous vraiment supprimer cette ordonnance ?')) return;
     try {
         await apiFetch(`/ordonnances/${id}`, { method: 'DELETE' });
-        loadOrdonnances();
+        loadOrdonnancesTab(type);
     } catch(e) { showToast('Erreur lors de la suppression', 'error'); }
 }
 
