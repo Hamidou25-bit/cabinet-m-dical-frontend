@@ -45,10 +45,10 @@ Le frontend est statique (HTML/CSS/JS). Pour tester avec l'API en local, l'API t
 | Authentification (login/logout) | ✅ |
 | Dashboard | ✅ |
 | Patients (liste + création) | ✅ |
-| Consultations (liste) | ✅ |
+| Consultations (liste, champ "traitement après diagnostic" supprimé) | ✅ |
 | Stock (liste + alertes) | ✅ |
-| Ordonnances (3 volets patients/tiers/interne, filtres date, export Excel, CRUD, impression) | ✅ |
-| Rendez-vous (liste + création) | ✅ |
+| Ordonnances (3 volets patients/tiers/interne, filtres date, export Excel, CRUD, impression avec choix PDF/impression directe, type_beneficiaire auto selon l'onglet) | ✅ |
+| Rendez-vous | ❌ supprimé |
 | Examens complémentaires | ❌ à faire |
 | Personnel | ❌ à faire |
 | Comptabilité | 🟡 en cours (onglets Dépenses : liste + filtre par type, Synthèse : recettes/dépenses/profit + graphique) |
@@ -66,5 +66,5 @@ Vérifier en ligne : http://51.161.10.252/index.html
 
 ## Points d'attention
 
-- Le préfixe des routes API peut contenir un tiret (ex: `/rendez-vous/`, pas `/rendez_vous/`) — vérifier avec `curl` avant de coder un appel `apiFetch()`.
+- Le préfixe des routes API peut contenir un tiret — vérifier avec `curl` avant de coder un appel `apiFetch()`.
 - CORS est ouvert à tous côté API (`allow_origins=["*"]`), donc pas de blocage CORS attendu en local.

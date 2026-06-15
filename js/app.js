@@ -54,11 +54,10 @@ function showPage(page) {
         : document.querySelector(`.menu-item[onclick*="showPage('${page}')"]`);
     if (menuItem) menuItem.classList.add('active');
 
-    const titles = { dashboard: 'Tableau de bord', patients: 'Patients', rendez_vous: 'Rendez-vous', consultations: 'Consultations', stock: 'Stock',ordonnances: 'Ordonnances', examens: 'Examens complémentaires', personnel: 'Personnel', medecins: 'Médecins', comptabilite: 'Comptabilité' };
+    const titles = { dashboard: 'Tableau de bord', patients: 'Patients', consultations: 'Consultations', stock: 'Stock',ordonnances: 'Ordonnances', examens: 'Examens complémentaires', personnel: 'Personnel', medecins: 'Médecins', comptabilite: 'Comptabilité' };
     if (titles[page]) document.getElementById('page-title').textContent = titles[page];
 
     if (page === 'patients') loadPatients();
-    if (page === 'rendez_vous') loadRendezVous();
     if (page === 'consultations') loadConsultations();
     if (page === 'stock') loadStock();
     if (page === 'ordonnances') loadOrdonnances();
@@ -439,7 +438,6 @@ function exportConsultationsExcel() {
         'Motif': c.motif || '',
         'Diagnostic': c.diagnostic || '',
         'Observation': c.observation || '',
-        'Traitement après diagnostic': c.traitement_apres_diagnostic || '',
         'Prix unitaire': c.prix_unitaire || 0,
         'Montant total': c.montant_total || 0
     }));
@@ -505,7 +503,6 @@ async function openNewConsultationModal() {
     document.getElementById('co-montant-total').value = '';
     document.getElementById('co-diagnostic').value = '';
     document.getElementById('co-observation').value = '';
-    document.getElementById('co-traitement').value = '';
 
     openModal('modal-consultation');
 }
@@ -532,7 +529,6 @@ async function editConsultation(id) {
     document.getElementById('co-montant-total').value = consultation.montant_total || 0;
     document.getElementById('co-diagnostic').value = consultation.diagnostic || '';
     document.getElementById('co-observation').value = consultation.observation || '';
-    document.getElementById('co-traitement').value = consultation.traitement_apres_diagnostic || '';
 
     openModal('modal-consultation');
 }
@@ -558,8 +554,7 @@ async function saveConsultation() {
         prix_unitaire: parseFloat(document.getElementById('co-prix-unitaire').value) || 0,
         montant_total: parseFloat(document.getElementById('co-montant-total').value) || 0,
         diagnostic: document.getElementById('co-diagnostic').value,
-        observation: document.getElementById('co-observation').value,
-        traitement_apres_diagnostic: document.getElementById('co-traitement').value
+        observation: document.getElementById('co-observation').value
     };
     try {
         if (id) {
@@ -963,26 +958,35 @@ async function exportOrdonnancesExcel(type) {
     } catch(e) { showToast('Erreur lors de l\'export Excel', 'error'); }
 }
 
+let ordonnanceAImprimer = null;
+
 async function printOrdonnance(id) {
-    // Ouvrir la fenêtre immédiatement (synchrone, dans le contexte du clic)
-    // pour éviter qu'elle soit bloquée par le bloqueur de popups une fois la requête API résolue.
-    const printWindow = window.open('', '_blank');
     try {
-        const ordonnance = await apiFetch(`/ordonnances/${id}`).then(r => r.json());
-        const beneficiaire = ordonnance.patient_id
-            ? `${ordonnance.nom || ''} ${ordonnance.prenom || ''}`.trim()
-            : (ordonnance.beneficiaire || '-');
+        ordonnanceAImprimer = await apiFetch(`/ordonnances/${id}`).then(r => r.json());
+        openModal('modal-print-choice');
+    } catch(e) {
+        showToast('Erreur lors du chargement de l\'ordonnance', 'error');
+    }
+}
 
-        const lignesHtml = (ordonnance.lignes || []).map(l => `
-            <tr>
-                <td>${escapeHtml(l.designation || '')}</td>
-                <td>${escapeHtml(l.forme || '')}</td>
-                <td>${escapeHtml(l.dosage || '')}</td>
-                <td>${l.quantite || ''}</td>
-                <td>${escapeHtml(l.posologie || '')}${l.duree_jours ? ' — ' + l.duree_jours + ' jour(s)' : ''}</td>
-            </tr>`).join('');
+function getOrdonnanceBeneficiaire(ordonnance) {
+    return ordonnance.patient_id
+        ? `${ordonnance.nom || ''} ${ordonnance.prenom || ''}`.trim()
+        : (ordonnance.beneficiaire || '-');
+}
 
-        const html = `<!DOCTYPE html>
+function buildOrdonnanceHtml(ordonnance) {
+    const beneficiaire = getOrdonnanceBeneficiaire(ordonnance);
+    const lignesHtml = (ordonnance.lignes || []).map(l => `
+        <tr>
+            <td>${escapeHtml(l.designation || '')}</td>
+            <td>${escapeHtml(l.forme || '')}</td>
+            <td>${escapeHtml(l.dosage || '')}</td>
+            <td>${l.quantite || ''}</td>
+            <td>${escapeHtml(l.posologie || '')}${l.duree_jours ? ' — ' + l.duree_jours + ' jour(s)' : ''}</td>
+        </tr>`).join('');
+
+    return `<!DOCTYPE html>
 <html lang="fr">
 <head>
 <meta charset="UTF-8">
@@ -1019,14 +1023,74 @@ async function printOrdonnance(id) {
     <div class="total">Total : ${(ordonnance.montant_total || 0).toLocaleString()} FCFA</div>
 </body>
 </html>`;
+}
 
-        printWindow.document.write(html);
-        printWindow.document.close();
-        printWindow.onload = () => { printWindow.focus(); printWindow.print(); };
-    } catch(e) {
-        if (printWindow) printWindow.close();
-        showToast('Erreur lors de la préparation de l\'impression', 'error');
+function confirmPrintOrdonnance(mode) {
+    if (!ordonnanceAImprimer) return;
+    closeModal('modal-print-choice');
+    if (mode === 'direct') {
+        printOrdonnanceDirect(ordonnanceAImprimer);
+    } else {
+        exportOrdonnancePDF(ordonnanceAImprimer);
     }
+}
+
+function printOrdonnanceDirect(ordonnance) {
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) {
+        showToast('Veuillez autoriser les pop-ups pour imprimer', 'error');
+        return;
+    }
+    printWindow.document.write(buildOrdonnanceHtml(ordonnance));
+    printWindow.document.close();
+    printWindow.focus();
+    printWindow.print();
+}
+
+function exportOrdonnancePDF(ordonnance) {
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF();
+    const beneficiaire = getOrdonnanceBeneficiaire(ordonnance);
+
+    doc.setFontSize(16);
+    doc.setTextColor(15, 118, 110);
+    doc.text('Cabinet Médical BabaMouneissa', 105, 15, { align: 'center' });
+    doc.setFontSize(11);
+    doc.setTextColor(100);
+    doc.text('Ordonnance médicale', 105, 22, { align: 'center' });
+
+    doc.setTextColor(30);
+    doc.setFontSize(11);
+    let y = 35;
+    doc.text(`Bénéficiaire : ${beneficiaire}`, 14, y);
+    y += 6;
+    doc.text(`Date : ${ordonnance.date_ordonnance || ''}`, 14, y);
+    if (ordonnance.motif) {
+        y += 6;
+        doc.text(`Motif : ${ordonnance.motif}`, 14, y);
+    }
+
+    const rows = (ordonnance.lignes || []).map(l => [
+        l.designation || '',
+        l.forme || '',
+        l.dosage || '',
+        String(l.quantite || ''),
+        `${l.posologie || ''}${l.duree_jours ? ' - ' + l.duree_jours + ' jour(s)' : ''}`
+    ]);
+
+    doc.autoTable({
+        startY: y + 6,
+        head: [['Médicament', 'Forme', 'Dosage', 'Qté', 'Posologie']],
+        body: rows,
+        headStyles: { fillColor: [13, 148, 136] },
+    });
+
+    const finalY = doc.lastAutoTable.finalY + 10;
+    doc.setFontSize(12);
+    doc.setFont(undefined, 'bold');
+    doc.text(`Total : ${(ordonnance.montant_total || 0).toLocaleString()} FCFA`, 196, finalY, { align: 'right' });
+
+    doc.save(`ordonnance_${ordonnance.id}_${ordonnance.date_ordonnance || ''}.pdf`);
 }
 
 async function loadOrdonnanceRefs() {
@@ -1037,7 +1101,7 @@ async function loadOrdonnanceRefs() {
 }
 
 function onTypeBeneficiaireChange() {
-    const type = document.getElementById('o-type-beneficiaire').value;
+    const type = ordonnanceFormReturnTab;
     const patientGroup = document.getElementById('o-patient-group');
     const beneficiaireGroup = document.getElementById('o-beneficiaire-group');
     const beneficiaireLabel = document.getElementById('o-beneficiaire-label');
@@ -1074,7 +1138,6 @@ async function openOrdonnanceModal(type) {
     document.getElementById('o-motif').value = '';
     document.getElementById('o-beneficiaire').value = '';
     document.getElementById('o-est-validee').checked = false;
-    document.getElementById('o-type-beneficiaire').value = ordonnanceFormReturnTab;
     onTypeBeneficiaireChange();
 
     // Réinitialiser les lignes
@@ -1097,7 +1160,6 @@ async function editOrdonnance(id) {
         populateStockDesignationsDatalist();
 
         ordonnanceFormReturnTab = ordonnance.type_beneficiaire || 'patient';
-        document.getElementById('o-type-beneficiaire').value = ordonnanceFormReturnTab;
         onTypeBeneficiaireChange();
 
         if (ordonnance.patient_id) {
@@ -1214,7 +1276,7 @@ function updateLigneOrdonnanceMontant(input) {
 }
 
 async function saveOrdonnance() {
-    const typeBeneficiaire = document.getElementById('o-type-beneficiaire').value;
+    const typeBeneficiaire = ordonnanceFormReturnTab;
 
     const requiredFields = [{ id: 'o-date', label: 'Date' }];
     if (typeBeneficiaire === 'patient') {
@@ -1283,153 +1345,7 @@ async function deleteOrdonnance(id, type) {
     } catch(e) { showToast('Erreur lors de la suppression', 'error'); }
 }
 
-// Rendez-vous
 let medecinsData = [];
-let rendezVousData = [];
-const statutClasses = { 'planifié': 'status-warning', 'confirmé': 'status-info', 'terminé': 'status-ok', 'annulé': 'status-danger' };
-
-async function loadRendezVous() {
-    try {
-        rendezVousData = await apiFetch('/rendez-vous').then(r => r.json());
-        renderRendezVous(rendezVousData);
-    } catch(e) { document.getElementById('table-rendez_vous').innerHTML = '<tr><td colspan="6">Erreur</td></tr>'; }
-}
-
-function renderRendezVous(data) {
-    const tbody = document.getElementById('table-rendez_vous');
-    if (!data.length) { tbody.innerHTML = '<tr><td colspan="6">Aucun rendez-vous</td></tr>'; return; }
-    tbody.innerHTML = data.map(r => {
-        const statutClass = statutClasses[r.statut] || 'status-warning';
-        return `<tr>
-            <td>${(r.date_heure_rdv || '').replace('T', ' ')}</td>
-            <td>${r.nom || ''} ${r.prenom || ''}</td>
-            <td>${r.medecin_nom || '-'}</td>
-            <td>${r.motif || '-'}</td>
-            <td><span class="status ${statutClass}">${r.statut || ''}</span></td>
-            <td>
-                <button class="btn btn-sm" onclick="editRendezVous(${r.id})">Modifier</button>
-                <button class="btn btn-sm btn-danger" onclick="deleteRendezVous(${r.id})">Supprimer</button>
-            </td>
-        </tr>`;
-    }).join('');
-}
-
-function getFilteredRendezVous() {
-    const q = document.getElementById('search-rendez_vous').value.toLowerCase();
-    const dateDebut = document.getElementById('filter-rendez_vous-date-debut').value;
-    const dateFin = document.getElementById('filter-rendez_vous-date-fin').value;
-    return rendezVousData.filter(r => {
-        const matchQ = (r.nom||'').toLowerCase().includes(q) || (r.prenom||'').toLowerCase().includes(q)
-            || (r.motif||'').toLowerCase().includes(q) || (r.medecin_nom||'').toLowerCase().includes(q)
-            || (r.statut||'').toLowerCase().includes(q);
-        const rdvDate = (r.date_heure_rdv || '').slice(0, 10);
-        const matchDateDebut = !dateDebut || (rdvDate && rdvDate >= dateDebut);
-        const matchDateFin = !dateFin || (rdvDate && rdvDate <= dateFin);
-        return matchQ && matchDateDebut && matchDateFin;
-    });
-}
-
-function filterRendezVous() {
-    renderRendezVous(getFilteredRendezVous());
-}
-
-function exportRendezVousExcel() {
-    const data = getFilteredRendezVous();
-    if (!data.length) { showToast('Aucun rendez-vous à exporter', 'warning'); return; }
-    const rows = data.map(r => ({
-        'Date / Heure': (r.date_heure_rdv || '').replace('T', ' '),
-        'Patient': `${r.nom || ''} ${r.prenom || ''}`.trim(),
-        'Médecin': r.medecin_nom || '',
-        'Motif': r.motif || '',
-        'Statut': r.statut || '',
-        'Notes': r.notes || ''
-    }));
-    const ws = XLSX.utils.json_to_sheet(rows);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Rendez-vous');
-    XLSX.writeFile(wb, `rendez_vous_${new Date().toISOString().split('T')[0]}.xlsx`);
-}
-
-async function loadMedecinsRefs() {
-    const medecinSelect = document.getElementById('rv-medecin');
-    await ensureMedecinsLoaded();
-    medecinSelect.innerHTML = '<option value="">-- Aucun --</option>' + medecinsData.map(m => `<option value="${m.id}">${m.nom}</option>`).join('');
-}
-
-async function openRendezVousModal() {
-    document.getElementById('modal-rendez-vous-title').textContent = 'Nouveau Rendez-vous';
-    document.getElementById('rv-id').value = '';
-
-    const tasks = [loadMedecinsRefs()];
-    if (!patientsData.length) tasks.push(loadPatients());
-    await Promise.all(tasks);
-    resetPatientCombo('rv');
-
-    document.getElementById('rv-date').value = new Date().toISOString().slice(0, 16);
-    document.getElementById('rv-statut').value = 'planifié';
-    document.getElementById('rv-motif').value = '';
-    document.getElementById('rv-notes').value = '';
-
-    openModal('modal-rendez-vous');
-}
-
-async function editRendezVous(id) {
-    const rdv = rendezVousData.find(r => r.id === id);
-    if (!rdv) return;
-
-    document.getElementById('modal-rendez-vous-title').textContent = 'Modifier Rendez-vous';
-    document.getElementById('rv-id').value = rdv.id;
-
-    const tasks = [loadMedecinsRefs()];
-    if (!patientsData.length) tasks.push(loadPatients());
-    await Promise.all(tasks);
-    setPatientComboValue('rv', rdv.patient_id);
-    document.getElementById('rv-medecin').value = rdv.medecin_id || '';
-
-    document.getElementById('rv-date').value = (rdv.date_heure_rdv || '').slice(0, 16);
-    document.getElementById('rv-statut').value = rdv.statut || 'planifié';
-    document.getElementById('rv-motif').value = rdv.motif || '';
-    document.getElementById('rv-notes').value = rdv.notes || '';
-
-    openModal('modal-rendez-vous');
-}
-
-async function saveRendezVous() {
-    if (!validateRequiredFields([
-        { id: 'rv-patient', label: 'Patient', highlightId: 'rv-patient-search' },
-        { id: 'rv-date', label: 'Date et heure' },
-    ])) return;
-
-    const id = document.getElementById('rv-id').value;
-    const patientId = parseInt(document.getElementById('rv-patient').value);
-    const data = {
-        patient_id: patientId,
-        medecin_id: document.getElementById('rv-medecin').value ? parseInt(document.getElementById('rv-medecin').value) : null,
-        date_heure_rdv: document.getElementById('rv-date').value,
-        motif: document.getElementById('rv-motif').value,
-        statut: document.getElementById('rv-statut').value,
-        notes: document.getElementById('rv-notes').value
-    };
-
-    try {
-        if (id) {
-            await apiFetch(`/rendez-vous/${id}`, { method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(data) });
-        } else {
-            await apiFetch('/rendez-vous', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(data) });
-        }
-        closeModal('modal-rendez-vous');
-        loadRendezVous();
-        showToast('Rendez-vous enregistré !', 'success');
-    } catch(e) { showToast('Erreur lors de l\'enregistrement : ' + e.message, 'error'); }
-}
-
-async function deleteRendezVous(id) {
-    if (!confirm('Voulez-vous vraiment supprimer ce rendez-vous ?')) return;
-    try {
-        await apiFetch(`/rendez-vous/${id}`, { method: 'DELETE' });
-        loadRendezVous();
-    } catch(e) { showToast('Erreur lors de la suppression', 'error'); }
-}
 
 // Examens complémentaires
 let typesExamensData = [];
