@@ -46,15 +46,15 @@ Le frontend est statique (HTML/CSS/JS). Pour tester avec l'API en local, l'API t
 | Dashboard | ✅ |
 | Patients (liste + création) | ✅ |
 | Consultations (liste, champ "traitement après diagnostic" supprimé) | ✅ |
-| Stock (liste + alertes) | ✅ |
+| Stock (liste + alertes, export Excel articles, alerte visuelle ligne sous seuil ; "Historique des sorties" retiré) | ✅ |
 | Ordonnances (3 volets patients/tiers/interne, filtres date, export Excel, CRUD, impression avec choix PDF/impression directe, type_beneficiaire auto selon l'onglet) | ✅ |
 | Rendez-vous | ❌ supprimé |
-| Examens complémentaires | ❌ à faire |
+| Examens complémentaires (sélection multiple de types d'examens avec total + page admin "Types d'examens" : catégories/types/prix) | ✅ |
 | Personnel | ❌ à faire |
 | Comptabilité | 🟡 en cours (onglets Dépenses : liste + filtre par type, Synthèse : recettes/dépenses/profit + graphique) |
 | Rapports | ❌ à faire |
 | CRUD Patients (modifier/supprimer) | ❌ à faire |
-| CRUD Stock (entrées/sorties) | ❌ à faire |
+| CRUD Stock (entrées/sorties) | 🟡 sortie uniquement (bouton "Sortie") |
 
 ## Déploiement
 
@@ -68,3 +68,7 @@ Vérifier en ligne : http://51.161.10.252/index.html
 
 - Le préfixe des routes API peut contenir un tiret — vérifier avec `curl` avant de coder un appel `apiFetch()`.
 - CORS est ouvert à tous côté API (`allow_origins=["*"]`), donc pas de blocage CORS attendu en local.
+
+## Format des dates (affichage)
+
+Toute date affichée à l'utilisateur (listes, détails, exports Excel, impressions) doit être formatée en `JJ/MM/AAAA` via la fonction `formatDateFR(dateStr)` (définie en haut de `js/app.js`). Exceptions : les champs `<input type="date">` (doivent rester en ISO `YYYY-MM-DD` pour le sélecteur natif) et les noms de fichiers d'export (ne peuvent pas contenir `/`). Le stockage en base et les échanges avec l'API restent en ISO.
