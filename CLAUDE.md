@@ -47,7 +47,7 @@ Le frontend est statique (HTML/CSS/JS). Pour tester avec l'API en local, l'API t
 | Patients (liste + création) | ✅ |
 | Consultations (liste) | ✅ |
 | Stock (liste + alertes) | ✅ |
-| Ordonnances (liste + création) | ✅ |
+| Ordonnances (3 volets patients/tiers/interne, filtres date, export Excel, CRUD, impression) | ✅ |
 | Rendez-vous (liste + création) | ✅ |
 | Examens complémentaires | ❌ à faire |
 | Personnel | ❌ à faire |
