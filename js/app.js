@@ -24,6 +24,15 @@ function formatDateFR(dateStr) {
     return `${d}/${m}/${y}`;
 }
 
+// Convertit une date saisie au format JJ/MM/AAAA en ISO YYYY-MM-DD.
+// Retourne une chaîne vide si le format ne correspond pas.
+function parseDateFR(str) {
+    if (!str) return '';
+    const m = String(str).trim().match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+    if (!m) return '';
+    return `${m[3]}-${m[2]}-${m[1]}`;
+}
+
 // 1. Initialisation sécurisée (on vérifie si l'élément existe)
 document.addEventListener('DOMContentLoaded', function() {
     // Date
@@ -67,7 +76,7 @@ function showPage(page) {
         : document.querySelector(`.menu-item[onclick*="showPage('${page}')"]`);
     if (menuItem) menuItem.classList.add('active');
 
-    const titles = { dashboard: 'Tableau de bord', patients: 'Patients', consultations: 'Consultations', stock: 'Stock',ordonnances: 'Ordonnances', examens: 'Examens complémentaires', personnel: 'Personnel', medecins: 'Médecins', 'examens-config': "Types d'examens", comptabilite: 'Comptabilité' };
+    const titles = { dashboard: 'Tableau de bord', patients: 'Patients', consultations: 'Consultations', stock: 'Stock', ordonnances: 'Ordonnances', examens: 'Examens complémentaires', soins: 'Soins', personnel: 'Personnel', medecins: 'Médecins', 'examens-config': "Types d'examens", comptabilite: 'Comptabilité' };
     if (titles[page]) document.getElementById('page-title').textContent = titles[page];
 
     if (page === 'patients') loadPatients();
@@ -75,6 +84,7 @@ function showPage(page) {
     if (page === 'stock') loadStock();
     if (page === 'ordonnances') loadOrdonnances();
     if (page === 'examens') loadExamens();
+    if (page === 'soins') { loadTypeSoinsAdmin(); loadSoins(); }
     if (page === 'personnel') loadPersonnel();
     if (page === 'medecins') loadMedecins();
     if (page === 'examens-config') loadExamensConfig();
@@ -243,8 +253,8 @@ function renderPatients(data) {
 
 function getFilteredPatients() {
     const q = document.getElementById('search-patients').value.toLowerCase();
-    const dateDebut = document.getElementById('filter-patients-date-debut').value;
-    const dateFin = document.getElementById('filter-patients-date-fin').value;
+    const dateDebut = parseDateFR(document.getElementById('filter-patients-date-debut').value);
+    const dateFin = parseDateFR(document.getElementById('filter-patients-date-fin').value);
     return patientsData.filter(p => {
         const matchQ = (p.nom||'').toLowerCase().includes(q) || (p.prenom||'').toLowerCase().includes(q);
         const matchDateDebut = !dateDebut || (p.date_enregistrement && p.date_enregistrement >= dateDebut);
@@ -426,8 +436,8 @@ function renderConsultations(data) {
 
 function getFilteredConsultations() {
     const q = document.getElementById('search-consultations').value.toLowerCase();
-    const dateDebut = document.getElementById('filter-consultations-date-debut').value;
-    const dateFin = document.getElementById('filter-consultations-date-fin').value;
+    const dateDebut = parseDateFR(document.getElementById('filter-consultations-date-debut').value);
+    const dateFin = parseDateFR(document.getElementById('filter-consultations-date-fin').value);
     return consultationsData.filter(c => {
         const matchQ = (c.nom||'').toLowerCase().includes(q) || (c.prenom||'').toLowerCase().includes(q)
             || (c.motif||'').toLowerCase().includes(q) || (c.diagnostic||'').toLowerCase().includes(q)
@@ -696,20 +706,20 @@ function setSynthesePeriode(periode) {
         debut = new Date(2000, 0, 1);
         fin = new Date(2100, 11, 31);
     }
-    document.getElementById('synthese-date-debut').value = debut.toISOString().split('T')[0];
-    document.getElementById('synthese-date-fin').value = fin.toISOString().split('T')[0];
+    document.getElementById('synthese-date-debut').value = formatDateFR(debut.toISOString().split('T')[0]);
+    document.getElementById('synthese-date-fin').value = formatDateFR(fin.toISOString().split('T')[0]);
     loadSynthese();
 }
 
 async function loadSynthese() {
-    let dateDebut = document.getElementById('synthese-date-debut').value;
-    let dateFin = document.getElementById('synthese-date-fin').value;
+    let dateDebut = parseDateFR(document.getElementById('synthese-date-debut').value);
+    let dateFin = parseDateFR(document.getElementById('synthese-date-fin').value);
     if (!dateDebut || !dateFin) {
         const today = new Date();
         dateDebut = new Date(today.getFullYear(), today.getMonth(), 1).toISOString().split('T')[0];
         dateFin = new Date(today.getFullYear(), today.getMonth() + 1, 0).toISOString().split('T')[0];
-        document.getElementById('synthese-date-debut').value = dateDebut;
-        document.getElementById('synthese-date-fin').value = dateFin;
+        document.getElementById('synthese-date-debut').value = formatDateFR(dateDebut);
+        document.getElementById('synthese-date-fin').value = formatDateFR(dateFin);
     }
     try {
         const data = await apiFetch(`/comptabilite/synthese?date_debut=${dateDebut}&date_fin=${dateFin}`).then(r => r.json());
@@ -878,8 +888,8 @@ async function loadOrdonnancesTab(type) {
     tbody.innerHTML = '<tr><td colspan="6" class="loading">Chargement...</td></tr>';
     try {
         const params = new URLSearchParams({ type_beneficiaire: type });
-        const dateDebut = document.getElementById(`filter-ordonnances-${type}-date-debut`).value;
-        const dateFin = document.getElementById(`filter-ordonnances-${type}-date-fin`).value;
+        const dateDebut = parseDateFR(document.getElementById(`filter-ordonnances-${type}-date-debut`).value);
+        const dateFin = parseDateFR(document.getElementById(`filter-ordonnances-${type}-date-fin`).value);
         if (dateDebut) params.set('date_debut', dateDebut);
         if (dateFin) params.set('date_fin', dateFin);
         ordonnancesData[type] = await apiFetch(`/ordonnances/?${params.toString()}`).then(r => r.json());
@@ -931,8 +941,8 @@ function resetFilterOrdonnances(type) {
 async function exportOrdonnancesExcel(type) {
     try {
         const params = new URLSearchParams({ type_beneficiaire: type });
-        const dateDebut = document.getElementById(`filter-ordonnances-${type}-date-debut`).value;
-        const dateFin = document.getElementById(`filter-ordonnances-${type}-date-fin`).value;
+        const dateDebut = parseDateFR(document.getElementById(`filter-ordonnances-${type}-date-debut`).value);
+        const dateFin = parseDateFR(document.getElementById(`filter-ordonnances-${type}-date-fin`).value);
         if (dateDebut) params.set('date_debut', dateDebut);
         if (dateFin) params.set('date_fin', dateFin);
         const { ordonnances } = await apiFetch(`/ordonnances/export?${params.toString()}`).then(r => r.json());
@@ -1107,10 +1117,8 @@ function exportOrdonnancePDF(ordonnance) {
 }
 
 async function loadOrdonnanceRefs() {
-    const tasks = [];
-    if (!dosagesData.length) tasks.push(apiFetch('/ordonnances/refs/dosages').then(r => r.json()).then(d => dosagesData = d));
-    if (!formesData.length) tasks.push(apiFetch('/ordonnances/refs/formes').then(r => r.json()).then(d => formesData = d));
-    if (tasks.length) await Promise.all(tasks);
+    await ensureStockLoaded();
+    populateStockDesignationsDatalist();
 }
 
 function onTypeBeneficiaireChange() {
@@ -1200,11 +1208,12 @@ function addLigneOrdonnance(ligne) {
     const container = document.getElementById('lignes-ordonnance');
     const wrapper = document.createElement('div');
     wrapper.className = 'ligne-ordonnance-wrapper';
+    const formeOptions = ['Comprimé','Sirop','Injectable','Sachet','Pommade','Suppositoire','Goutte','Autre'];
     wrapper.innerHTML = `
         <div class="ligne-ordonnance">
             <input type="text" placeholder="Médicament *" class="lo-designation" list="stock-designations" value="${ligne ? (ligne.designation || '') : ''}" oninput="onLigneOrdonnanceDesignationInput(this)">
-            <select class="lo-dosage"><option value="">Dosage</option>${dosagesData.map(d => `<option value="${d.nom}" ${ligne && ligne.dosage === d.nom ? 'selected' : ''}>${d.nom}</option>`).join('')}</select>
-            <select class="lo-forme"><option value="">Forme</option>${formesData.map(f => `<option value="${f.nom}" ${ligne && ligne.forme === f.nom ? 'selected' : ''}>${f.nom}</option>`).join('')}</select>
+            <input type="text" placeholder="Dosage" class="lo-dosage" value="${ligne ? (ligne.dosage || '') : ''}">
+            <select class="lo-forme"><option value="">Forme</option>${formeOptions.map(f => `<option value="${f}" ${ligne && ligne.forme === f ? 'selected' : ''}>${f}</option>`).join('')}</select>
             <input type="number" placeholder="Qté" class="lo-quantite" value="${ligne ? (ligne.quantite || 1) : 1}" min="1" oninput="updateLigneOrdonnanceMontant(this)">
             <input type="text" placeholder="Posologie" class="lo-posologie" value="${ligne ? (ligne.posologie || '') : ''}">
             <input type="number" placeholder="Jours" class="lo-duree" value="${ligne && ligne.duree_jours ? ligne.duree_jours : ''}">
@@ -1277,10 +1286,10 @@ function onLigneOrdonnanceDesignationInput(input) {
     refreshLigneOrdonnanceInfo(wrapper);
 
     const stockId = wrapper.querySelector('.lo-stock-id').value;
-    const dosageSelect = wrapper.querySelector('.lo-dosage');
+    const dosageInput = wrapper.querySelector('.lo-dosage');
     const formeSelect = wrapper.querySelector('.lo-forme');
     const match = stockId ? stockData.find(s => String(s.idStock) === String(stockId)) : null;
-    dosageSelect.value = (match && match.Dosage && [...dosageSelect.options].some(o => o.value === match.Dosage)) ? match.Dosage : '';
+    dosageInput.value = (match && match.Dosage) ? match.Dosage : '';
     formeSelect.value = (match && match.Forme && [...formeSelect.options].some(o => o.value === match.Forme)) ? match.Forme : '';
 }
 
@@ -1390,8 +1399,8 @@ function renderExamens(data) {
 
 function getFilteredExamens() {
     const q = document.getElementById('search-examens').value.toLowerCase();
-    const dateDebut = document.getElementById('filter-examens-date-debut').value;
-    const dateFin = document.getElementById('filter-examens-date-fin').value;
+    const dateDebut = parseDateFR(document.getElementById('filter-examens-date-debut').value);
+    const dateFin = parseDateFR(document.getElementById('filter-examens-date-fin').value);
     return examensData.filter(e => {
         const matchQ = (e.nom||'').toLowerCase().includes(q) || (e.prenom||'').toLowerCase().includes(q)
             || (e.type_nom||'').toLowerCase().includes(q) || (e.examen_nom||'').toLowerCase().includes(q)
@@ -1624,8 +1633,8 @@ async function loadPersonnel() {
 
 function getFilteredPersonnel() {
     const q = document.getElementById('search-personnel').value.toLowerCase();
-    const dateDebut = document.getElementById('filter-personnel-date-debut').value;
-    const dateFin = document.getElementById('filter-personnel-date-fin').value;
+    const dateDebut = parseDateFR(document.getElementById('filter-personnel-date-debut').value);
+    const dateFin = parseDateFR(document.getElementById('filter-personnel-date-fin').value);
     return personnelData.filter(p => {
         const matchQ = (p.nom||'').toLowerCase().includes(q) || (p.prenom||'').toLowerCase().includes(q)
             || (p.fonction||'').toLowerCase().includes(q) || (p.telephone||'').toLowerCase().includes(q)
@@ -2087,8 +2096,8 @@ function populateTypeDepenseFilter() {
 
 function getFilteredDepenses() {
     const type = document.getElementById('filter-type-depense').value;
-    const dateDebut = document.getElementById('filter-depenses-date-debut').value;
-    const dateFin = document.getElementById('filter-depenses-date-fin').value;
+    const dateDebut = parseDateFR(document.getElementById('filter-depenses-date-debut').value);
+    const dateFin = parseDateFR(document.getElementById('filter-depenses-date-fin').value);
     return depensesData.filter(d => {
         const matchType = !type || d.type_depense === type;
         const matchDateDebut = !dateDebut || (d.date_depense && d.date_depense >= dateDebut);
@@ -2241,8 +2250,8 @@ function renderAchats(data) {
 
 function getFilteredAchats() {
     const q = document.getElementById('search-achats').value.toLowerCase();
-    const dateDebut = document.getElementById('filter-achats-date-debut').value;
-    const dateFin = document.getElementById('filter-achats-date-fin').value;
+    const dateDebut = parseDateFR(document.getElementById('filter-achats-date-debut').value);
+    const dateFin = parseDateFR(document.getElementById('filter-achats-date-fin').value);
     return achatsData.filter(a => {
         const matchQ = (a.numero_facture||'').toLowerCase().includes(q)
             || (a.fournisseur_nom||'').toLowerCase().includes(q)
@@ -2479,4 +2488,294 @@ function deleteAchat(id) {
             showToast('Achat supprimé', 'success');
         } catch(e) { showToast('Erreur lors de la suppression : ' + e.message, 'error'); }
     });
+}
+
+// =====================================================================
+// MODULE SOINS
+// =====================================================================
+let soinsData = { enregistre: [], externe: [] };
+let typeSoinsData = [];
+
+async function loadSoins() {
+    showSoinsTab(currentSoinsTab || 'enregistre');
+}
+
+let currentSoinsTab = 'enregistre';
+
+function showSoinsTab(tab) {
+    currentSoinsTab = tab;
+    ['enregistre', 'externe'].forEach(t => {
+        document.getElementById('soins-tab-' + t).style.display = t === tab ? '' : 'none';
+        document.getElementById('tab-soins-' + t).className = t === tab ? 'btn btn-primary' : 'btn';
+    });
+    loadSoinsTab(tab);
+}
+
+async function loadSoinsTab(tab) {
+    const tbody = document.getElementById('table-soins-' + tab);
+    tbody.innerHTML = '<tr><td colspan="6" class="loading">Chargement...</td></tr>';
+    try {
+        const params = new URLSearchParams({ type_patient: tab });
+        const dateDebut = parseDateFR(document.getElementById(`filter-soins-${tab}-date-debut`).value);
+        const dateFin = parseDateFR(document.getElementById(`filter-soins-${tab}-date-fin`).value);
+        if (dateDebut) params.set('date_debut', dateDebut);
+        if (dateFin) params.set('date_fin', dateFin);
+        soinsData[tab] = await apiFetch(`/soins/?${params.toString()}`).then(r => r.json());
+        renderSoinsTab(tab);
+    } catch(e) { tbody.innerHTML = '<tr><td colspan="6">Erreur</td></tr>'; }
+}
+
+function getFilteredSoinsTab(tab) {
+    const q = document.getElementById('search-soins-' + tab).value.toLowerCase();
+    return soinsData[tab].filter(s => {
+        const nom = tab === 'enregistre'
+            ? `${s.patient_nom || ''} ${s.patient_prenom || ''}`.toLowerCase()
+            : (s.nom_patient_externe || '').toLowerCase();
+        return nom.includes(q) || (s.type_soin_nom || '').toLowerCase().includes(q);
+    });
+}
+
+function filterSoinsTab(tab) {
+    renderSoinsTab(tab);
+}
+
+function resetFilterSoins(tab) {
+    document.getElementById(`filter-soins-${tab}-date-debut`).value = '';
+    document.getElementById(`filter-soins-${tab}-date-fin`).value = '';
+    document.getElementById('search-soins-' + tab).value = '';
+    loadSoinsTab(tab);
+}
+
+function renderSoinsTab(tab) {
+    const tbody = document.getElementById('table-soins-' + tab);
+    const data = getFilteredSoinsTab(tab);
+    if (!data.length) { tbody.innerHTML = '<tr><td colspan="6">Aucun soin</td></tr>'; return; }
+    tbody.innerHTML = data.map(s => {
+        const patient = tab === 'enregistre'
+            ? `${s.patient_nom || ''} ${s.patient_prenom || ''}`.trim() || '-'
+            : (s.nom_patient_externe || '-');
+        return `<tr>
+            <td>${formatDateFR(s.date_soin)}</td>
+            <td>${escapeHtml(patient)}</td>
+            <td>${escapeHtml(s.type_soin_nom || '-')}</td>
+            <td>${(s.prix_applique || 0).toLocaleString()} FCFA</td>
+            <td>${escapeHtml(s.notes || '-')}</td>
+            <td>
+                <button class="btn btn-sm" onclick="editSoin(${s.id}, '${tab}')">Modifier</button>
+                <button class="btn btn-sm btn-danger" onclick="deleteSoin(${s.id}, '${tab}')">Supprimer</button>
+            </td>
+        </tr>`;
+    }).join('');
+}
+
+function exportSoinsExcel(tab) {
+    const data = getFilteredSoinsTab(tab);
+    if (!data.length) { showToast('Aucun soin à exporter', 'warning'); return; }
+    const rows = data.map(s => ({
+        'Date': formatDateFR(s.date_soin),
+        'Patient': tab === 'enregistre'
+            ? `${s.patient_nom || ''} ${s.patient_prenom || ''}`.trim()
+            : (s.nom_patient_externe || ''),
+        'Type de soin': s.type_soin_nom || '',
+        'Prix appliqué': s.prix_applique || 0,
+        'Notes': s.notes || '',
+    }));
+    const ws = XLSX.utils.json_to_sheet(rows);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Soins');
+    XLSX.writeFile(wb, `soins_${tab}_${new Date().toISOString().split('T')[0]}.xlsx`);
+}
+
+async function ensureTypeSoinsLoaded() {
+    if (typeSoinsData.length) return;
+    try {
+        typeSoinsData = await apiFetch('/type-soins/').then(r => r.json());
+    } catch(e) { typeSoinsData = []; }
+}
+
+function populateTypeSoinSelect(selectId, selectedId) {
+    const select = document.getElementById(selectId);
+    select.innerHTML = '<option value="">-- Choisir --</option>'
+        + typeSoinsData.map(t => `<option value="${t.id}" data-prix="${t.prix_defaut}">${t.nom} (${(t.prix_defaut||0).toLocaleString()} FCFA)</option>`).join('');
+    if (selectedId) select.value = selectedId;
+}
+
+function onTypeSoinChange(selectId, prixInputId) {
+    const select = document.getElementById(selectId);
+    const opt = select.options[select.selectedIndex];
+    const prixDefaut = opt ? parseFloat(opt.dataset.prix || 0) : 0;
+    const prixInput = document.getElementById(prixInputId);
+    if (prixInput && !prixInput.dataset.modified) {
+        prixInput.value = prixDefaut;
+    }
+}
+
+async function openNewSoinModal(tab) {
+    currentSoinsTab = tab;
+    document.getElementById('modal-soin-title').textContent = 'Nouveau Soin';
+    document.getElementById('sn-id').value = '';
+
+    await Promise.all([ensureTypeSoinsLoaded(), patientsData.length ? null : loadPatients()].filter(Boolean));
+    populateTypeSoinSelect('sn-type-soin', '');
+    document.getElementById('sn-prix').value = '';
+    document.getElementById('sn-prix').dataset.modified = '';
+    document.getElementById('sn-date').value = formatDateFR(new Date().toISOString().split('T')[0]);
+    document.getElementById('sn-notes').value = '';
+
+    const isEnregistre = tab === 'enregistre';
+    document.getElementById('sn-patient-group').style.display = isEnregistre ? '' : 'none';
+    document.getElementById('sn-externe-group').style.display = isEnregistre ? 'none' : '';
+    if (isEnregistre) {
+        resetPatientCombo('sn');
+    } else {
+        document.getElementById('sn-nom-externe').value = '';
+    }
+    openModal('modal-soin');
+}
+
+async function editSoin(id, tab) {
+    currentSoinsTab = tab;
+    const soin = soinsData[tab].find(s => s.id === id);
+    if (!soin) return;
+
+    document.getElementById('modal-soin-title').textContent = 'Modifier Soin';
+    document.getElementById('sn-id').value = soin.id;
+
+    await Promise.all([ensureTypeSoinsLoaded(), patientsData.length ? null : loadPatients()].filter(Boolean));
+    populateTypeSoinSelect('sn-type-soin', soin.type_soin_id);
+    document.getElementById('sn-prix').value = soin.prix_applique || 0;
+    document.getElementById('sn-prix').dataset.modified = 'yes';
+    document.getElementById('sn-date').value = formatDateFR(soin.date_soin);
+    document.getElementById('sn-notes').value = soin.notes || '';
+
+    const isEnregistre = tab === 'enregistre';
+    document.getElementById('sn-patient-group').style.display = isEnregistre ? '' : 'none';
+    document.getElementById('sn-externe-group').style.display = isEnregistre ? 'none' : '';
+    if (isEnregistre) {
+        setPatientComboValue('sn', soin.patient_id);
+    } else {
+        document.getElementById('sn-nom-externe').value = soin.nom_patient_externe || '';
+    }
+    openModal('modal-soin');
+}
+
+async function saveSoin() {
+    const isEnregistre = currentSoinsTab === 'enregistre';
+    const requiredFields = [
+        { id: 'sn-type-soin', label: 'Type de soin' },
+        { id: 'sn-date', label: 'Date' },
+        { id: 'sn-prix', label: 'Prix', min: 0 },
+    ];
+    if (isEnregistre) requiredFields.push({ id: 'sn-patient', label: 'Patient', highlightId: 'sn-patient-search' });
+    else requiredFields.push({ id: 'sn-nom-externe', label: 'Nom du patient externe' });
+    if (!validateRequiredFields(requiredFields)) return;
+
+    const id = document.getElementById('sn-id').value;
+    const data = {
+        type_soin_id: parseInt(document.getElementById('sn-type-soin').value),
+        prix_applique: parseFloat(document.getElementById('sn-prix').value) || 0,
+        date_soin: parseDateFR(document.getElementById('sn-date').value) || document.getElementById('sn-date').value,
+        notes: document.getElementById('sn-notes').value || null,
+        patient_id: isEnregistre ? (parseInt(document.getElementById('sn-patient').value) || null) : null,
+        nom_patient_externe: isEnregistre ? null : (document.getElementById('sn-nom-externe').value || null),
+    };
+    try {
+        if (id) {
+            await apiFetch(`/soins/${id}`, { method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(data) });
+        } else {
+            await apiFetch('/soins', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(data) });
+        }
+        closeModal('modal-soin');
+        loadSoinsTab(currentSoinsTab);
+        showToast('Soin enregistré !', 'success');
+    } catch(e) { showToast('Erreur lors de l\'enregistrement : ' + e.message, 'error'); }
+}
+
+async function deleteSoin(id, tab) {
+    if (!confirm('Voulez-vous vraiment supprimer ce soin ?')) return;
+    try {
+        await apiFetch(`/soins/${id}`, { method: 'DELETE' });
+        loadSoinsTab(tab);
+        showToast('Soin supprimé', 'success');
+    } catch(e) { showToast('Erreur lors de la suppression : ' + e.message, 'error'); }
+}
+
+// --- Gestion des types de soins (admin) ---
+let typeSoinsAdminData = [];
+
+async function loadTypeSoinsAdmin() {
+    try {
+        typeSoinsAdminData = await apiFetch('/type-soins/').then(r => r.json());
+        typeSoinsData = typeSoinsAdminData;
+        renderTypeSoinsAdmin(typeSoinsAdminData);
+    } catch(e) {
+        document.getElementById('table-type-soins').innerHTML = '<tr><td colspan="3">Erreur</td></tr>';
+    }
+}
+
+function renderTypeSoinsAdmin(data) {
+    const tbody = document.getElementById('table-type-soins');
+    if (!data.length) { tbody.innerHTML = '<tr><td colspan="3">Aucun type de soin</td></tr>'; return; }
+    tbody.innerHTML = data.map(t => `<tr>
+        <td>${escapeHtml(t.nom)}</td>
+        <td>${(t.prix_defaut || 0).toLocaleString()} FCFA</td>
+        <td>
+            <button class="btn btn-sm" onclick="editTypeSoin(${t.id})">Modifier</button>
+            <button class="btn btn-sm btn-danger" onclick="deleteTypeSoin(${t.id})">Supprimer</button>
+        </td>
+    </tr>`).join('');
+}
+
+function openNewTypeSoinModal() {
+    document.getElementById('modal-type-soin-title').textContent = 'Nouveau Type de Soin';
+    document.getElementById('ts-id').value = '';
+    document.getElementById('ts-nom').value = '';
+    document.getElementById('ts-prix').value = '';
+    openModal('modal-type-soin');
+}
+
+function editTypeSoin(id) {
+    const t = typeSoinsAdminData.find(x => x.id === id);
+    if (!t) return;
+    document.getElementById('modal-type-soin-title').textContent = 'Modifier Type de Soin';
+    document.getElementById('ts-id').value = t.id;
+    document.getElementById('ts-nom').value = t.nom || '';
+    document.getElementById('ts-prix').value = t.prix_defaut || 0;
+    openModal('modal-type-soin');
+}
+
+async function saveTypeSoin() {
+    if (!validateRequiredFields([
+        { id: 'ts-nom', label: 'Nom' },
+        { id: 'ts-prix', label: 'Prix par défaut', min: 0 },
+    ])) return;
+    const id = document.getElementById('ts-id').value;
+    const data = {
+        nom: document.getElementById('ts-nom').value,
+        prix_defaut: parseFloat(document.getElementById('ts-prix').value) || 0,
+    };
+    try {
+        if (id) {
+            await apiFetch(`/type-soins/${id}`, { method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(data) });
+        } else {
+            await apiFetch('/type-soins', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(data) });
+        }
+        closeModal('modal-type-soin');
+        typeSoinsData = [];
+        loadTypeSoinsAdmin();
+        showToast('Type de soin enregistré !', 'success');
+    } catch(e) { showToast('Erreur lors de l\'enregistrement : ' + e.message, 'error'); }
+}
+
+async function deleteTypeSoin(id) {
+    if (!confirm('Voulez-vous vraiment supprimer ce type de soin ?')) return;
+    try {
+        await apiFetch(`/type-soins/${id}`, { method: 'DELETE' });
+        typeSoinsData = [];
+        loadTypeSoinsAdmin();
+        showToast('Type de soin supprimé', 'success');
+    } catch(e) {
+        if (e.status === 409) showToast(e.detail, 'error');
+        else showToast('Erreur lors de la suppression : ' + e.message, 'error');
+    }
 }

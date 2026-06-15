@@ -37,6 +37,9 @@
         <div class="menu-item" onclick="showPage('examens')">
             <span class="icon">🔬</span> Examens
         </div>
+        <div class="menu-item" onclick="showPage('soins')">
+            <span class="icon">💉</span> Soins
+        </div>
 
         <div class="menu-section">Pharmacie</div>
         <div class="menu-item" onclick="showPage('stock')">
@@ -124,8 +127,8 @@
                     <h3>Liste des patients</h3>
                     <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
                         <input type="text" class="search-box" placeholder="Rechercher..." id="search-patients" oninput="filterPatients()">
-                        <input type="date" id="filter-patients-date-debut" title="Date d'enregistrement - du" onchange="filterPatients()">
-                        <input type="date" id="filter-patients-date-fin" title="Date d'enregistrement - au" onchange="filterPatients()">
+                        <input type="text" id="filter-patients-date-debut" placeholder="JJ/MM/AAAA" title="Date d'enregistrement - du" oninput="filterPatients()">
+                        <input type="text" id="filter-patients-date-fin" placeholder="JJ/MM/AAAA" title="Date d'enregistrement - au" oninput="filterPatients()">
                         <button class="btn" onclick="exportPatientsExcel()">📊 Exporter Excel</button>
                         <button class="btn btn-primary" onclick="openNewPatientModal()">+ Nouveau patient</button>
                     </div>
@@ -158,8 +161,8 @@
                     <h3>Liste des consultations</h3>
                     <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
                         <input type="text" class="search-box" placeholder="Rechercher..." id="search-consultations" oninput="filterConsultations()">
-                        <input type="date" id="filter-consultations-date-debut" title="Date - du" onchange="filterConsultations()">
-                        <input type="date" id="filter-consultations-date-fin" title="Date - au" onchange="filterConsultations()">
+                        <input type="text" id="filter-consultations-date-debut" placeholder="JJ/MM/AAAA" title="Date - du" oninput="filterConsultations()">
+                        <input type="text" id="filter-consultations-date-fin" placeholder="JJ/MM/AAAA" title="Date - au" oninput="filterConsultations()">
                         <button class="btn" onclick="exportConsultationsExcel()">📊 Exporter Excel</button>
                         <button class="btn btn-primary" onclick="openNewConsultationModal()">+ Nouvelle consultation</button>
                     </div>
@@ -197,8 +200,8 @@
                         <h3>Ordonnances Patients</h3>
                         <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
                             <input type="text" class="search-box" placeholder="Rechercher..." id="search-ordonnances-patient" oninput="filterOrdonnancesTab('patient')">
-                            <input type="date" id="filter-ordonnances-patient-date-debut" title="Date - du">
-                            <input type="date" id="filter-ordonnances-patient-date-fin" title="Date - au">
+                            <input type="text" id="filter-ordonnances-patient-date-debut" placeholder="JJ/MM/AAAA" title="Date - du">
+                            <input type="text" id="filter-ordonnances-patient-date-fin" placeholder="JJ/MM/AAAA" title="Date - au">
                             <button class="btn" onclick="loadOrdonnancesTab('patient')">Filtrer</button>
                             <button class="btn" onclick="resetFilterOrdonnances('patient')">Réinitialiser</button>
                             <button class="btn" onclick="exportOrdonnancesExcel('patient')">📊 Exporter Excel</button>
@@ -230,8 +233,8 @@
                         <h3>Ventes à des tiers</h3>
                         <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
                             <input type="text" class="search-box" placeholder="Rechercher..." id="search-ordonnances-tiers" oninput="filterOrdonnancesTab('tiers')">
-                            <input type="date" id="filter-ordonnances-tiers-date-debut" title="Date - du">
-                            <input type="date" id="filter-ordonnances-tiers-date-fin" title="Date - au">
+                            <input type="text" id="filter-ordonnances-tiers-date-debut" placeholder="JJ/MM/AAAA" title="Date - du">
+                            <input type="text" id="filter-ordonnances-tiers-date-fin" placeholder="JJ/MM/AAAA" title="Date - au">
                             <button class="btn" onclick="loadOrdonnancesTab('tiers')">Filtrer</button>
                             <button class="btn" onclick="resetFilterOrdonnances('tiers')">Réinitialiser</button>
                             <button class="btn" onclick="exportOrdonnancesExcel('tiers')">📊 Exporter Excel</button>
@@ -263,8 +266,8 @@
                         <h3>Usage interne</h3>
                         <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
                             <input type="text" class="search-box" placeholder="Rechercher..." id="search-ordonnances-interne" oninput="filterOrdonnancesTab('interne')">
-                            <input type="date" id="filter-ordonnances-interne-date-debut" title="Date - du">
-                            <input type="date" id="filter-ordonnances-interne-date-fin" title="Date - au">
+                            <input type="text" id="filter-ordonnances-interne-date-debut" placeholder="JJ/MM/AAAA" title="Date - du">
+                            <input type="text" id="filter-ordonnances-interne-date-fin" placeholder="JJ/MM/AAAA" title="Date - au">
                             <button class="btn" onclick="loadOrdonnancesTab('interne')">Filtrer</button>
                             <button class="btn" onclick="resetFilterOrdonnances('interne')">Réinitialiser</button>
                             <button class="btn" onclick="exportOrdonnancesExcel('interne')">📊 Exporter Excel</button>
@@ -346,8 +349,8 @@
                     <h3>Liste des examens complémentaires</h3>
                     <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
                         <input type="text" class="search-box" placeholder="Rechercher..." id="search-examens" oninput="filterExamens()">
-                        <input type="date" id="filter-examens-date-debut" title="Date - du" onchange="filterExamens()">
-                        <input type="date" id="filter-examens-date-fin" title="Date - au" onchange="filterExamens()">
+                        <input type="text" id="filter-examens-date-debut" placeholder="JJ/MM/AAAA" title="Date - du" oninput="filterExamens()">
+                        <input type="text" id="filter-examens-date-fin" placeholder="JJ/MM/AAAA" title="Date - au" oninput="filterExamens()">
                         <button class="btn" onclick="exportExamensExcel()">📊 Exporter Excel</button>
                         <button class="btn btn-primary" onclick="openExamenModal()">+ Nouvel examen</button>
                     </div>
@@ -366,6 +369,101 @@
                     </thead>
                     <tbody id="table-examens">
                         <tr><td colspan="7" class="loading">Chargement...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- SOINS -->
+        <div id="page-soins" class="page">
+            <!-- Onglets patients enregistrés / soins externes -->
+            <div style="display:flex; gap:10px; margin-bottom:15px;">
+                <button class="btn btn-primary" id="tab-soins-enregistre" onclick="showSoinsTab('enregistre')">Patients enregistrés</button>
+                <button class="btn" id="tab-soins-externe" onclick="showSoinsTab('externe')">Soins externes</button>
+            </div>
+
+            <!-- VOLET PATIENTS ENREGISTRÉS -->
+            <div id="soins-tab-enregistre">
+                <div class="table-container">
+                    <div class="table-header">
+                        <h3>Soins — Patients enregistrés</h3>
+                        <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+                            <input type="text" class="search-box" placeholder="Rechercher..." id="search-soins-enregistre" oninput="filterSoinsTab('enregistre')">
+                            <input type="text" id="filter-soins-enregistre-date-debut" placeholder="JJ/MM/AAAA" title="Date - du">
+                            <input type="text" id="filter-soins-enregistre-date-fin" placeholder="JJ/MM/AAAA" title="Date - au">
+                            <button class="btn" onclick="loadSoinsTab('enregistre')">Filtrer</button>
+                            <button class="btn" onclick="resetFilterSoins('enregistre')">Réinitialiser</button>
+                            <button class="btn" onclick="exportSoinsExcel('enregistre')">📊 Exporter Excel</button>
+                            <button class="btn btn-primary" onclick="openNewSoinModal('enregistre')">+ Nouveau soin</button>
+                        </div>
+                    </div>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Date</th>
+                                <th>Patient</th>
+                                <th>Type de soin</th>
+                                <th>Prix appliqué</th>
+                                <th>Notes</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="table-soins-enregistre">
+                            <tr><td colspan="6" class="loading">Chargement...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- VOLET SOINS EXTERNES -->
+            <div id="soins-tab-externe" style="display:none;">
+                <div class="table-container">
+                    <div class="table-header">
+                        <h3>Soins — Patients externes</h3>
+                        <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+                            <input type="text" class="search-box" placeholder="Rechercher..." id="search-soins-externe" oninput="filterSoinsTab('externe')">
+                            <input type="text" id="filter-soins-externe-date-debut" placeholder="JJ/MM/AAAA" title="Date - du">
+                            <input type="text" id="filter-soins-externe-date-fin" placeholder="JJ/MM/AAAA" title="Date - au">
+                            <button class="btn" onclick="loadSoinsTab('externe')">Filtrer</button>
+                            <button class="btn" onclick="resetFilterSoins('externe')">Réinitialiser</button>
+                            <button class="btn" onclick="exportSoinsExcel('externe')">📊 Exporter Excel</button>
+                            <button class="btn btn-primary" onclick="openNewSoinModal('externe')">+ Nouveau soin</button>
+                        </div>
+                    </div>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Date</th>
+                                <th>Patient externe</th>
+                                <th>Type de soin</th>
+                                <th>Prix appliqué</th>
+                                <th>Notes</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="table-soins-externe">
+                            <tr><td colspan="6" class="loading">Chargement...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Administration des types de soins -->
+            <div class="table-container" style="margin-top:20px;">
+                <div class="table-header">
+                    <h3>Types de soins</h3>
+                    <button class="btn btn-primary" onclick="openNewTypeSoinModal()">+ Nouveau type</button>
+                </div>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Nom</th>
+                            <th>Prix par défaut</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="table-type-soins">
+                        <tr><td colspan="3" class="loading">Chargement...</td></tr>
                     </tbody>
                 </table>
             </div>
@@ -412,8 +510,8 @@
                     <h3>Liste du personnel</h3>
                     <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
                         <input type="text" class="search-box" placeholder="Rechercher..." id="search-personnel" oninput="filterPersonnel()">
-                        <input type="date" id="filter-personnel-date-debut" title="Date d'entrée - du" onchange="filterPersonnel()">
-                        <input type="date" id="filter-personnel-date-fin" title="Date d'entrée - au" onchange="filterPersonnel()">
+                        <input type="text" id="filter-personnel-date-debut" placeholder="JJ/MM/AAAA" title="Date d'entrée - du" oninput="filterPersonnel()">
+                        <input type="text" id="filter-personnel-date-fin" placeholder="JJ/MM/AAAA" title="Date d'entrée - au" oninput="filterPersonnel()">
                         <button class="btn" onclick="exportPersonnelExcel()">📊 Exporter Excel</button>
                         <button class="btn btn-primary" onclick="openNewPersonnelModal()">+ Nouveau membre</button>
                     </div>
@@ -548,8 +646,8 @@
                             <select id="filter-type-depense" onchange="filterDepenses()">
                                 <option value="">Tous les types</option>
                             </select>
-                            <input type="date" id="filter-depenses-date-debut" title="Date de dépense - du">
-                            <input type="date" id="filter-depenses-date-fin" title="Date de dépense - au">
+                            <input type="text" id="filter-depenses-date-debut" placeholder="JJ/MM/AAAA" title="Date de dépense - du">
+                            <input type="text" id="filter-depenses-date-fin" placeholder="JJ/MM/AAAA" title="Date de dépense - au">
                             <button class="btn" onclick="filterDepenses()">Filtrer</button>
                             <button class="btn" onclick="resetFilterDepenses()">Réinitialiser</button>
                             <button class="btn" onclick="exportDepensesExcel()">📊 Exporter Excel</button>
@@ -580,8 +678,8 @@
                         <h3>Achats</h3>
                         <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
                             <input type="text" class="search-box" placeholder="Rechercher..." id="search-achats" oninput="filterAchats()">
-                            <input type="date" id="filter-achats-date-debut" title="Date d'achat - du">
-                            <input type="date" id="filter-achats-date-fin" title="Date d'achat - au">
+                            <input type="text" id="filter-achats-date-debut" placeholder="JJ/MM/AAAA" title="Date d'achat - du">
+                            <input type="text" id="filter-achats-date-fin" placeholder="JJ/MM/AAAA" title="Date d'achat - au">
                             <button class="btn" onclick="filterAchats()">Filtrer</button>
                             <button class="btn" onclick="resetFilterAchats()">Réinitialiser</button>
                             <button class="btn" onclick="exportAchatsExcel()">📊 Exporter Excel</button>
@@ -612,8 +710,8 @@
                     <div class="table-header">
                         <h3>Synthèse Recettes / Dépenses / Profit</h3>
                         <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
-                            <input type="date" id="synthese-date-debut" title="Date de début">
-                            <input type="date" id="synthese-date-fin" title="Date de fin">
+                            <input type="text" id="synthese-date-debut" placeholder="JJ/MM/AAAA" title="Date de début">
+                            <input type="text" id="synthese-date-fin" placeholder="JJ/MM/AAAA" title="Date de fin">
                             <button class="btn" onclick="setSynthesePeriode('mois')">Ce mois</button>
                             <button class="btn" onclick="setSynthesePeriode('mois-dernier')">Mois dernier</button>
                             <button class="btn" onclick="setSynthesePeriode('annee')">Cette année</button>
@@ -992,6 +1090,70 @@
         <div class="modal-actions">
             <button class="btn" onclick="closeModal('modal-medecin')">Annuler</button>
             <button class="btn btn-primary" onclick="saveMedecin()">Enregistrer</button>
+        </div>
+    </div>
+</div>
+
+<!-- MODAL SOIN -->
+<div class="modal-overlay" id="modal-soin">
+    <div class="modal modal-lg">
+        <h3 id="modal-soin-title">Nouveau Soin</h3>
+        <input type="hidden" id="sn-id">
+        <div class="form-row">
+            <div class="form-group">
+                <label>Type de soin<span class="required-mark">*</span></label>
+                <select id="sn-type-soin" onchange="onTypeSoinChange('sn-type-soin','sn-prix')">
+                    <option value="">-- Choisir --</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Prix appliqué (FCFA)<span class="required-mark">*</span></label>
+                <input type="number" id="sn-prix" min="0" placeholder="Prix" oninput="this.dataset.modified='yes'">
+            </div>
+        </div>
+        <div class="form-group">
+            <label>Date<span class="required-mark">*</span></label>
+            <input type="text" id="sn-date" placeholder="JJ/MM/AAAA">
+        </div>
+        <div id="sn-patient-group" class="form-group">
+            <label>Patient<span class="required-mark">*</span></label>
+            <div class="patient-combo" id="sn-patient-combo">
+                <input type="text" id="sn-patient-search" class="patient-combo-input" placeholder="Rechercher un patient..." autocomplete="off" oninput="filterPatientCombo('sn')" onfocus="filterPatientCombo('sn')">
+                <input type="hidden" id="sn-patient">
+                <div class="patient-combo-list" id="sn-patient-list"></div>
+            </div>
+        </div>
+        <div id="sn-externe-group" class="form-group" style="display:none;">
+            <label>Nom du patient (externe)<span class="required-mark">*</span></label>
+            <input type="text" id="sn-nom-externe" placeholder="Nom et prénom du patient">
+        </div>
+        <div class="form-group">
+            <label>Notes</label>
+            <textarea id="sn-notes" rows="2" placeholder="Observations, notes..."></textarea>
+        </div>
+        <div class="modal-actions">
+            <button class="btn" onclick="closeModal('modal-soin')">Annuler</button>
+            <button class="btn btn-primary" onclick="saveSoin()">Enregistrer</button>
+        </div>
+    </div>
+</div>
+
+<!-- MODAL TYPE SOIN -->
+<div class="modal-overlay" id="modal-type-soin">
+    <div class="modal">
+        <h3 id="modal-type-soin-title">Nouveau Type de Soin</h3>
+        <input type="hidden" id="ts-id">
+        <div class="form-group">
+            <label>Nom<span class="required-mark">*</span></label>
+            <input type="text" id="ts-nom" placeholder="Ex: Injection, Pansement...">
+        </div>
+        <div class="form-group">
+            <label>Prix par défaut (FCFA)<span class="required-mark">*</span></label>
+            <input type="number" id="ts-prix" min="0" placeholder="Prix par défaut">
+        </div>
+        <div class="modal-actions">
+            <button class="btn" onclick="closeModal('modal-type-soin')">Annuler</button>
+            <button class="btn btn-primary" onclick="saveTypeSoin()">Enregistrer</button>
         </div>
     </div>
 </div>
