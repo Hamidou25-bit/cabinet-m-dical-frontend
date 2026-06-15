@@ -796,9 +796,9 @@ input[type="datetime-local"]:focus {
 /* LIGNES ORDONNANCE */
 .ligne-ordonnance {
     display: grid;
-    grid-template-columns: 2fr 1fr 1fr 0.7fr 1.5fr 0.7fr auto;
+    grid-template-columns: 2fr 1fr 1fr 0.7fr 1.5fr 0.7fr 1fr auto;
     gap: 8px;
-    margin-bottom: 8px;
+    margin-bottom: 4px;
     align-items: center;
 }
 
@@ -820,6 +820,11 @@ input[type="datetime-local"]:focus {
     box-shadow: 0 0 0 3px rgba(13, 148, 136, 0.12);
 }
 
+.ligne-ordonnance input[readonly] {
+    background: #EEF2F7;
+    color: var(--text-light);
+}
+
 .ligne-ordonnance .btn-remove {
     background: var(--white);
     color: var(--danger);
@@ -836,6 +841,24 @@ input[type="datetime-local"]:focus {
     background: var(--danger);
     color: white;
     border-color: var(--danger);
+}
+
+.ligne-ordonnance-wrapper {
+    margin-bottom: 10px;
+    padding-bottom: 8px;
+    border-bottom: 1px dashed var(--border);
+}
+
+.ligne-ordonnance-wrapper:last-child {
+    border-bottom: none;
+    margin-bottom: 0;
+}
+
+.ligne-ordonnance-info {
+    font-size: 11px;
+    color: var(--text-light);
+    margin-top: 4px;
+    padding-left: 2px;
 }
 
 /* LIGNES ACHAT */

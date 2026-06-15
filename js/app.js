@@ -912,15 +912,36 @@ async function loadOrdonnanceRefs() {
     if (tasks.length) await Promise.all(tasks);
 }
 
+function onTypeBeneficiaireChange() {
+    const type = document.getElementById('o-type-beneficiaire').value;
+    const patientGroup = document.getElementById('o-patient-group');
+    const beneficiaireGroup = document.getElementById('o-beneficiaire-group');
+    const beneficiaireLabel = document.getElementById('o-beneficiaire-label');
+
+    if (type === 'patient') {
+        patientGroup.style.display = '';
+        beneficiaireGroup.style.display = 'none';
+    } else if (type === 'tiers') {
+        patientGroup.style.display = 'none';
+        beneficiaireGroup.style.display = '';
+        beneficiaireLabel.innerHTML = 'Nom du bénéficiaire<span class="required-mark">*</span>';
+    } else {
+        patientGroup.style.display = 'none';
+        beneficiaireGroup.style.display = '';
+        beneficiaireLabel.innerHTML = 'Nom du bénéficiaire (optionnel)';
+    }
+}
+
 async function openOrdonnanceModal() {
     document.getElementById('ordonnance-form-title').textContent = 'Nouvelle Ordonnance';
     document.getElementById('page-title').textContent = 'Nouvelle Ordonnance';
     document.getElementById('o-id').value = '';
 
-    // Remplir la liste des patients + charger dosages/formes en parallèle
-    const tasks = [loadOrdonnanceRefs()];
+    // Remplir la liste des patients + charger dosages/formes/stock en parallèle
+    const tasks = [loadOrdonnanceRefs(), ensureStockLoaded()];
     if (!patientsData.length) tasks.push(loadPatients());
     await Promise.all(tasks);
+    populateStockDesignationsDatalist();
     resetPatientCombo('o');
 
     // Date par défaut = aujourd'hui
@@ -928,6 +949,8 @@ async function openOrdonnanceModal() {
     document.getElementById('o-motif').value = '';
     document.getElementById('o-beneficiaire').value = '';
     document.getElementById('o-est-validee').checked = false;
+    document.getElementById('o-type-beneficiaire').value = 'patient';
+    onTypeBeneficiaireChange();
 
     // Réinitialiser les lignes
     document.getElementById('lignes-ordonnance').innerHTML = '';
@@ -941,13 +964,21 @@ async function editOrdonnance(id) {
     document.getElementById('page-title').textContent = 'Modifier l\'ordonnance';
     document.getElementById('o-id').value = id;
 
-    const tasks = [loadOrdonnanceRefs(), apiFetch(`/ordonnances/${id}`).then(r => r.json())];
+    const tasks = [loadOrdonnanceRefs(), ensureStockLoaded(), apiFetch(`/ordonnances/${id}`).then(r => r.json())];
     if (!patientsData.length) tasks.push(loadPatients());
 
     try {
-        const [, ordonnance] = await Promise.all(tasks);
+        const [, , ordonnance] = await Promise.all(tasks);
+        populateStockDesignationsDatalist();
 
-        setPatientComboValue('o', ordonnance.patient_id);
+        document.getElementById('o-type-beneficiaire').value = ordonnance.type_beneficiaire || 'patient';
+        onTypeBeneficiaireChange();
+
+        if (ordonnance.patient_id) {
+            setPatientComboValue('o', ordonnance.patient_id);
+        } else {
+            resetPatientCombo('o');
+        }
         document.getElementById('o-date').value = ordonnance.date_ordonnance || '';
         document.getElementById('o-motif').value = ordonnance.motif || '';
         document.getElementById('o-beneficiaire').value = ordonnance.beneficiaire || '';
@@ -966,49 +997,118 @@ async function editOrdonnance(id) {
 
 function addLigneOrdonnance(ligne) {
     const container = document.getElementById('lignes-ordonnance');
-    const div = document.createElement('div');
-    div.className = 'ligne-ordonnance';
-    div.innerHTML = `
-        <input type="text" placeholder="Médicament *" class="lo-designation" value="${ligne ? (ligne.designation || '') : ''}">
-        <select class="lo-dosage"><option value="">Dosage</option>${dosagesData.map(d => `<option value="${d.nom}" ${ligne && ligne.dosage === d.nom ? 'selected' : ''}>${d.nom}</option>`).join('')}</select>
-        <select class="lo-forme"><option value="">Forme</option>${formesData.map(f => `<option value="${f.nom}" ${ligne && ligne.forme === f.nom ? 'selected' : ''}>${f.nom}</option>`).join('')}</select>
-        <input type="number" placeholder="Qté" class="lo-quantite" value="${ligne ? (ligne.quantite || 1) : 1}" min="1">
-        <input type="text" placeholder="Posologie" class="lo-posologie" value="${ligne ? (ligne.posologie || '') : ''}">
-        <input type="number" placeholder="Jours" class="lo-duree" value="${ligne && ligne.duree_jours ? ligne.duree_jours : ''}">
-        <button class="btn-remove" onclick="this.parentElement.remove()">✕</button>
+    const wrapper = document.createElement('div');
+    wrapper.className = 'ligne-ordonnance-wrapper';
+    wrapper.innerHTML = `
+        <div class="ligne-ordonnance">
+            <input type="text" placeholder="Médicament *" class="lo-designation" list="stock-designations" value="${ligne ? (ligne.designation || '') : ''}" oninput="onLigneOrdonnanceDesignationInput(this)">
+            <select class="lo-dosage"><option value="">Dosage</option>${dosagesData.map(d => `<option value="${d.nom}" ${ligne && ligne.dosage === d.nom ? 'selected' : ''}>${d.nom}</option>`).join('')}</select>
+            <select class="lo-forme"><option value="">Forme</option>${formesData.map(f => `<option value="${f.nom}" ${ligne && ligne.forme === f.nom ? 'selected' : ''}>${f.nom}</option>`).join('')}</select>
+            <input type="number" placeholder="Qté" class="lo-quantite" value="${ligne ? (ligne.quantite || 1) : 1}" min="1" oninput="updateLigneOrdonnanceMontant(this)">
+            <input type="text" placeholder="Posologie" class="lo-posologie" value="${ligne ? (ligne.posologie || '') : ''}">
+            <input type="number" placeholder="Jours" class="lo-duree" value="${ligne && ligne.duree_jours ? ligne.duree_jours : ''}">
+            <input type="number" placeholder="Montant" class="lo-montant" value="${ligne ? (ligne.montant || 0) : 0}" min="0">
+            <button class="btn-remove" onclick="this.closest('.ligne-ordonnance-wrapper').remove()">✕</button>
+        </div>
+        <input type="hidden" class="lo-stock-id" value="${ligne && ligne.stock_id ? ligne.stock_id : ''}">
+        <div class="ligne-ordonnance-info"></div>
     `;
-    container.appendChild(div);
+    container.appendChild(wrapper);
+    refreshLigneOrdonnanceInfo(wrapper);
+}
+
+// Detecte si la designation saisie correspond a un article du stock :
+// si oui, lie la ligne a cet article (stock_id) et calcule le montant
+// (quantite x PrixVente) en lecture seule ; sinon, le montant est saisi
+// manuellement (medicament externe, non stocke).
+function refreshLigneOrdonnanceInfo(wrapper) {
+    const designation = wrapper.querySelector('.lo-designation').value.trim();
+    const stockIdField = wrapper.querySelector('.lo-stock-id');
+    const infoDiv = wrapper.querySelector('.ligne-ordonnance-info');
+    const montantInput = wrapper.querySelector('.lo-montant');
+    const quantite = parseFloat(wrapper.querySelector('.lo-quantite').value) || 0;
+
+    let match = null;
+    if (stockIdField.value) {
+        match = stockData.find(s => String(s.idStock) === String(stockIdField.value));
+    }
+    if (!match && designation) {
+        match = stockData.find(s => (s.Designation || '').trim().toLowerCase() === designation.toLowerCase());
+    }
+
+    if (designation && match) {
+        stockIdField.value = match.idStock;
+        infoDiv.innerHTML = `<span class="status status-ok">Médicament en stock</span> Prix de vente : <strong>${(match.PrixVente || 0).toLocaleString()} FCFA</strong>`;
+        montantInput.value = quantite * (match.PrixVente || 0);
+        montantInput.readOnly = true;
+    } else if (designation) {
+        stockIdField.value = '';
+        infoDiv.innerHTML = `<span class="status status-warning">Médicament externe (non stocké)</span> saisissez le montant manuellement`;
+        montantInput.readOnly = false;
+    } else {
+        stockIdField.value = '';
+        infoDiv.innerHTML = '';
+        montantInput.readOnly = false;
+    }
+}
+
+function onLigneOrdonnanceDesignationInput(input) {
+    const wrapper = input.closest('.ligne-ordonnance-wrapper');
+    wrapper.querySelector('.lo-stock-id').value = '';
+    refreshLigneOrdonnanceInfo(wrapper);
+}
+
+function updateLigneOrdonnanceMontant(input) {
+    refreshLigneOrdonnanceInfo(input.closest('.ligne-ordonnance-wrapper'));
 }
 
 async function saveOrdonnance() {
-    if (!validateRequiredFields([
-        { id: 'o-patient', label: 'Patient', highlightId: 'o-patient-search' },
-        { id: 'o-date', label: 'Date' },
-    ])) return;
+    const typeBeneficiaire = document.getElementById('o-type-beneficiaire').value;
 
-    if (!validateLignes('.ligne-ordonnance', '.lo-designation', [], 'Ajoutez au moins un médicament')) return;
+    const requiredFields = [{ id: 'o-date', label: 'Date' }];
+    if (typeBeneficiaire === 'patient') {
+        requiredFields.push({ id: 'o-patient', label: 'Patient', highlightId: 'o-patient-search' });
+    }
+    if (!validateRequiredFields(requiredFields)) return;
+
+    if (typeBeneficiaire === 'tiers' && !document.getElementById('o-beneficiaire').value.trim()) {
+        document.getElementById('o-beneficiaire').classList.add('input-error');
+        showToast('Le nom du bénéficiaire est obligatoire pour une vente à un tiers', 'error');
+        return;
+    }
+    document.getElementById('o-beneficiaire').classList.remove('input-error');
+
+    if (!validateLignes('.ligne-ordonnance-wrapper', '.lo-designation', [], 'Ajoutez au moins un médicament')) return;
 
     const id = document.getElementById('o-id').value;
-    const lignes = Array.from(document.querySelectorAll('.ligne-ordonnance')).map(div => ({
-        designation: div.querySelector('.lo-designation').value,
-        dosage: div.querySelector('.lo-dosage').value,
-        forme: div.querySelector('.lo-forme').value,
-        quantite: parseInt(div.querySelector('.lo-quantite').value) || 1,
-        posologie: div.querySelector('.lo-posologie').value,
-        duree_jours: parseInt(div.querySelector('.lo-duree').value) || null,
-        montant: 0,
-        prix_achat: 0
-    })).filter(l => l.designation.trim() !== '');
+    const lignes = Array.from(document.querySelectorAll('.ligne-ordonnance-wrapper')).map(wrapper => {
+        const ligne = {
+            designation: wrapper.querySelector('.lo-designation').value,
+            dosage: wrapper.querySelector('.lo-dosage').value,
+            forme: wrapper.querySelector('.lo-forme').value,
+            quantite: parseInt(wrapper.querySelector('.lo-quantite').value) || 1,
+            posologie: wrapper.querySelector('.lo-posologie').value,
+            duree_jours: parseInt(wrapper.querySelector('.lo-duree').value) || null,
+        };
+        const stockId = wrapper.querySelector('.lo-stock-id').value;
+        if (stockId) {
+            ligne.stock_id = parseInt(stockId);
+        } else {
+            ligne.stock_id = null;
+            ligne.montant = parseFloat(wrapper.querySelector('.lo-montant').value) || 0;
+        }
+        return ligne;
+    }).filter(l => l.designation.trim() !== '');
 
-    const patientId = parseInt(document.getElementById('o-patient').value);
+    const patientId = document.getElementById('o-patient').value;
 
     const data = {
-        patient_id: patientId,
+        patient_id: typeBeneficiaire === 'patient' && patientId ? parseInt(patientId) : null,
         date_ordonnance: document.getElementById('o-date').value,
         motif: document.getElementById('o-motif').value,
+        type_beneficiaire: typeBeneficiaire,
         beneficiaire: document.getElementById('o-beneficiaire').value,
         est_validee: document.getElementById('o-est-validee').checked ? 1 : 0,
-        is_interne: 0,
         lignes: lignes
     };
 

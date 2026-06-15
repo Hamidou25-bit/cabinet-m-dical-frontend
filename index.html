@@ -252,12 +252,12 @@
                 <input type="hidden" id="o-id">
                 <div class="form-row">
                     <div class="form-group">
-                        <label>Patient<span class="required-mark">*</span></label>
-                        <div class="patient-combo" id="o-patient-combo">
-                            <input type="text" id="o-patient-search" class="patient-combo-input" placeholder="Rechercher un patient..." autocomplete="off" oninput="filterPatientCombo('o')" onfocus="filterPatientCombo('o')">
-                            <input type="hidden" id="o-patient">
-                            <div class="patient-combo-list" id="o-patient-list"></div>
-                        </div>
+                        <label>Type de bénéficiaire<span class="required-mark">*</span></label>
+                        <select id="o-type-beneficiaire" onchange="onTypeBeneficiaireChange()">
+                            <option value="patient">Patient enregistré</option>
+                            <option value="tiers">Vente à un tiers</option>
+                            <option value="interne">Usage interne</option>
+                        </select>
                     </div>
                     <div class="form-group">
                         <label>Date<span class="required-mark">*</span></label>
@@ -266,12 +266,22 @@
                 </div>
                 <div class="form-row">
                     <div class="form-group">
-                        <label>Motif</label>
-                        <input type="text" id="o-motif" placeholder="Motif">
+                        <div id="o-patient-group">
+                            <label>Patient<span class="required-mark">*</span></label>
+                            <div class="patient-combo" id="o-patient-combo">
+                                <input type="text" id="o-patient-search" class="patient-combo-input" placeholder="Rechercher un patient..." autocomplete="off" oninput="filterPatientCombo('o')" onfocus="filterPatientCombo('o')">
+                                <input type="hidden" id="o-patient">
+                                <div class="patient-combo-list" id="o-patient-list"></div>
+                            </div>
+                        </div>
+                        <div id="o-beneficiaire-group" style="display:none;">
+                            <label id="o-beneficiaire-label">Nom du bénéficiaire</label>
+                            <input type="text" id="o-beneficiaire" placeholder="Nom du bénéficiaire">
+                        </div>
                     </div>
                     <div class="form-group">
-                        <label>Bénéficiaire</label>
-                        <input type="text" id="o-beneficiaire" placeholder="Nom du bénéficiaire (si différent)">
+                        <label>Motif</label>
+                        <input type="text" id="o-motif" placeholder="Motif">
                     </div>
                 </div>
                 <div class="form-group">
