@@ -267,6 +267,29 @@ body {
 .card.orange { border-left-color: var(--warning); }
 .card.red { border-left-color: var(--danger); }
 
+/* FORM PAGE (page dédiée remplaçant une modale) */
+.form-page {
+    background: var(--white);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-sm);
+    border: 1px solid var(--border);
+    padding: 24px 28px;
+    margin-bottom: 25px;
+}
+
+.form-page h3 {
+    font-size: 17px;
+    font-weight: 700;
+    margin-bottom: 24px;
+    color: var(--text);
+    padding-bottom: 16px;
+    border-bottom: 1px solid var(--border);
+}
+
+.btn-retour {
+    margin-bottom: 18px;
+}
+
 /* TABLES */
 .table-container {
     background: var(--white);

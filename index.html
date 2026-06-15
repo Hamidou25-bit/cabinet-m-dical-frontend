@@ -244,6 +244,51 @@
             </div>
         </div>
 
+        <!-- ORDONNANCE - FORMULAIRE (page dédiée, pas d'entrée de menu) -->
+        <div id="page-ordonnance-form" class="page">
+            <div class="form-page">
+                <button class="btn btn-sm btn-retour" onclick="showPage('ordonnances')">← Retour</button>
+                <h3 id="ordonnance-form-title">Nouvelle Ordonnance</h3>
+                <input type="hidden" id="o-id">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Patient<span class="required-mark">*</span></label>
+                        <div class="patient-combo" id="o-patient-combo">
+                            <input type="text" id="o-patient-search" class="patient-combo-input" placeholder="Rechercher un patient..." autocomplete="off" oninput="filterPatientCombo('o')" onfocus="filterPatientCombo('o')">
+                            <input type="hidden" id="o-patient">
+                            <div class="patient-combo-list" id="o-patient-list"></div>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>Date<span class="required-mark">*</span></label>
+                        <input type="date" id="o-date">
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Motif</label>
+                        <input type="text" id="o-motif" placeholder="Motif">
+                    </div>
+                    <div class="form-group">
+                        <label>Bénéficiaire</label>
+                        <input type="text" id="o-beneficiaire" placeholder="Nom du bénéficiaire (si différent)">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label><input type="checkbox" id="o-est-validee" style="width:auto; margin-right:5px;"> Validée</label>
+                </div>
+
+                <h3 style="margin-top: 15px; font-size: 14px;">Médicaments</h3>
+                <div id="lignes-ordonnance"></div>
+                <button class="btn btn-sm" onclick="addLigneOrdonnance()">+ Ajouter un médicament</button>
+
+                <div class="modal-actions">
+                    <button class="btn" onclick="showPage('ordonnances')">Annuler</button>
+                    <button class="btn btn-primary" onclick="saveOrdonnance()">Enregistrer</button>
+                </div>
+            </div>
+        </div>
+
         <!-- EXAMENS COMPLEMENTAIRES -->
         <div id="page-examens" class="page">
             <div class="table-container">
@@ -665,49 +710,6 @@
         <div class="modal-actions">
             <button class="btn" onclick="closeModal('modal-rendez-vous')">Annuler</button>
             <button class="btn btn-primary" onclick="saveRendezVous()">Enregistrer</button>
-        </div>
-    </div>
-</div>
-<!-- MODAL NOUVELLE ORDONNANCE -->
-<div class="modal-overlay" id="modal-ordonnance">
-    <div class="modal modal-lg">
-        <h3 id="modal-ordonnance-title">Nouvelle Ordonnance</h3>
-        <input type="hidden" id="o-id">
-        <div class="form-row">
-            <div class="form-group">
-                <label>Patient<span class="required-mark">*</span></label>
-                <div class="patient-combo" id="o-patient-combo">
-                    <input type="text" id="o-patient-search" class="patient-combo-input" placeholder="Rechercher un patient..." autocomplete="off" oninput="filterPatientCombo('o')" onfocus="filterPatientCombo('o')">
-                    <input type="hidden" id="o-patient">
-                    <div class="patient-combo-list" id="o-patient-list"></div>
-                </div>
-            </div>
-            <div class="form-group">
-                <label>Date<span class="required-mark">*</span></label>
-                <input type="date" id="o-date">
-            </div>
-        </div>
-        <div class="form-row">
-            <div class="form-group">
-                <label>Motif</label>
-                <input type="text" id="o-motif" placeholder="Motif">
-            </div>
-            <div class="form-group">
-                <label>Bénéficiaire</label>
-                <input type="text" id="o-beneficiaire" placeholder="Nom du bénéficiaire (si différent)">
-            </div>
-        </div>
-        <div class="form-group">
-            <label><input type="checkbox" id="o-est-validee" style="width:auto; margin-right:5px;"> Validée</label>
-        </div>
-
-        <h3 style="margin-top: 15px; font-size: 14px;">Médicaments</h3>
-        <div id="lignes-ordonnance"></div>
-        <button class="btn btn-sm" onclick="addLigneOrdonnance()">+ Ajouter un médicament</button>
-
-        <div class="modal-actions">
-            <button class="btn" onclick="closeModal('modal-ordonnance')">Annuler</button>
-            <button class="btn btn-primary" onclick="saveOrdonnance()">Enregistrer</button>
         </div>
     </div>
 </div>

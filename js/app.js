@@ -40,10 +40,16 @@ function showPage(page) {
     document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
     document.querySelectorAll('.menu-item').forEach(m => m.classList.remove('active'));
     document.getElementById('page-' + page).classList.add('active');
-    event.currentTarget.classList.add('active');
+
+    // Met en surbrillance l'item de menu correspondant (s'il existe), que showPage()
+    // soit appelée depuis un clic sur ce menu ou programmatiquement (ex: 'ordonnance-form')
+    const menuItem = (typeof event !== 'undefined' && event && event.currentTarget && event.currentTarget.classList && event.currentTarget.classList.contains('menu-item'))
+        ? event.currentTarget
+        : document.querySelector(`.menu-item[onclick*="showPage('${page}')"]`);
+    if (menuItem) menuItem.classList.add('active');
 
     const titles = { dashboard: 'Tableau de bord', patients: 'Patients', rendez_vous: 'Rendez-vous', consultations: 'Consultations', stock: 'Stock',ordonnances: 'Ordonnances', examens: 'Examens complémentaires', personnel: 'Personnel', medecins: 'Médecins', comptabilite: 'Comptabilité' };
-    document.getElementById('page-title').textContent = titles[page];
+    if (titles[page]) document.getElementById('page-title').textContent = titles[page];
 
     if (page === 'patients') loadPatients();
     if (page === 'rendez_vous') loadRendezVous();
@@ -907,7 +913,8 @@ async function loadOrdonnanceRefs() {
 }
 
 async function openOrdonnanceModal() {
-    document.getElementById('modal-ordonnance-title').textContent = 'Nouvelle Ordonnance';
+    document.getElementById('ordonnance-form-title').textContent = 'Nouvelle Ordonnance';
+    document.getElementById('page-title').textContent = 'Nouvelle Ordonnance';
     document.getElementById('o-id').value = '';
 
     // Remplir la liste des patients + charger dosages/formes en parallèle
@@ -926,11 +933,12 @@ async function openOrdonnanceModal() {
     document.getElementById('lignes-ordonnance').innerHTML = '';
     addLigneOrdonnance();
 
-    openModal('modal-ordonnance');
+    showPage('ordonnance-form');
 }
 
 async function editOrdonnance(id) {
-    document.getElementById('modal-ordonnance-title').textContent = 'Modifier Ordonnance';
+    document.getElementById('ordonnance-form-title').textContent = 'Modifier l\'ordonnance';
+    document.getElementById('page-title').textContent = 'Modifier l\'ordonnance';
     document.getElementById('o-id').value = id;
 
     const tasks = [loadOrdonnanceRefs(), apiFetch(`/ordonnances/${id}`).then(r => r.json())];
@@ -952,7 +960,7 @@ async function editOrdonnance(id) {
             addLigneOrdonnance();
         }
 
-        openModal('modal-ordonnance');
+        showPage('ordonnance-form');
     } catch(e) { showToast('Erreur lors du chargement de l\'ordonnance', 'error'); }
 }
 
@@ -1010,7 +1018,7 @@ async function saveOrdonnance() {
         } else {
             await apiFetch('/ordonnances', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(data) });
         }
-        closeModal('modal-ordonnance');
+        showPage('ordonnances');
         loadOrdonnances();
         showToast('Ordonnance enregistrée !', 'success');
     } catch(e) { showToast('Erreur lors de l\'enregistrement : ' + e.message, 'error'); }
