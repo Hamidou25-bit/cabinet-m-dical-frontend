@@ -673,6 +673,7 @@ function renderStock(data) {
             <td>
                 <button class="btn btn-sm" onclick="editStockArticle(${s.idStock})">Modifier</button>
                 <button class="btn btn-sm btn-primary" onclick="openSortieModal(${s.idStock})">Sortie</button>
+                <button class="btn btn-sm btn-danger" onclick="deleteStockArticle(${s.idStock})">Supprimer</button>
             </td>
         </tr>`;
     }).join('');
@@ -898,6 +899,15 @@ async function saveSortie() {
         loadStock();
         showToast('Sortie enregistrée !', 'success');
     } catch(e) { showToast('Erreur lors de l\'enregistrement : ' + e.message, 'error'); }
+}
+
+async function deleteStockArticle(id) {
+    if (!confirm('Voulez-vous vraiment supprimer cet article du stock ? Cette action est irréversible.')) return;
+    try {
+        await apiFetch(`/stock/${id}`, { method: 'DELETE' });
+        loadStock();
+        showToast('Article supprimé du stock', 'success');
+    } catch(e) { showToast('Erreur lors de la suppression : ' + e.message, 'error'); }
 }
 
 // Ordonnances
@@ -1296,8 +1306,11 @@ function refreshLigneOrdonnanceInfo(wrapper) {
 
     if (designation && match) {
         stockIdField.value = match.idStock;
-        infoDiv.innerHTML = `<span class="status status-ok">Médicament en stock</span> Prix de vente : <strong>${(match.PrixVente || 0).toLocaleString()} FCFA</strong>`;
-        montantInput.value = quantite * (match.PrixVente || 0);
+        const isInterne = ordonnanceFormReturnTab === 'interne';
+        const prix = isInterne ? (match.PrixAchat || 0) : (match.PrixVente || 0);
+        const labelPrix = isInterne ? "Prix d'achat" : "Prix de vente";
+        infoDiv.innerHTML = `<span class="status status-ok">Médicament en stock</span> ${labelPrix} : <strong>${prix.toLocaleString()} FCFA</strong>`;
+        montantInput.value = quantite * prix;
         montantInput.readOnly = true;
     } else if (designation) {
         stockIdField.value = '';
@@ -1646,7 +1659,20 @@ async function saveExamen() {
 
     const id = document.getElementById('e-id').value;
     const patientId = isExterne ? null : (parseInt(document.getElementById('e-patient').value) || null);
-    const nomPatientExterne = isExterne ? (document.getElementById('e-nom-externe').value || null) : null;
+    const nomPatientExterne = isExterne ? (document.getElementById('e-nom-externe').value.trim() || null) : null;
+
+    // Guard : parseInt peut retourner NaN→null si le champ caché contient une valeur non numérique.
+    // validateRequiredFields vérifie que le champ n'est pas vide mais pas que c'est un entier valide.
+    if (!isExterne && patientId === null) {
+        document.getElementById('e-patient-search').classList.add('input-error');
+        showToast('Veuillez sélectionner un patient dans la liste', 'error');
+        return;
+    }
+    if (isExterne && !nomPatientExterne) {
+        document.getElementById('e-nom-externe').classList.add('input-error');
+        showToast('Le nom du patient externe est obligatoire', 'error');
+        return;
+    }
     const dateExamen = document.getElementById('e-date').value;
     const medecinId = document.getElementById('e-medecin').value ? parseInt(document.getElementById('e-medecin').value) : null;
     const renseignement = document.getElementById('e-renseignement').value;
@@ -2440,7 +2466,14 @@ async function editAchat(id) {
     document.getElementById('modal-achat-title').textContent = 'Modifier Achat';
     document.getElementById('ac-id').value = id;
     try {
-        const [, , achat] = await Promise.all([ensureFournisseursLoaded(), ensureStockLoaded(), apiFetch(`/achats/${id}`).then(r => r.json())]);
+        // Force-reload du stock pour inclure les articles créés lors du premier enregistrement de cet achat.
+        // ensureStockLoaded() utilise le cache et raterait les nouveaux articles, causant un doublon à la modification.
+        const [, stockRaw, achat] = await Promise.all([
+            ensureFournisseursLoaded(),
+            apiFetch('/stock').then(r => r.json()),
+            apiFetch(`/achats/${id}`).then(r => r.json())
+        ]);
+        stockData = Array.isArray(stockRaw) ? stockRaw : [];
         populateStockDesignationsDatalist();
         populateFournisseurSelect(achat.fournisseur_id || '', 'ac-fournisseur', 'id');
         document.getElementById('ac-numero-facture').value = achat.numero_facture || '';
