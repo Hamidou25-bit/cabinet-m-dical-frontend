@@ -14,55 +14,70 @@
 <script src="js/auth.js"></script>
 
 <!-- SIDEBAR -->
-<div class="sidebar">
+<div class="sidebar" id="sidebar">
     <div class="sidebar-header">
-        <h2>🏥 Cabinet Médical</h2>
-        <p>BabaMouneissa</p>
+        <span class="sidebar-logo-icon">🏥</span>
+        <div class="sidebar-header-text">
+            <h2>Cabinet Médical</h2>
+            <p>BabaMouneissa</p>
+        </div>
     </div>
     <div class="sidebar-menu">
-        <div class="menu-section">Principal</div>
-        <div class="menu-item active" onclick="showPage('dashboard')">
-            <span class="icon">📊</span> Tableau de bord
+        <div class="menu-section"><span class="menu-text">Principal</span></div>
+        <div class="menu-item active" onclick="showPage('dashboard')" data-tooltip="Tableau de bord">
+            <span class="icon">📊</span><span class="menu-text"> Tableau de bord</span>
         </div>
 
-        <div class="menu-section">Clinique</div>
-        <div class="menu-item" onclick="showPage('patients')">
-            <span class="icon">👥</span> Patients
+        <div class="menu-section"><span class="menu-text">Clinique</span></div>
+        <div class="menu-item" onclick="showPage('patients')" data-tooltip="Patients">
+            <span class="icon">👥</span><span class="menu-text"> Patients</span>
         </div>
-        <div class="menu-item" onclick="showPage('consultations')">
-            <span class="icon">🩺</span> Consultations
+        <div class="menu-item" onclick="showPage('consultations')" data-tooltip="Consultations">
+            <span class="icon">🩺</span><span class="menu-text"> Consultations</span>
         </div>
-        <div class="menu-item" onclick="showPage('ordonnances')">
-            <span class="icon">📋</span> Ordonnances
+        <div class="menu-item" onclick="showPage('ordonnances')" data-tooltip="Ordonnances">
+            <span class="icon">📋</span><span class="menu-text"> Ordonnances</span>
         </div>
-        <div class="menu-item" onclick="showPage('examens')">
-            <span class="icon">🔬</span> Examens
+        <div class="menu-item" onclick="showPage('examens')" data-tooltip="Examens">
+            <span class="icon">🔬</span><span class="menu-text"> Examens</span>
         </div>
-        <div class="menu-item" onclick="showPage('soins')">
-            <span class="icon">💉</span> Soins
-        </div>
-
-        <div class="menu-section">Pharmacie</div>
-        <div class="menu-item" onclick="showPage('stock')">
-            <span class="icon">💊</span> Stock
+        <div class="menu-item" onclick="showPage('soins')" data-tooltip="Soins">
+            <span class="icon">💉</span><span class="menu-text"> Soins</span>
         </div>
 
-        <div class="menu-section" id="menu-section-admin" style="display:none;">Administration</div>
-        <div class="menu-item" id="menu-personnel" style="display:none;" onclick="showPage('personnel')">
-            <span class="icon">👔</span> Personnel
+        <div class="menu-section"><span class="menu-text">Pharmacie</span></div>
+        <div class="menu-item" onclick="showPage('stock')" data-tooltip="Stock">
+            <span class="icon">💊</span><span class="menu-text"> Stock</span>
         </div>
-        <div class="menu-item" id="menu-medecins" style="display:none;" onclick="showPage('medecins')">
-            <span class="icon">🆔</span> Médecins
+
+        <div class="menu-section" id="menu-section-admin" style="display:none;"><span class="menu-text">Administration</span></div>
+        <div class="menu-item" id="menu-personnel" style="display:none;" onclick="showPage('personnel')" data-tooltip="Personnel">
+            <span class="icon">👔</span><span class="menu-text"> Personnel</span>
         </div>
-        <div class="menu-item" id="menu-examens-config" style="display:none;" onclick="showPage('examens-config')">
-            <span class="icon">⚙️</span> Types d'examens
+        <div class="menu-item" id="menu-medecins" style="display:none;" onclick="showPage('medecins')" data-tooltip="Médecins">
+            <span class="icon">🆔</span><span class="menu-text"> Médecins</span>
         </div>
-        <div class="menu-item" id="menu-type-soins" style="display:none;" onclick="showPage('type-soins')">
-            <span class="icon">💉</span> Types de soins
+        <div class="menu-item" id="menu-examens-config" style="display:none;" onclick="showPage('examens-config')" data-tooltip="Types d'examens">
+            <span class="icon">⚙️</span><span class="menu-text"> Types d'examens</span>
         </div>
-        <div class="menu-item" id="menu-comptabilite" style="display:none;" onclick="showPage('comptabilite')">
-            <span class="icon">💰</span> Comptabilité
+        <div class="menu-item" id="menu-type-soins" style="display:none;" onclick="showPage('type-soins')" data-tooltip="Types de soins">
+            <span class="icon">💉</span><span class="menu-text"> Types de soins</span>
         </div>
+        <div class="menu-item" id="menu-comptabilite" style="display:none;" onclick="showPage('comptabilite')" data-tooltip="Comptabilité">
+            <span class="icon">💰</span><span class="menu-text"> Comptabilité</span>
+        </div>
+    </div>
+
+    <!-- Profil utilisateur + bouton toggle -->
+    <div class="sidebar-footer">
+        <div class="sidebar-user">
+            <div class="sidebar-avatar" id="sidebar-avatar">?</div>
+            <div class="sidebar-user-info">
+                <div class="sidebar-user-name" id="sidebar-user-name"></div>
+                <div class="sidebar-user-role" id="sidebar-user-role"></div>
+            </div>
+        </div>
+        <button class="sidebar-toggle-btn" id="sidebar-toggle-btn" onclick="toggleSidebarCollapse()" title="Réduire/Étendre la sidebar">◀</button>
     </div>
 </div>
 
@@ -736,6 +751,7 @@
                             <button class="btn" onclick="setSynthesePeriode('tout')">Tout</button>
                             <button class="btn btn-primary" onclick="loadSynthese()">Appliquer</button>
                             <button class="btn" onclick="setSynthesePeriode('mois')" title="Réinitialiser à ce mois">Réinitialiser</button>
+                            <button class="btn btn-primary" onclick="exportBilanExcel()" title="Exporter le bilan complet en Excel (6 onglets)">📊 Exporter bilan Excel</button>
                         </div>
                     </div>
                 </div>

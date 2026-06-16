@@ -47,6 +47,47 @@ function clearFlatpickr(id) {
 function toggleSidebar() { document.body.classList.toggle('sidebar-open'); }
 function closeSidebar() { document.body.classList.remove('sidebar-open'); }
 
+// Sidebar desktop : toggle collapsed (icônes seules / étendue)
+function toggleSidebarCollapse() {
+    const collapsed = document.body.classList.toggle('sidebar-collapsed');
+    localStorage.setItem('sidebar-collapsed', collapsed ? '1' : '');
+    const btn = document.getElementById('sidebar-toggle-btn');
+    if (btn) btn.textContent = collapsed ? '▶' : '◀';
+}
+
+function initSidebar() {
+    if (localStorage.getItem('sidebar-collapsed')) {
+        document.body.classList.add('sidebar-collapsed');
+        const btn = document.getElementById('sidebar-toggle-btn');
+        if (btn) btn.textContent = '▶';
+    }
+    const userName = localStorage.getItem('nom_utilisateur') || '';
+    const role = localStorage.getItem('role') || '';
+    const roleLabels = { admin: 'Administrateur', medecin: 'Médecin', secretaire: 'Secrétaire' };
+    const initiales = userName ? userName.charAt(0).toUpperCase() : '?';
+    const avatarEl = document.getElementById('sidebar-avatar');
+    const nameEl = document.getElementById('sidebar-user-name');
+    const roleEl = document.getElementById('sidebar-user-role');
+    if (avatarEl) avatarEl.textContent = initiales;
+    if (nameEl) nameEl.textContent = userName;
+    if (roleEl) roleEl.textContent = roleLabels[role] || role;
+}
+
+// Utilitaire export Excel : télécharge ET ouvre dans un nouvel onglet
+function telechargerEtOuvrir(workbook, nomFichier) {
+    const wbout = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' });
+    const blob = new Blob([wbout], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = nomFichier;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    window.open(url, '_blank');
+    setTimeout(() => URL.revokeObjectURL(url), 5000);
+}
+
 // Lit l'id de l'utilisateur courant depuis le payload JWT stocké en localStorage
 function getCurrentUserId() {
     try {
@@ -92,6 +133,9 @@ document.addEventListener('DOMContentLoaded', function() {
             allowInput: true,
         });
     });
+
+    // Initialisation de la sidebar (état collapsed depuis localStorage + avatar utilisateur)
+    initSidebar();
 
     // Chargement initial
     loadDashboard();
@@ -319,7 +363,7 @@ function exportPatientsExcel() {
     const ws = XLSX.utils.json_to_sheet(rows);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Patients');
-    XLSX.writeFile(wb, `patients_${new Date().toISOString().split('T')[0]}.xlsx`);
+    telechargerEtOuvrir(wb, `patients_${new Date().toISOString().split('T')[0]}.xlsx`);
 }
 
 function openNewPatientModal() {
@@ -508,7 +552,7 @@ function exportConsultationsExcel() {
     const ws = XLSX.utils.json_to_sheet(rows);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Consultations');
-    XLSX.writeFile(wb, `consultations_${new Date().toISOString().split('T')[0]}.xlsx`);
+    telechargerEtOuvrir(wb, `consultations_${new Date().toISOString().split('T')[0]}.xlsx`);
 }
 
 async function ensureMedecinsLoaded() {
@@ -709,7 +753,7 @@ function exportStockExcel() {
     const ws = XLSX.utils.json_to_sheet(rows);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Stock');
-    XLSX.writeFile(wb, `stock_${new Date().toISOString().split('T')[0]}.xlsx`);
+    telechargerEtOuvrir(wb, `stock_${new Date().toISOString().split('T')[0]}.xlsx`);
 }
 
 // Onglets Comptabilité
@@ -1027,7 +1071,7 @@ async function exportOrdonnancesExcel(type) {
         const wb = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(lignesRows), 'Détail');
         XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(syntheseRows), 'Synthèse');
-        XLSX.writeFile(wb, `ordonnances_${type}_${new Date().toISOString().split('T')[0]}.xlsx`);
+        telechargerEtOuvrir(wb, `ordonnances_${type}_${new Date().toISOString().split('T')[0]}.xlsx`);
     } catch(e) { showToast('Erreur lors de l\'export Excel', 'error'); }
 }
 
@@ -1498,7 +1542,7 @@ function exportExamensExcel() {
     const ws = XLSX.utils.json_to_sheet(rows);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Examens');
-    XLSX.writeFile(wb, `examens_${new Date().toISOString().split('T')[0]}.xlsx`);
+    telechargerEtOuvrir(wb, `examens_${new Date().toISOString().split('T')[0]}.xlsx`);
 }
 
 async function loadExamenRefs() {
@@ -2362,7 +2406,7 @@ function exportDepensesExcel() {
     const ws = XLSX.utils.json_to_sheet(rows);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Dépenses');
-    XLSX.writeFile(wb, `depenses_${new Date().toISOString().split('T')[0]}.xlsx`);
+    telechargerEtOuvrir(wb, `depenses_${new Date().toISOString().split('T')[0]}.xlsx`);
 }
 
 function populateTypeDepenseSelect(selected) {
@@ -2518,7 +2562,7 @@ function exportAchatsExcel() {
     const ws = XLSX.utils.json_to_sheet(rows);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Achats');
-    XLSX.writeFile(wb, `achats_${new Date().toISOString().split('T')[0]}.xlsx`);
+    telechargerEtOuvrir(wb, `achats_${new Date().toISOString().split('T')[0]}.xlsx`);
 }
 
 async function openNewAchatModal() {
@@ -2823,7 +2867,7 @@ function exportSoinsExcel(tab) {
     const ws = XLSX.utils.json_to_sheet(rows);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Soins');
-    XLSX.writeFile(wb, `soins_${tab}_${new Date().toISOString().split('T')[0]}.xlsx`);
+    telechargerEtOuvrir(wb, `soins_${tab}_${new Date().toISOString().split('T')[0]}.xlsx`);
 }
 
 async function ensureTypeSoinsLoaded() {
@@ -3064,5 +3108,130 @@ async function deleteTypeSoin(id) {
     } catch(e) {
         if (e.status === 409) showToast(e.detail, 'error');
         else showToast('Erreur lors de la suppression : ' + e.message, 'error');
+    }
+}
+
+// Comptabilité — Export bilan Excel multi-onglets
+async function exportBilanExcel() {
+    let dateDebut = parseDateFR(document.getElementById('synthese-date-debut').value);
+    let dateFin = parseDateFR(document.getElementById('synthese-date-fin').value);
+    if (!dateDebut || !dateFin) {
+        showToast('Veuillez définir une période dans la synthèse avant d\'exporter', 'warning');
+        return;
+    }
+
+    showToast('Génération du bilan en cours...', 'success', 2000);
+    try {
+        const params = `date_debut=${dateDebut}&date_fin=${dateFin}`;
+
+        const [synthese, ordoPatient, ordoTiers, ordoInterne, soinsEnr, soinsExt, allExamens, allDepenses, allAchats] = await Promise.all([
+            apiFetch(`/comptabilite/synthese?${params}`).then(r => r.json()),
+            apiFetch(`/ordonnances/export?type_beneficiaire=patient&${params}`).then(r => r.json()),
+            apiFetch(`/ordonnances/export?type_beneficiaire=tiers&${params}`).then(r => r.json()),
+            apiFetch(`/ordonnances/export?type_beneficiaire=interne&${params}`).then(r => r.json()),
+            apiFetch(`/soins/?type_patient=enregistre&${params}`).then(r => r.json()),
+            apiFetch(`/soins/?type_patient=externe&${params}`).then(r => r.json()),
+            apiFetch('/examens-complementaires/').then(r => r.json()),
+            apiFetch('/depenses/').then(r => r.json()),
+            apiFetch('/achats/').then(r => r.json()),
+        ]);
+
+        const wb = XLSX.utils.book_new();
+
+        // Onglet Synthèse
+        const syntheseRows = [
+            { 'Indicateur': 'Période du', 'Valeur': formatDateFR(dateDebut) },
+            { 'Indicateur': 'Période au', 'Valeur': formatDateFR(dateFin) },
+            { 'Indicateur': '', 'Valeur': '' },
+            { 'Indicateur': '— RECETTES —', 'Valeur': '' },
+            { 'Indicateur': 'Consultations', 'Valeur': synthese.recettes.detail.consultations },
+            { 'Indicateur': 'Ordonnances', 'Valeur': synthese.recettes.detail.ordonnances },
+            { 'Indicateur': 'Soins', 'Valeur': synthese.recettes.detail.soins },
+            { 'Indicateur': 'Examens', 'Valeur': synthese.recettes.detail.examens },
+            { 'Indicateur': 'TOTAL RECETTES', 'Valeur': synthese.recettes.total },
+            { 'Indicateur': '', 'Valeur': '' },
+            { 'Indicateur': '— DÉPENSES —', 'Valeur': '' },
+            { 'Indicateur': 'Achats fournisseurs', 'Valeur': synthese.depenses.detail.achats_fournisseurs },
+            { 'Indicateur': 'Autres dépenses', 'Valeur': synthese.depenses.detail.autres },
+            { 'Indicateur': 'TOTAL DÉPENSES', 'Valeur': synthese.depenses.total },
+            { 'Indicateur': '', 'Valeur': '' },
+            { 'Indicateur': 'BÉNÉFICE NET', 'Valeur': synthese.profit },
+        ];
+        XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(syntheseRows), 'Synthèse');
+
+        // Onglet Ordonnances
+        const toutesOrdonnances = [
+            ...(ordoPatient.ordonnances || []),
+            ...(ordoTiers.ordonnances || []),
+            ...(ordoInterne.ordonnances || []),
+        ];
+        const ordoRows = toutesOrdonnances.length
+            ? toutesOrdonnances.map(o => ({
+                'Date': formatDateFR(o.date_ordonnance),
+                'Bénéficiaire': o.type_beneficiaire === 'patient' ? `${o.nom || ''} ${o.prenom || ''}`.trim() : (o.beneficiaire || ''),
+                'Type': o.type_beneficiaire || '',
+                'Motif': o.motif || '',
+                'Montant (FCFA)': o.montant_total || 0,
+                'Validée': o.est_validee ? 'Oui' : 'Non',
+            }))
+            : [{ 'Info': 'Aucune ordonnance sur la période' }];
+        XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(ordoRows), 'Ordonnances');
+
+        // Onglet Soins
+        const tousSoins = [...soinsEnr, ...soinsExt];
+        const soinsRows = tousSoins.length
+            ? tousSoins.map(s => ({
+                'Date': formatDateFR(s.date_soin),
+                'Patient': s.patient_id ? `${s.patient_nom || ''} ${s.patient_prenom || ''}`.trim() : (s.nom_patient_externe || 'Externe'),
+                'Type patient': s.patient_id ? 'Enregistré' : 'Externe',
+                'Type de soin': s.type_soin_nom || '',
+                'Montant (FCFA)': s.prix_applique || 0,
+                'Notes': s.notes || '',
+            }))
+            : [{ 'Info': 'Aucun soin sur la période' }];
+        XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(soinsRows), 'Soins');
+
+        // Onglet Examens (filtre client-side)
+        const examensFiltered = allExamens.filter(e => (!dateDebut || e.date_examen >= dateDebut) && (!dateFin || e.date_examen <= dateFin));
+        const examensRows = examensFiltered.length
+            ? examensFiltered.map(e => ({
+                'Date': formatDateFR(e.date_examen),
+                'Patient': e.patient_id ? `${e.nom || ''} ${e.prenom || ''}`.trim() : (e.nom_patient_externe || 'Externe'),
+                'Catégorie': e.type_nom || '',
+                "Type d'examen": e.examen_nom || '',
+                'Médecin': e.medecin_nom || '',
+                'Montant (FCFA)': e.prix || 0,
+            }))
+            : [{ 'Info': 'Aucun examen sur la période' }];
+        XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(examensRows), 'Examens');
+
+        // Onglet Dépenses (filtre client-side)
+        const depFiltered = allDepenses.filter(d => (!dateDebut || d.date_depense >= dateDebut) && (!dateFin || d.date_depense <= dateFin));
+        const depRows = depFiltered.length
+            ? depFiltered.map(d => ({
+                'Date': formatDateFR(d.date_depense),
+                'Catégorie': d.type_depense || '',
+                'Montant (FCFA)': d.montant || 0,
+                'Description': d.description || '',
+            }))
+            : [{ 'Info': 'Aucune dépense sur la période' }];
+        XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(depRows), 'Dépenses');
+
+        // Onglet Achats stock (filtre client-side)
+        const achatsFiltered = allAchats.filter(a => (!dateDebut || a.date_achat >= dateDebut) && (!dateFin || a.date_achat <= dateFin));
+        const achatsRows = achatsFiltered.length
+            ? achatsFiltered.map(a => ({
+                'Date': formatDateFR(a.date_achat),
+                'N° Facture': a.numero_facture || '',
+                'Fournisseur': a.fournisseur_nom || '',
+                'Montant total (FCFA)': a.montant_total || 0,
+                'Statut paiement': a.statut_paiement || '',
+            }))
+            : [{ 'Info': 'Aucun achat sur la période' }];
+        XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(achatsRows), 'Achats stock');
+
+        telechargerEtOuvrir(wb, `bilan_${dateDebut}_${dateFin}.xlsx`);
+    } catch(e) {
+        showToast('Erreur lors de la génération du bilan : ' + e.message, 'error');
     }
 }
