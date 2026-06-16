@@ -8,6 +8,7 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="css/style.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
 </head>
 <body>
 <script src="js/auth.js"></script>
@@ -55,6 +56,9 @@
         </div>
         <div class="menu-item" id="menu-examens-config" style="display:none;" onclick="showPage('examens-config')">
             <span class="icon">⚙️</span> Types d'examens
+        </div>
+        <div class="menu-item" id="menu-type-soins" style="display:none;" onclick="showPage('type-soins')">
+            <span class="icon">💉</span> Types de soins
         </div>
         <div class="menu-item" id="menu-comptabilite" style="display:none;" onclick="showPage('comptabilite')">
             <span class="icon">💰</span> Comptabilité
@@ -129,6 +133,7 @@
                         <input type="text" class="search-box" placeholder="Rechercher..." id="search-patients" oninput="filterPatients()">
                         <input type="text" id="filter-patients-date-debut" placeholder="JJ/MM/AAAA" title="Date d'enregistrement - du" oninput="filterPatients()">
                         <input type="text" id="filter-patients-date-fin" placeholder="JJ/MM/AAAA" title="Date d'enregistrement - au" oninput="filterPatients()">
+                        <button class="btn" onclick="resetFilterPatients()">Réinitialiser</button>
                         <button class="btn" onclick="exportPatientsExcel()">📊 Exporter Excel</button>
                         <button class="btn btn-primary" onclick="openNewPatientModal()">+ Nouveau patient</button>
                     </div>
@@ -163,6 +168,7 @@
                         <input type="text" class="search-box" placeholder="Rechercher..." id="search-consultations" oninput="filterConsultations()">
                         <input type="text" id="filter-consultations-date-debut" placeholder="JJ/MM/AAAA" title="Date - du" oninput="filterConsultations()">
                         <input type="text" id="filter-consultations-date-fin" placeholder="JJ/MM/AAAA" title="Date - au" oninput="filterConsultations()">
+                        <button class="btn" onclick="resetFilterConsultations()">Réinitialiser</button>
                         <button class="btn" onclick="exportConsultationsExcel()">📊 Exporter Excel</button>
                         <button class="btn btn-primary" onclick="openNewConsultationModal()">+ Nouvelle consultation</button>
                     </div>
@@ -351,6 +357,7 @@
                         <input type="text" class="search-box" placeholder="Rechercher..." id="search-examens" oninput="filterExamens()">
                         <input type="text" id="filter-examens-date-debut" placeholder="JJ/MM/AAAA" title="Date - du" oninput="filterExamens()">
                         <input type="text" id="filter-examens-date-fin" placeholder="JJ/MM/AAAA" title="Date - au" oninput="filterExamens()">
+                        <button class="btn" onclick="resetFilterExamens()">Réinitialiser</button>
                         <button class="btn" onclick="exportExamensExcel()">📊 Exporter Excel</button>
                         <button class="btn btn-primary" onclick="openExamenModal()">+ Nouvel examen</button>
                     </div>
@@ -448,8 +455,11 @@
                 </div>
             </div>
 
-            <!-- Administration des types de soins -->
-            <div class="table-container" style="margin-top:20px;">
+        </div>
+
+        <!-- TYPES DE SOINS (Admin) -->
+        <div id="page-type-soins" class="page">
+            <div class="table-container">
                 <div class="table-header">
                     <h3>Types de soins</h3>
                     <button class="btn btn-primary" onclick="openNewTypeSoinModal()">+ Nouveau type</button>
@@ -832,6 +842,23 @@
         <input type="hidden" id="e-id">
         <div class="form-row">
             <div class="form-group">
+                <label>Type de patient</label>
+                <div style="display:flex;gap:16px;align-items:center;padding-top:6px;">
+                    <label style="cursor:pointer;font-weight:400;display:flex;align-items:center;gap:6px;">
+                        <input type="radio" name="e-type-patient" id="e-type-enregistre" value="enregistre" checked onchange="onExamenTypePatientChange(this.value)"> Patient enregistré
+                    </label>
+                    <label style="cursor:pointer;font-weight:400;display:flex;align-items:center;gap:6px;">
+                        <input type="radio" name="e-type-patient" id="e-type-externe" value="externe" onchange="onExamenTypePatientChange(this.value)"> Patient externe
+                    </label>
+                </div>
+            </div>
+            <div class="form-group">
+                <label>Date<span class="required-mark">*</span></label>
+                <input type="date" id="e-date">
+            </div>
+        </div>
+        <div class="form-row">
+            <div class="form-group" id="e-patient-group">
                 <label>Patient<span class="required-mark">*</span></label>
                 <div class="patient-combo" id="e-patient-combo">
                     <input type="text" id="e-patient-search" class="patient-combo-input" placeholder="Rechercher un patient..." autocomplete="off" oninput="filterPatientCombo('e')" onfocus="filterPatientCombo('e')">
@@ -839,9 +866,9 @@
                     <div class="patient-combo-list" id="e-patient-list"></div>
                 </div>
             </div>
-            <div class="form-group">
-                <label>Date<span class="required-mark">*</span></label>
-                <input type="date" id="e-date">
+            <div class="form-group" id="e-externe-group" style="display:none;">
+                <label>Nom du patient externe<span class="required-mark">*</span></label>
+                <input type="text" id="e-nom-externe" placeholder="Nom complet du patient externe">
             </div>
         </div>
         <div class="form-group">
@@ -1350,6 +1377,8 @@
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+<script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/fr.js"></script>
 <script src="js/app.js"></script>
 </body>
 </html>

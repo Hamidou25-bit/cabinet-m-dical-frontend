@@ -33,6 +33,16 @@ function parseDateFR(str) {
     return `${m[3]}-${m[2]}-${m[1]}`;
 }
 
+// Vide un champ de date initialisé par Flatpickr (via l'API interne) ou en
+// fallback sur la valeur DOM, pour éviter que Flatpickr conserve sa sélection
+// interne alors que la valeur affichée est vide.
+function clearFlatpickr(id) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    if (el._flatpickr) el._flatpickr.clear();
+    else el.value = '';
+}
+
 // 1. Initialisation sécurisée (on vérifie si l'élément existe)
 document.addEventListener('DOMContentLoaded', function() {
     // Date
@@ -50,14 +60,24 @@ document.addEventListener('DOMContentLoaded', function() {
         userEl.textContent = '👤 ' + userName;
     }
 
-    // Menu Personnel / Médecins / Comptabilité réservés aux admins
+    // Menu Personnel / Médecins / Comptabilité / Types de soins réservés aux admins
     if (localStorage.getItem('role') === 'admin') {
         document.getElementById('menu-section-admin').style.display = '';
         document.getElementById('menu-personnel').style.display = '';
         document.getElementById('menu-medecins').style.display = '';
         document.getElementById('menu-examens-config').style.display = '';
+        document.getElementById('menu-type-soins').style.display = '';
         document.getElementById('menu-comptabilite').style.display = '';
     }
+
+    // Initialisation Flatpickr sur tous les champs de filtre de date (format JJ/MM/AAAA)
+    document.querySelectorAll('input[placeholder="JJ/MM/AAAA"]').forEach(input => {
+        flatpickr(input, {
+            dateFormat: 'd/m/Y',
+            locale: 'fr',
+            allowInput: true,
+        });
+    });
 
     // Chargement initial
     loadDashboard();
@@ -76,7 +96,7 @@ function showPage(page) {
         : document.querySelector(`.menu-item[onclick*="showPage('${page}')"]`);
     if (menuItem) menuItem.classList.add('active');
 
-    const titles = { dashboard: 'Tableau de bord', patients: 'Patients', consultations: 'Consultations', stock: 'Stock', ordonnances: 'Ordonnances', examens: 'Examens complémentaires', soins: 'Soins', personnel: 'Personnel', medecins: 'Médecins', 'examens-config': "Types d'examens", comptabilite: 'Comptabilité' };
+    const titles = { dashboard: 'Tableau de bord', patients: 'Patients', consultations: 'Consultations', stock: 'Stock', ordonnances: 'Ordonnances', examens: 'Examens complémentaires', soins: 'Soins', personnel: 'Personnel', medecins: 'Médecins', 'examens-config': "Types d'examens", 'type-soins': 'Types de soins', comptabilite: 'Comptabilité' };
     if (titles[page]) document.getElementById('page-title').textContent = titles[page];
 
     if (page === 'patients') loadPatients();
@@ -84,7 +104,8 @@ function showPage(page) {
     if (page === 'stock') loadStock();
     if (page === 'ordonnances') loadOrdonnances();
     if (page === 'examens') loadExamens();
-    if (page === 'soins') { loadTypeSoinsAdmin(); loadSoins(); }
+    if (page === 'soins') loadSoins();
+    if (page === 'type-soins') loadTypeSoinsAdmin();
     if (page === 'personnel') loadPersonnel();
     if (page === 'medecins') loadMedecins();
     if (page === 'examens-config') loadExamensConfig();
@@ -265,6 +286,13 @@ function getFilteredPatients() {
 
 function filterPatients() {
     renderPatients(getFilteredPatients());
+}
+
+function resetFilterPatients() {
+    clearFlatpickr('filter-patients-date-debut');
+    clearFlatpickr('filter-patients-date-fin');
+    document.getElementById('search-patients').value = '';
+    filterPatients();
 }
 
 function exportPatientsExcel() {
@@ -450,6 +478,13 @@ function getFilteredConsultations() {
 
 function filterConsultations() {
     renderConsultations(getFilteredConsultations());
+}
+
+function resetFilterConsultations() {
+    clearFlatpickr('filter-consultations-date-debut');
+    clearFlatpickr('filter-consultations-date-fin');
+    document.getElementById('search-consultations').value = '';
+    filterConsultations();
 }
 
 function exportConsultationsExcel() {
@@ -932,8 +967,8 @@ function filterOrdonnancesTab(type) {
 }
 
 function resetFilterOrdonnances(type) {
-    document.getElementById(`filter-ordonnances-${type}-date-debut`).value = '';
-    document.getElementById(`filter-ordonnances-${type}-date-fin`).value = '';
+    clearFlatpickr(`filter-ordonnances-${type}-date-debut`);
+    clearFlatpickr(`filter-ordonnances-${type}-date-fin`);
     document.getElementById('search-ordonnances-' + type).value = '';
     loadOrdonnancesTab(type);
 }
@@ -1383,18 +1418,24 @@ async function loadExamens() {
 function renderExamens(data) {
     const tbody = document.getElementById('table-examens');
     if (!data.length) { tbody.innerHTML = '<tr><td colspan="7">Aucun examen</td></tr>'; return; }
-    tbody.innerHTML = data.map(e => `<tr>
-        <td>${formatDateFR(e.date_examen)}</td>
-        <td>${e.nom || ''} ${e.prenom || ''}</td>
-        <td>${e.type_nom || '-'}</td>
-        <td>${e.examen_nom || '-'}</td>
-        <td>${e.resultat || '-'}</td>
-        <td>${(e.prix || 0).toLocaleString()} FCFA</td>
-        <td>
-            <button class="btn btn-sm" onclick="editExamen(${e.id})">Modifier</button>
-            <button class="btn btn-sm btn-danger" onclick="deleteExamen(${e.id})">Supprimer</button>
-        </td>
-    </tr>`).join('');
+    tbody.innerHTML = data.map(e => {
+        const patientDisplay = e.patient_id
+            ? `${e.nom || ''} ${e.prenom || ''}`.trim()
+            : (e.nom_patient_externe || '-');
+        return `<tr>
+            <td>${formatDateFR(e.date_examen)}</td>
+            <td>${escapeHtml(patientDisplay)}${!e.patient_id ? ' <span style="font-size:0.75em;color:#6b7280;">(ext.)</span>' : ''}</td>
+            <td>${escapeHtml(e.type_nom || '-')}</td>
+            <td>${escapeHtml(e.examen_nom || '-')}</td>
+            <td>${escapeHtml(e.resultat || '-')}</td>
+            <td>${(e.prix || 0).toLocaleString()} FCFA</td>
+            <td>
+                <button class="btn btn-sm" onclick="printExamen(${e.id})">🖨️ Imprimer</button>
+                <button class="btn btn-sm" onclick="editExamen(${e.id})">Modifier</button>
+                <button class="btn btn-sm btn-danger" onclick="deleteExamen(${e.id})">Supprimer</button>
+            </td>
+        </tr>`;
+    }).join('');
 }
 
 function getFilteredExamens() {
@@ -1415,12 +1456,20 @@ function filterExamens() {
     renderExamens(getFilteredExamens());
 }
 
+function resetFilterExamens() {
+    clearFlatpickr('filter-examens-date-debut');
+    clearFlatpickr('filter-examens-date-fin');
+    document.getElementById('search-examens').value = '';
+    filterExamens();
+}
+
 function exportExamensExcel() {
     const data = getFilteredExamens();
     if (!data.length) { showToast('Aucun examen à exporter', 'warning'); return; }
     const rows = data.map(e => ({
         'Date': formatDateFR(e.date_examen),
-        'Patient': `${e.nom || ''} ${e.prenom || ''}`.trim(),
+        'Patient': e.patient_id ? `${e.nom || ''} ${e.prenom || ''}`.trim() : (e.nom_patient_externe || ''),
+        'Type patient': e.patient_id ? 'Enregistré' : 'Externe',
         'Type': e.type_nom || '',
         'Examen': e.examen_nom || '',
         'Médecin': e.medecin_nom || '',
@@ -1505,9 +1554,20 @@ function updateExamenTotalDisplay() {
     document.getElementById('e-total').value = total.toLocaleString() + ' FCFA';
 }
 
+function onExamenTypePatientChange(val) {
+    const isEnregistre = val === 'enregistre';
+    document.getElementById('e-patient-group').style.display = isEnregistre ? '' : 'none';
+    document.getElementById('e-externe-group').style.display = isEnregistre ? 'none' : '';
+}
+
 async function openExamenModal() {
     document.getElementById('modal-examen-title').textContent = 'Nouvel Examen Complémentaire';
     document.getElementById('e-id').value = '';
+
+    // Réinitialiser le toggle type patient
+    document.getElementById('e-type-enregistre').checked = true;
+    onExamenTypePatientChange('enregistre');
+    document.getElementById('e-nom-externe').value = '';
 
     const tasks = [loadExamenRefs()];
     if (!patientsData.length) tasks.push(loadPatients());
@@ -1533,10 +1593,16 @@ async function editExamen(id) {
     document.getElementById('modal-examen-title').textContent = 'Modifier Examen';
     document.getElementById('e-id').value = examen.id;
 
+    // Restaurer le bon type de patient
+    const isExterne = !examen.patient_id && examen.nom_patient_externe;
+    document.getElementById(isExterne ? 'e-type-externe' : 'e-type-enregistre').checked = true;
+    onExamenTypePatientChange(isExterne ? 'externe' : 'enregistre');
+    document.getElementById('e-nom-externe').value = examen.nom_patient_externe || '';
+
     const tasks = [loadExamenRefs()];
     if (!patientsData.length) tasks.push(loadPatients());
     await Promise.all(tasks);
-    setPatientComboValue('e', examen.patient_id);
+    if (!isExterne) setPatientComboValue('e', examen.patient_id);
 
     document.getElementById('examen-lignes-container').innerHTML = '';
     addLigneExamen();
@@ -1560,10 +1626,14 @@ async function editExamen(id) {
 }
 
 async function saveExamen() {
-    if (!validateRequiredFields([
-        { id: 'e-patient', label: 'Patient', highlightId: 'e-patient-search' },
-        { id: 'e-date', label: 'Date' },
-    ])) return;
+    const isExterne = document.getElementById('e-type-externe').checked;
+    const requiredFields = [{ id: 'e-date', label: 'Date' }];
+    if (isExterne) {
+        requiredFields.push({ id: 'e-nom-externe', label: 'Nom du patient externe' });
+    } else {
+        requiredFields.push({ id: 'e-patient', label: 'Patient', highlightId: 'e-patient-search' });
+    }
+    if (!validateRequiredFields(requiredFields)) return;
 
     const lignes = document.querySelectorAll('#examen-lignes-container .ligne-examen-wrapper');
     for (const ligne of lignes) {
@@ -1575,7 +1645,8 @@ async function saveExamen() {
     }
 
     const id = document.getElementById('e-id').value;
-    const patientId = parseInt(document.getElementById('e-patient').value);
+    const patientId = isExterne ? null : (parseInt(document.getElementById('e-patient').value) || null);
+    const nomPatientExterne = isExterne ? (document.getElementById('e-nom-externe').value || null) : null;
     const dateExamen = document.getElementById('e-date').value;
     const medecinId = document.getElementById('e-medecin').value ? parseInt(document.getElementById('e-medecin').value) : null;
     const renseignement = document.getElementById('e-renseignement').value;
@@ -1586,6 +1657,7 @@ async function saveExamen() {
             const ligne = lignes[0];
             const data = {
                 patient_id: patientId,
+                nom_patient_externe: nomPatientExterne,
                 sous_type_examen_id: parseInt(ligne.querySelector('.le-type').value),
                 date_examen: dateExamen,
                 prix: parseFloat(ligne.querySelector('.le-prix').value) || 0,
@@ -1598,6 +1670,7 @@ async function saveExamen() {
             for (const ligne of lignes) {
                 const data = {
                     patient_id: patientId,
+                    nom_patient_externe: nomPatientExterne,
                     sous_type_examen_id: parseInt(ligne.querySelector('.le-type').value),
                     date_examen: dateExamen,
                     prix: parseFloat(ligne.querySelector('.le-prix').value) || 0,
@@ -1605,7 +1678,7 @@ async function saveExamen() {
                     renseignement_clinique: renseignement,
                     resultat: resultat
                 };
-                await apiFetch('/examens-complementaires', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(data) });
+                await apiFetch('/examens-complementaires/', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(data) });
             }
         }
         closeModal('modal-examen');
@@ -1620,6 +1693,64 @@ async function deleteExamen(id) {
         await apiFetch(`/examens-complementaires/${id}`, { method: 'DELETE' });
         loadExamens();
     } catch(e) { showToast('Erreur lors de la suppression', 'error'); }
+}
+
+function printExamen(id) {
+    const examen = examensData.find(e => e.id === id);
+    if (!examen) return;
+
+    const patientNom = examen.patient_id
+        ? `${examen.nom || ''} ${examen.prenom || ''}`.trim()
+        : (examen.nom_patient_externe || 'Patient externe');
+    const typePatient = examen.patient_id ? 'Patient enregistré' : 'Patient externe';
+    const medecin = examen.medecin_nom ? examen.medecin_nom : '-';
+    const dateStr = formatDateFR(examen.date_examen);
+
+    const html = `<!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8">
+<title>Résultat Examen — ${escapeHtml(patientNom)}</title>
+<style>
+body{font-family:'Helvetica Neue',Arial,sans-serif;margin:0;padding:20px;color:#111;}
+.header{text-align:center;border-bottom:2px solid #0d9488;padding-bottom:12px;margin-bottom:20px;}
+.header h1{margin:0;font-size:1.2em;color:#0d9488;letter-spacing:1px;}
+.header p{margin:2px 0;font-size:0.85em;color:#555;}
+.section{margin-bottom:16px;}
+.section h2{font-size:0.95em;text-transform:uppercase;color:#0d9488;border-bottom:1px solid #e5e7eb;padding-bottom:4px;margin-bottom:8px;}
+.row{display:flex;gap:20px;margin-bottom:6px;}
+.label{font-weight:600;min-width:180px;color:#374151;}
+.value{color:#111;}
+.resultat-box{background:#f9fafb;border:1px solid #e5e7eb;border-radius:6px;padding:12px;white-space:pre-wrap;min-height:80px;}
+.footer{margin-top:30px;border-top:1px solid #e5e7eb;padding-top:10px;text-align:right;font-size:0.8em;color:#6b7280;}
+@media print{body{padding:10px;}.footer{position:fixed;bottom:10px;right:10px;}}
+</style></head><body>
+<div class="header">
+    <h1>🏥 Cabinet Médical BabaMouneissa</h1>
+    <p>Résultat d'examen complémentaire</p>
+</div>
+<div class="section">
+    <h2>Informations patient</h2>
+    <div class="row"><span class="label">Nom :</span><span class="value">${escapeHtml(patientNom)}</span></div>
+    <div class="row"><span class="label">Type :</span><span class="value">${escapeHtml(typePatient)}</span></div>
+    <div class="row"><span class="label">Date de l'examen :</span><span class="value">${escapeHtml(dateStr)}</span></div>
+</div>
+<div class="section">
+    <h2>Détail de l'examen</h2>
+    <div class="row"><span class="label">Catégorie :</span><span class="value">${escapeHtml(examen.type_nom || '-')}</span></div>
+    <div class="row"><span class="label">Type d'examen :</span><span class="value">${escapeHtml(examen.examen_nom || '-')}</span></div>
+    <div class="row"><span class="label">Médecin :</span><span class="value">${escapeHtml(medecin)}</span></div>
+    <div class="row"><span class="label">Prix :</span><span class="value">${(examen.prix || 0).toLocaleString()} FCFA</span></div>
+</div>
+${examen.renseignement_clinique ? `<div class="section"><h2>Renseignement clinique</h2><div class="resultat-box">${escapeHtml(examen.renseignement_clinique)}</div></div>` : ''}
+<div class="section">
+    <h2>Résultat</h2>
+    <div class="resultat-box">${escapeHtml(examen.resultat || '(Résultat non encore disponible)')}</div>
+</div>
+<div class="footer">Imprimé le ${new Date().toLocaleDateString('fr-FR')} — Cabinet Médical BabaMouneissa</div>
+</body></html>`;
+
+    const w = window.open('', '_blank', 'width=800,height=600');
+    w.document.write(html);
+    w.document.close();
+    w.onload = () => w.print();
 }
 
 // Personnel
@@ -2112,8 +2243,8 @@ function filterDepenses() {
 
 function resetFilterDepenses() {
     document.getElementById('filter-type-depense').value = '';
-    document.getElementById('filter-depenses-date-debut').value = '';
-    document.getElementById('filter-depenses-date-fin').value = '';
+    clearFlatpickr('filter-depenses-date-debut');
+    clearFlatpickr('filter-depenses-date-fin');
     renderDepenses(depensesData);
 }
 
@@ -2268,8 +2399,8 @@ function filterAchats() {
 
 function resetFilterAchats() {
     document.getElementById('search-achats').value = '';
-    document.getElementById('filter-achats-date-debut').value = '';
-    document.getElementById('filter-achats-date-fin').value = '';
+    clearFlatpickr('filter-achats-date-debut');
+    clearFlatpickr('filter-achats-date-fin');
     renderAchats(achatsData);
 }
 
@@ -2540,8 +2671,8 @@ function filterSoinsTab(tab) {
 }
 
 function resetFilterSoins(tab) {
-    document.getElementById(`filter-soins-${tab}-date-debut`).value = '';
-    document.getElementById(`filter-soins-${tab}-date-fin`).value = '';
+    clearFlatpickr(`filter-soins-${tab}-date-debut`);
+    clearFlatpickr(`filter-soins-${tab}-date-fin`);
     document.getElementById('search-soins-' + tab).value = '';
     loadSoinsTab(tab);
 }
@@ -2563,6 +2694,7 @@ function renderSoinsTab(tab) {
             <td>
                 <button class="btn btn-sm" onclick="editSoin(${s.id}, '${tab}')">Modifier</button>
                 <button class="btn btn-sm btn-danger" onclick="deleteSoin(${s.id}, '${tab}')">Supprimer</button>
+                <button class="btn btn-sm" onclick="printSoin(${s.id}, '${tab}')">🖨️ Imprimer</button>
             </td>
         </tr>`;
     }).join('');
@@ -2683,7 +2815,7 @@ async function saveSoin() {
         if (id) {
             await apiFetch(`/soins/${id}`, { method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(data) });
         } else {
-            await apiFetch('/soins', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(data) });
+            await apiFetch('/soins/', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(data) });
         }
         closeModal('modal-soin');
         loadSoinsTab(currentSoinsTab);
@@ -2700,16 +2832,63 @@ async function deleteSoin(id, tab) {
     } catch(e) { showToast('Erreur lors de la suppression : ' + e.message, 'error'); }
 }
 
+function printSoin(id, tab) {
+    const s = soinsData[tab] && soinsData[tab].find(x => x.id === id);
+    if (!s) { showToast('Données du soin non disponibles', 'error'); return; }
+    const patient = tab === 'enregistre'
+        ? `${s.patient_nom || ''} ${s.patient_prenom || ''}`.trim() || '-'
+        : (s.nom_patient_externe || '-');
+    const html = `<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<title>Fiche Soin</title>
+<style>
+  body{font-family:Arial,sans-serif;padding:30px;max-width:600px;margin:0 auto;color:#222}
+  h1{color:#1565C0;font-size:18px;border-bottom:2px solid #1565C0;padding-bottom:8px;margin-bottom:20px}
+  table{width:100%;border-collapse:collapse;margin-top:10px}
+  td{padding:8px 12px;border:1px solid #ddd;vertical-align:top}
+  td:first-child{font-weight:bold;background:#f0f4f8;width:38%}
+  .footer{margin-top:40px;font-size:11px;color:#888;text-align:center;border-top:1px solid #ddd;padding-top:10px}
+  @media print{body{padding:10px}.footer{position:fixed;bottom:0;width:100%}}
+</style>
+</head>
+<body>
+<h1>Cabinet Médical BabaMouneissa — Fiche de Soin</h1>
+<table>
+<tr><td>Date</td><td>${escapeHtml(formatDateFR(s.date_soin))}</td></tr>
+<tr><td>Patient</td><td>${escapeHtml(patient)}</td></tr>
+<tr><td>Type de soin</td><td>${escapeHtml(s.type_soin_nom || '-')}</td></tr>
+<tr><td>Prix appliqué</td><td>${(s.prix_applique || 0).toLocaleString()} FCFA</td></tr>
+<tr><td>Notes / Observations</td><td>${escapeHtml(s.notes || '-')}</td></tr>
+</table>
+<div class="footer">Imprimé le ${new Date().toLocaleDateString('fr-FR', {day:'2-digit',month:'2-digit',year:'numeric'})}</div>
+</body>
+</html>`;
+    const win = window.open('', '_blank', 'width=700,height=500,scrollbars=yes');
+    if (!win) { showToast('Veuillez autoriser les pop-ups pour imprimer', 'error'); return; }
+    win.document.write(html);
+    win.document.close();
+    win.focus();
+    win.onload = () => win.print();
+}
+
 // --- Gestion des types de soins (admin) ---
 let typeSoinsAdminData = [];
 
 async function loadTypeSoinsAdmin() {
+    document.getElementById('table-type-soins').innerHTML = '<tr><td colspan="3" class="loading">Chargement...</td></tr>';
     try {
-        typeSoinsAdminData = await apiFetch('/type-soins/').then(r => r.json());
+        const res = await apiFetch('/type-soins/');
+        if (!res) return;
+        typeSoinsAdminData = await res.json();
         typeSoinsData = typeSoinsAdminData;
         renderTypeSoinsAdmin(typeSoinsAdminData);
     } catch(e) {
-        document.getElementById('table-type-soins').innerHTML = '<tr><td colspan="3">Erreur</td></tr>';
+        const msg = e.message || 'Erreur inconnue';
+        document.getElementById('table-type-soins').innerHTML =
+            `<tr><td colspan="3">Erreur de chargement : ${escapeHtml(msg)}
+            &nbsp;<button class="btn btn-sm" onclick="loadTypeSoinsAdmin()">Réessayer</button></td></tr>`;
     }
 }
 
@@ -2758,7 +2937,7 @@ async function saveTypeSoin() {
         if (id) {
             await apiFetch(`/type-soins/${id}`, { method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(data) });
         } else {
-            await apiFetch('/type-soins', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(data) });
+            await apiFetch('/type-soins/', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(data) });
         }
         closeModal('modal-type-soin');
         typeSoinsData = [];
