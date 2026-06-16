@@ -1009,46 +1009,178 @@ input[type="datetime-local"]:focus {
     margin-bottom: 0;
 }
 
-/* RESPONSIVE */
-@media (max-width: 980px) {
-    :root {
-        --sidebar-width: 220px;
-    }
-    .content {
-        padding: 18px;
-    }
-    .form-row {
-        grid-template-columns: 1fr;
-    }
+/* HAMBURGER BUTTON (hidden on desktop) */
+.btn-hamburger {
+    display: none;
+    background: none;
+    border: none;
+    font-size: 22px;
+    cursor: pointer;
+    padding: 4px 8px;
+    color: var(--text);
+    line-height: 1;
+    border-radius: var(--radius-sm);
+    transition: background var(--transition);
+    flex-shrink: 0;
+}
+.btn-hamburger:hover { background: var(--bg); }
+
+/* Sidebar backdrop for mobile overlay */
+.sidebar-backdrop {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.45);
+    z-index: 150;
 }
 
-@media (max-width: 720px) {
-    :root {
-        --sidebar-width: 190px;
+/* TABLETTE (769px – 1024px) : sidebar icônes uniquement */
+@media (min-width: 769px) and (max-width: 1024px) {
+    .main { margin-left: 60px; }
+
+    .sidebar {
+        width: 60px;
+        overflow: hidden;
+        transition: width 0.22s ease;
     }
+    .sidebar:hover {
+        width: var(--sidebar-width);
+        overflow-y: auto;
+        box-shadow: 4px 0 20px rgba(0, 0, 0, 0.18);
+        z-index: 110;
+    }
+
+    /* Masquer texte sidebar-header, ne garder que l'emoji */
     .sidebar-header {
-        padding: 18px 14px;
+        overflow: hidden;
+        white-space: nowrap;
+        padding: 18px 10px;
     }
+    .sidebar-header h2 {
+        font-size: 0;
+        transition: font-size 0.1s ease;
+    }
+    .sidebar:hover .sidebar-header h2 { font-size: 16px; }
+    .sidebar-header p { display: none; }
+    .sidebar:hover .sidebar-header p { display: block; }
+
+    /* Section labels masqués */
+    .menu-section {
+        font-size: 0;
+        padding: 10px 0 4px;
+        overflow: hidden;
+        white-space: nowrap;
+    }
+    .sidebar:hover .menu-section {
+        font-size: 10px;
+        padding: 16px 12px 6px;
+    }
+
+    /* Items : icône visible, texte masqué par overflow */
     .menu-item {
-        font-size: 12.5px;
-        padding: 10px 12px;
+        white-space: nowrap;
+        overflow: hidden;
+        padding: 11px 10px;
+        justify-content: center;
     }
+    .sidebar:hover .menu-item {
+        padding: 11px 14px;
+        justify-content: flex-start;
+    }
+    .menu-item .icon { margin-right: 0; }
+    .sidebar:hover .menu-item .icon { margin-right: 12px; }
+
+    .content { padding: 18px; }
+    .form-row { grid-template-columns: 1fr; }
+    .table-header { flex-wrap: wrap; gap: 10px; }
+}
+
+/* MOBILE (≤ 768px) : hamburger + sidebar overlay */
+@media (max-width: 768px) {
+    .btn-hamburger { display: inline-flex; align-items: center; justify-content: center; }
+
+    .sidebar {
+        transform: translateX(-100%);
+        transition: transform 0.25s ease;
+        z-index: 200;
+        width: var(--sidebar-width);
+    }
+    body.sidebar-open .sidebar { transform: translateX(0); }
+    body.sidebar-open .sidebar-backdrop { display: block; }
+
+    .main { margin-left: 0; }
+
+    .topbar {
+        padding: 10px 14px;
+        gap: 8px;
+    }
+    .topbar-left {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        flex: 1;
+        min-width: 0;
+    }
+    .topbar h1 {
+        font-size: 14px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+    .topbar-right {
+        gap: 6px;
+        font-size: 12px;
+        flex-shrink: 0;
+    }
+    #user-name { display: none; }
+
+    .content { padding: 12px; }
+
+    .cards-grid {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 10px;
+    }
+    .card { padding: 14px; }
+    .card .value { font-size: 22px; }
+
+    /* Tables scrollables horizontalement */
+    .table-container { overflow-x: auto; }
+    table { min-width: 550px; }
+
     .table-header {
         flex-direction: column;
         align-items: stretch;
     }
-    .search-box {
-        width: 100%;
+    .table-header > div {
+        flex-wrap: wrap;
+        gap: 8px;
     }
-    .modal {
-        padding: 20px;
-        width: 100%;
-        max-width: 94%;
+    .search-box { width: 100%; min-width: 0; }
+
+    /* Formulaires en colonne unique */
+    .form-row { grid-template-columns: 1fr; }
+
+    /* Lignes ordonnance/achat/examen responsive */
+    .ligne-ordonnance {
+        grid-template-columns: 1fr 1fr;
+        gap: 6px;
+    }
+    .ligne-achat {
+        grid-template-columns: 1fr 1fr;
+        gap: 6px;
+    }
+    .ligne-examen {
+        grid-template-columns: 1fr 1fr;
+        gap: 6px;
     }
 
-    .modal.modal-lg {
+    /* Modals pleine largeur */
+    .modal {
+        padding: 18px;
         width: 100%;
+        max-width: 96%;
     }
+    .modal.modal-lg { width: 100%; }
 }
 
 /* TOAST NOTIFICATIONS */

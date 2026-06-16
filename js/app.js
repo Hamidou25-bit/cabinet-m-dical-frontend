@@ -1,6 +1,6 @@
 let patientsData = [];
 let stockData = [];
-let personnelData = [];
+let utilisateursData = [];
 let consultationsData = [];
 let fournisseursData = [];
 let depensesData = [];
@@ -41,6 +41,20 @@ function clearFlatpickr(id) {
     if (!el) return;
     if (el._flatpickr) el._flatpickr.clear();
     else el.value = '';
+}
+
+// Sidebar mobile : toggle hamburger
+function toggleSidebar() { document.body.classList.toggle('sidebar-open'); }
+function closeSidebar() { document.body.classList.remove('sidebar-open'); }
+
+// Lit l'id de l'utilisateur courant depuis le payload JWT stocké en localStorage
+function getCurrentUserId() {
+    try {
+        const token = localStorage.getItem('token');
+        if (!token) return null;
+        const payload = JSON.parse(atob(token.split('.')[1]));
+        return payload.id || null;
+    } catch(e) { return null; }
 }
 
 // 1. Initialisation sécurisée (on vérifie si l'élément existe)
@@ -85,6 +99,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
 // Navigation
 function showPage(page) {
+    closeSidebar();
     document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
     document.querySelectorAll('.menu-item').forEach(m => m.classList.remove('active'));
     document.getElementById('page-' + page).classList.add('active');
@@ -106,7 +121,7 @@ function showPage(page) {
     if (page === 'examens') loadExamens();
     if (page === 'soins') loadSoins();
     if (page === 'type-soins') loadTypeSoinsAdmin();
-    if (page === 'personnel') loadPersonnel();
+    if (page === 'personnel') loadUtilisateurs();
     if (page === 'medecins') loadMedecins();
     if (page === 'examens-config') loadExamensConfig();
     if (page === 'comptabilite') loadFournisseurs();
@@ -239,16 +254,6 @@ async function loadDashboard() {
         document.getElementById('stat-consultations').textContent = consultations.length;
         document.getElementById('stat-stock').textContent = stock.length;
         document.getElementById('stat-alertes').textContent = alertes.length;
-
-        const tbody = document.getElementById('recent-consultations');
-        tbody.innerHTML = consultations.slice(0, 10).map(c => `
-            <tr>
-                <td>${formatDateFR(c.date_consult)}</td>
-                <td>${c.nom || ''} ${c.prenom || ''}</td>
-                <td>${c.motif || '-'}</td>
-                <td>${(c.montant_total || 0).toLocaleString()} FCFA</td>
-            </tr>
-        `).join('');
     } catch(e) { console.error('Erreur dashboard:', e); }
 }
 
@@ -1779,129 +1784,199 @@ ${examen.renseignement_clinique ? `<div class="section"><h2>Renseignement cliniq
     w.onload = () => w.print();
 }
 
-// Personnel
-async function loadPersonnel() {
+// Utilisateurs (gestion des comptes — admin uniquement)
+async function loadUtilisateurs() {
     try {
-        const data = await apiFetch('/personnel').then(r => r.json());
-        personnelData = data;
-        renderPersonnel(getFilteredPersonnel());
-    } catch(e) { document.getElementById('table-personnel').innerHTML = '<tr><td colspan="8">Erreur</td></tr>'; }
+        utilisateursData = await apiFetch('/utilisateurs/').then(r => r.json());
+        renderUtilisateurs(getFilteredUtilisateurs());
+    } catch(e) {
+        const tbody = document.getElementById('table-utilisateurs');
+        if (tbody) tbody.innerHTML = '<tr><td colspan="5">Erreur chargement</td></tr>';
+    }
 }
 
-function getFilteredPersonnel() {
-    const q = document.getElementById('search-personnel').value.toLowerCase();
-    const dateDebut = parseDateFR(document.getElementById('filter-personnel-date-debut').value);
-    const dateFin = parseDateFR(document.getElementById('filter-personnel-date-fin').value);
-    return personnelData.filter(p => {
-        const matchQ = (p.nom||'').toLowerCase().includes(q) || (p.prenom||'').toLowerCase().includes(q)
-            || (p.fonction||'').toLowerCase().includes(q) || (p.telephone||'').toLowerCase().includes(q)
-            || (p.nom_utilisateur||'').toLowerCase().includes(q);
-        const matchDateDebut = !dateDebut || (p.date_entree && p.date_entree >= dateDebut);
-        const matchDateFin = !dateFin || (p.date_entree && p.date_entree <= dateFin);
-        return matchQ && matchDateDebut && matchDateFin;
-    });
+function getFilteredUtilisateurs() {
+    const q = (document.getElementById('search-utilisateurs')?.value || '').toLowerCase();
+    return utilisateursData.filter(u =>
+        (u.nom_complet||'').toLowerCase().includes(q) ||
+        (u.nom_utilisateur||'').toLowerCase().includes(q) ||
+        (u.role||'').toLowerCase().includes(q)
+    );
 }
 
-function filterPersonnel() {
-    renderPersonnel(getFilteredPersonnel());
+function filterUtilisateurs() {
+    renderUtilisateurs(getFilteredUtilisateurs());
 }
 
-function exportPersonnelExcel() {
-    const data = getFilteredPersonnel();
-    if (!data.length) { showToast('Aucun membre du personnel à exporter', 'warning'); return; }
-    const rows = data.map(p => ({
-        'Nom': p.nom,
-        'Prénom': p.prenom,
-        'Fonction': p.fonction || '',
-        'Téléphone': p.telephone || '',
-        'Date d\'entrée': formatDateFR(p.date_entree),
-        'Date de sortie': formatDateFR(p.date_sortie),
-        'Compte utilisateur': p.nom_utilisateur ? `${p.nom_utilisateur} (${p.role})${p.actif ? '' : ' - inactif'}` : ''
-    }));
-    const ws = XLSX.utils.json_to_sheet(rows);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Personnel');
-    XLSX.writeFile(wb, `personnel_${new Date().toISOString().split('T')[0]}.xlsx`);
-}
+const ROLE_LABELS = { admin: 'Administrateur', medecin: 'Médecin', secretaire: 'Secrétaire' };
 
-function renderPersonnel(data) {
-    const tbody = document.getElementById('table-personnel');
-    if (!data.length) { tbody.innerHTML = '<tr><td colspan="8">Aucun membre du personnel</td></tr>'; return; }
-    tbody.innerHTML = data.map(p => {
-        const compte = p.nom_utilisateur
-            ? `${p.nom_utilisateur} (${p.role})${p.actif ? '' : ' - inactif'}`
-            : '-';
+function renderUtilisateurs(data) {
+    const tbody = document.getElementById('table-utilisateurs');
+    if (!tbody) return;
+    const currentId = getCurrentUserId();
+    if (!data.length) { tbody.innerHTML = '<tr><td colspan="5">Aucun utilisateur</td></tr>'; return; }
+    tbody.innerHTML = data.map(u => {
+        const isMe = u.id === currentId;
+        const statut = u.actif !== false
+            ? '<span class="status status-ok">Actif</span>'
+            : '<span class="status status-danger">Inactif</span>';
+        const supprimerBtn = isMe
+            ? `<button class="btn btn-sm btn-danger" disabled title="Impossible de supprimer votre propre compte">Supprimer</button>`
+            : `<button class="btn btn-sm btn-danger" onclick="deleteUtilisateur(${u.id}, '${escapeHtml(u.nom_utilisateur)}')">Supprimer</button>`;
         return `<tr>
-            <td>${p.nom}</td><td>${p.prenom}</td><td>${p.fonction || '-'}</td><td>${p.telephone || '-'}</td>
-            <td>${formatDateFR(p.date_entree) || '-'}</td><td>${formatDateFR(p.date_sortie) || '-'}</td><td>${compte}</td>
-            <td>
-                <button class="btn btn-sm" onclick="editPersonnel(${p.id})">Modifier</button>
-                <button class="btn btn-sm btn-danger" onclick="deactivatePersonnel(${p.id})">Désactiver</button>
+            <td>${escapeHtml(u.nom_complet || '-')}</td>
+            <td>${escapeHtml(u.nom_utilisateur)}</td>
+            <td>${ROLE_LABELS[u.role] || u.role}</td>
+            <td>${statut}</td>
+            <td style="display:flex;gap:4px;flex-wrap:wrap;">
+                <button class="btn btn-sm" onclick="editUtilisateur(${u.id})">Modifier</button>
+                <button class="btn btn-sm" onclick="openChangePasswordModal(${u.id})">Mot de passe</button>
+                ${supprimerBtn}
             </td>
         </tr>`;
     }).join('');
 }
 
-function openNewPersonnelModal() {
-    document.getElementById('modal-personnel-title').textContent = 'Nouveau Membre du Personnel';
-    document.getElementById('pe-id').value = '';
-    document.getElementById('pe-nom').value = '';
-    document.getElementById('pe-prenom').value = '';
-    document.getElementById('pe-fonction').value = '';
-    document.getElementById('pe-telephone').value = '';
-    document.getElementById('pe-date-entree').value = new Date().toISOString().split('T')[0];
-    document.getElementById('pe-date-sortie').value = '';
-    openModal('modal-personnel');
+function openNewUtilisateurModal() {
+    document.getElementById('modal-utilisateur-title').textContent = 'Nouvel Utilisateur';
+    document.getElementById('u-id').value = '';
+    document.getElementById('u-nom').value = '';
+    document.getElementById('u-login').value = '';
+    document.getElementById('u-password').value = '';
+    document.getElementById('u-role').value = 'secretaire';
+    document.getElementById('u-password-group').style.display = '';
+    document.querySelector('#u-password-group label').innerHTML = 'Mot de passe<span class="required-mark">*</span>';
+    openModal('modal-utilisateur');
 }
 
-function editPersonnel(id) {
-    const personnel = personnelData.find(p => p.id === id);
-    if (!personnel) return;
-    document.getElementById('modal-personnel-title').textContent = 'Modifier Membre du Personnel';
-    document.getElementById('pe-id').value = personnel.id;
-    document.getElementById('pe-nom').value = personnel.nom || '';
-    document.getElementById('pe-prenom').value = personnel.prenom || '';
-    document.getElementById('pe-fonction').value = personnel.fonction || '';
-    document.getElementById('pe-telephone').value = personnel.telephone || '';
-    document.getElementById('pe-date-entree').value = personnel.date_entree || '';
-    document.getElementById('pe-date-sortie').value = personnel.date_sortie || '';
-    openModal('modal-personnel');
+function editUtilisateur(id) {
+    const u = utilisateursData.find(x => x.id === id);
+    if (!u) return;
+    document.getElementById('modal-utilisateur-title').textContent = 'Modifier Utilisateur';
+    document.getElementById('u-id').value = u.id;
+    document.getElementById('u-nom').value = u.nom_complet || '';
+    document.getElementById('u-login').value = u.nom_utilisateur || '';
+    document.getElementById('u-password').value = '';
+    document.getElementById('u-role').value = u.role || 'secretaire';
+    document.getElementById('u-password-group').style.display = 'none';
+    openModal('modal-utilisateur');
 }
 
-async function savePersonnel() {
-    if (!validateRequiredFields([
-        { id: 'pe-nom', label: 'Nom' },
-        { id: 'pe-prenom', label: 'Prénom' },
-        { id: 'pe-fonction', label: 'Fonction' },
-    ])) return;
+async function saveUtilisateur() {
+    const id = document.getElementById('u-id').value;
+    const isNew = !id;
 
-    const id = document.getElementById('pe-id').value;
-    const personnel = {
-        nom: document.getElementById('pe-nom').value.toUpperCase(),
-        prenom: document.getElementById('pe-prenom').value,
-        fonction: document.getElementById('pe-fonction').value,
-        telephone: document.getElementById('pe-telephone').value,
-        date_entree: document.getElementById('pe-date-entree').value || null,
-        date_sortie: document.getElementById('pe-date-sortie').value || null,
+    const fields = [
+        { id: 'u-nom', label: 'Nom complet' },
+        { id: 'u-login', label: 'Login' },
+        { id: 'u-role', label: 'Rôle' },
+    ];
+    if (isNew) fields.push({ id: 'u-password', label: 'Mot de passe' });
+    if (!validateRequiredFields(fields)) return;
+
+    const payload = {
+        nom_complet: document.getElementById('u-nom').value.trim(),
+        nom_utilisateur: document.getElementById('u-login').value.trim(),
+        role: document.getElementById('u-role').value,
     };
+    if (isNew) payload.mot_de_passe = document.getElementById('u-password').value;
+
     try {
-        if (id) {
-            await apiFetch(`/personnel/${id}`, { method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(personnel) });
+        if (isNew) {
+            await apiFetch('/utilisateurs/', { method: 'POST', body: JSON.stringify(payload) });
         } else {
-            await apiFetch('/personnel', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(personnel) });
+            await apiFetch(`/utilisateurs/${id}`, { method: 'PUT', body: JSON.stringify(payload) });
         }
-        closeModal('modal-personnel');
-        loadPersonnel();
-        showToast('Membre du personnel enregistré !', 'success');
-    } catch(e) { showToast('Erreur lors de l\'enregistrement : ' + e.message, 'error'); }
+        closeModal('modal-utilisateur');
+        loadUtilisateurs();
+        showToast('Utilisateur enregistré !', 'success');
+    } catch(e) { showToast(e.message || 'Erreur', 'error'); }
 }
 
-async function deactivatePersonnel(id) {
-    if (!confirm('Voulez-vous vraiment désactiver ce membre du personnel ?')) return;
+async function deleteUtilisateur(id, login) {
+    openConfirmModal(`Supprimer l'utilisateur « ${login} » ? Cette action est irréversible.`, async () => {
+        try {
+            await apiFetch(`/utilisateurs/${id}`, { method: 'DELETE' });
+            loadUtilisateurs();
+            showToast('Utilisateur supprimé', 'success');
+        } catch(e) { showToast(e.message || 'Erreur lors de la suppression', 'error'); }
+    });
+}
+
+function openChangePasswordModal(id) {
+    document.getElementById('pwd-id').value = id;
+    document.getElementById('pwd-new').value = '';
+    document.getElementById('pwd-confirm').value = '';
+    openModal('modal-password');
+}
+
+async function savePassword() {
+    const id = document.getElementById('pwd-id').value;
+    const pwd = document.getElementById('pwd-new').value;
+    const confirm = document.getElementById('pwd-confirm').value;
+
+    if (!validateRequiredFields([
+        { id: 'pwd-new', label: 'Nouveau mot de passe' },
+        { id: 'pwd-confirm', label: 'Confirmation' },
+    ])) return;
+    if (pwd !== confirm) {
+        showToast('Les mots de passe ne correspondent pas', 'error');
+        document.getElementById('pwd-confirm').classList.add('input-error');
+        return;
+    }
     try {
-        await apiFetch(`/personnel/${id}`, { method: 'DELETE' });
-        loadPersonnel();
-    } catch(e) { showToast('Erreur lors de la désactivation', 'error'); }
+        await apiFetch(`/utilisateurs/${id}/password`, { method: 'PUT', body: JSON.stringify({ mot_de_passe: pwd }) });
+        closeModal('modal-password');
+        showToast('Mot de passe mis à jour !', 'success');
+    } catch(e) { showToast(e.message || 'Erreur', 'error'); }
+}
+
+// Mon compte : l'admin peut changer son propre login et/ou mot de passe
+async function saveMonCompte() {
+    const newLogin = document.getElementById('mc-login').value.trim();
+    const newPwd = document.getElementById('mc-password').value;
+    const confirmPwd = document.getElementById('mc-password-confirm').value;
+
+    if (!newLogin && !newPwd) {
+        showToast('Saisissez un nouveau login et/ou un nouveau mot de passe', 'warning');
+        return;
+    }
+    if (newPwd && newPwd !== confirmPwd) {
+        showToast('Les mots de passe ne correspondent pas', 'error');
+        document.getElementById('mc-password-confirm').classList.add('input-error');
+        return;
+    }
+
+    const currentId = getCurrentUserId();
+    if (!currentId) { showToast('Impossible de récupérer votre identifiant', 'error'); return; }
+
+    try {
+        if (newLogin) {
+            const currentU = utilisateursData.find(u => u.id === currentId);
+            await apiFetch(`/utilisateurs/${currentId}`, {
+                method: 'PUT',
+                body: JSON.stringify({
+                    nom_utilisateur: newLogin,
+                    nom_complet: currentU?.nom_complet || '',
+                    role: currentU?.role || 'admin',
+                })
+            });
+            localStorage.setItem('nom_utilisateur', newLogin);
+            const userEl = document.getElementById('user-name');
+            if (userEl) userEl.textContent = '👤 ' + newLogin;
+        }
+        if (newPwd) {
+            await apiFetch(`/utilisateurs/${currentId}/password`, {
+                method: 'PUT',
+                body: JSON.stringify({ mot_de_passe: newPwd })
+            });
+        }
+        document.getElementById('mc-login').value = '';
+        document.getElementById('mc-password').value = '';
+        document.getElementById('mc-password-confirm').value = '';
+        showToast('Modifications enregistrées ! Reconnectez-vous si vous avez changé votre login.', 'success', 4000);
+        loadUtilisateurs();
+    } catch(e) { showToast(e.message || 'Erreur', 'error'); }
 }
 
 // Médecins

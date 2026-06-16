@@ -69,13 +69,17 @@
 <!-- MAIN -->
 <div class="main">
     <div class="topbar">
-        <h1 id="page-title">Tableau de bord</h1>
+        <div class="topbar-left">
+            <button class="btn-hamburger" id="btn-hamburger" onclick="toggleSidebar()" title="Menu">☰</button>
+            <h1 id="page-title">Tableau de bord</h1>
+        </div>
         <div class="topbar-right">
             <span id="current-date"></span>
             <span id="user-name"></span>
             <button class="btn btn-danger btn-sm" onclick="logout()">⏻ Déconnexion</button>
         </div>
     </div>
+    <div class="sidebar-backdrop" id="sidebar-backdrop" onclick="closeSidebar()"></div>
 
     <div class="content">
 
@@ -104,24 +108,6 @@
                 </div>
             </div>
 
-            <div class="table-container">
-                <div class="table-header">
-                    <h3>Dernières consultations</h3>
-                </div>
-                <table>
-                    <thead>
-                        <tr>
-                            <th>Date</th>
-                            <th>Patient</th>
-                            <th>Motif</th>
-                            <th>Montant</th>
-                        </tr>
-                    </thead>
-                    <tbody id="recent-consultations">
-                        <tr><td colspan="4" class="loading">Chargement...</td></tr>
-                    </tbody>
-                </table>
-            </div>
         </div>
 
         <!-- PATIENTS -->
@@ -513,34 +499,56 @@
             </div>
         </div>
 
-        <!-- PERSONNEL -->
+        <!-- PERSONNEL / GESTION DES UTILISATEURS -->
         <div id="page-personnel" class="page">
+
+            <!-- Mon compte -->
+            <div class="table-container" style="margin-bottom:20px;">
+                <div class="table-header">
+                    <h3>Mon compte</h3>
+                </div>
+                <div style="padding: 20px;">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Nouveau login <span style="color:var(--text-light);font-weight:400;">(laisser vide pour ne pas modifier)</span></label>
+                            <input type="text" id="mc-login" placeholder="Nouveau identifiant de connexion" autocomplete="off">
+                        </div>
+                        <div class="form-group">
+                            <label>Nouveau mot de passe <span style="color:var(--text-light);font-weight:400;">(laisser vide pour ne pas modifier)</span></label>
+                            <input type="password" id="mc-password" placeholder="Nouveau mot de passe" autocomplete="new-password">
+                        </div>
+                    </div>
+                    <div class="form-group" style="max-width:360px;">
+                        <label>Confirmer le mot de passe</label>
+                        <input type="password" id="mc-password-confirm" placeholder="Confirmer le mot de passe" autocomplete="new-password">
+                    </div>
+                    <div style="margin-top: 4px;">
+                        <button class="btn btn-primary" onclick="saveMonCompte()">Enregistrer mes modifications</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Liste des utilisateurs -->
             <div class="table-container">
                 <div class="table-header">
-                    <h3>Liste du personnel</h3>
+                    <h3>Gestion des utilisateurs</h3>
                     <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
-                        <input type="text" class="search-box" placeholder="Rechercher..." id="search-personnel" oninput="filterPersonnel()">
-                        <input type="text" id="filter-personnel-date-debut" placeholder="JJ/MM/AAAA" title="Date d'entrée - du" oninput="filterPersonnel()">
-                        <input type="text" id="filter-personnel-date-fin" placeholder="JJ/MM/AAAA" title="Date d'entrée - au" oninput="filterPersonnel()">
-                        <button class="btn" onclick="exportPersonnelExcel()">📊 Exporter Excel</button>
-                        <button class="btn btn-primary" onclick="openNewPersonnelModal()">+ Nouveau membre</button>
+                        <input type="text" class="search-box" placeholder="Rechercher..." id="search-utilisateurs" oninput="filterUtilisateurs()">
+                        <button class="btn btn-primary" onclick="openNewUtilisateurModal()">+ Nouvel utilisateur</button>
                     </div>
                 </div>
                 <table>
                     <thead>
                         <tr>
-                            <th>Nom</th>
-                            <th>Prénom</th>
-                            <th>Fonction</th>
-                            <th>Téléphone</th>
-                            <th>Date d'entrée</th>
-                            <th>Date de sortie</th>
-                            <th>Compte utilisateur</th>
+                            <th>Nom complet</th>
+                            <th>Login</th>
+                            <th>Rôle</th>
+                            <th>Statut</th>
                             <th>Actions</th>
                         </tr>
                     </thead>
-                    <tbody id="table-personnel">
-                        <tr><td colspan="8" class="loading">Chargement...</td></tr>
+                    <tbody id="table-utilisateurs">
+                        <tr><td colspan="5" class="loading">Chargement...</td></tr>
                     </tbody>
                 </table>
             </div>
@@ -1064,44 +1072,54 @@
     </div>
 </div>
 
-<!-- MODAL PERSONNEL -->
-<div class="modal-overlay" id="modal-personnel">
+<!-- MODAL UTILISATEUR (créer / modifier) -->
+<div class="modal-overlay" id="modal-utilisateur">
     <div class="modal">
-        <h3 id="modal-personnel-title">Nouveau Membre du Personnel</h3>
-        <input type="hidden" id="pe-id">
-        <div class="form-row">
-            <div class="form-group">
-                <label>Nom<span class="required-mark">*</span></label>
-                <input type="text" id="pe-nom" placeholder="Nom">
-            </div>
-            <div class="form-group">
-                <label>Prénom<span class="required-mark">*</span></label>
-                <input type="text" id="pe-prenom" placeholder="Prénom">
-            </div>
+        <h3 id="modal-utilisateur-title">Nouvel Utilisateur</h3>
+        <input type="hidden" id="u-id">
+        <div class="form-group">
+            <label>Nom complet<span class="required-mark">*</span></label>
+            <input type="text" id="u-nom" placeholder="Prénom et nom">
         </div>
-        <div class="form-row">
-            <div class="form-group">
-                <label>Fonction<span class="required-mark">*</span></label>
-                <input type="text" id="pe-fonction" placeholder="Fonction">
-            </div>
-            <div class="form-group">
-                <label>Téléphone</label>
-                <input type="text" id="pe-telephone" placeholder="Téléphone">
-            </div>
+        <div class="form-group">
+            <label>Login (identifiant)<span class="required-mark">*</span></label>
+            <input type="text" id="u-login" placeholder="Identifiant de connexion" autocomplete="off">
         </div>
-        <div class="form-row">
-            <div class="form-group">
-                <label>Date d'entrée</label>
-                <input type="date" id="pe-date-entree">
-            </div>
-            <div class="form-group">
-                <label>Date de sortie</label>
-                <input type="date" id="pe-date-sortie">
-            </div>
+        <div class="form-group" id="u-password-group">
+            <label>Mot de passe<span class="required-mark">*</span></label>
+            <input type="password" id="u-password" placeholder="Mot de passe" autocomplete="new-password">
+        </div>
+        <div class="form-group">
+            <label>Rôle<span class="required-mark">*</span></label>
+            <select id="u-role">
+                <option value="admin">Administrateur</option>
+                <option value="medecin">Médecin</option>
+                <option value="secretaire">Secrétaire</option>
+            </select>
         </div>
         <div class="modal-actions">
-            <button class="btn" onclick="closeModal('modal-personnel')">Annuler</button>
-            <button class="btn btn-primary" onclick="savePersonnel()">Enregistrer</button>
+            <button class="btn" onclick="closeModal('modal-utilisateur')">Annuler</button>
+            <button class="btn btn-primary" onclick="saveUtilisateur()">Enregistrer</button>
+        </div>
+    </div>
+</div>
+
+<!-- MODAL CHANGER MOT DE PASSE -->
+<div class="modal-overlay" id="modal-password">
+    <div class="modal">
+        <h3>Changer le mot de passe</h3>
+        <input type="hidden" id="pwd-id">
+        <div class="form-group">
+            <label>Nouveau mot de passe<span class="required-mark">*</span></label>
+            <input type="password" id="pwd-new" placeholder="Nouveau mot de passe" autocomplete="new-password">
+        </div>
+        <div class="form-group">
+            <label>Confirmer<span class="required-mark">*</span></label>
+            <input type="password" id="pwd-confirm" placeholder="Confirmer le mot de passe" autocomplete="new-password">
+        </div>
+        <div class="modal-actions">
+            <button class="btn" onclick="closeModal('modal-password')">Annuler</button>
+            <button class="btn btn-primary" onclick="savePassword()">Enregistrer</button>
         </div>
     </div>
 </div>
