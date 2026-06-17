@@ -313,18 +313,47 @@ function showToast(message, type = 'success', duration = 3000) {
 // Dashboard
 async function loadDashboard() {
     try {
-        const [patients, consultations, stock, alertes] = await Promise.all([
+        const [patients, consultations, stock, alertes, rdvAujourdhui] = await Promise.all([
             apiFetch('/patients').then(r => r.json()),
             apiFetch('/consultations').then(r => r.json()),
             apiFetch('/stock').then(r => r.json()),
-            apiFetch('/stock/alertes').then(r => r.json())
+            apiFetch('/stock/alertes').then(r => r.json()),
+            apiFetch('/dashboard/rdv-aujourdhui').then(r => r.json())
         ]);
 
         document.getElementById('stat-patients').textContent = patients.length;
         document.getElementById('stat-consultations').textContent = consultations.length;
         document.getElementById('stat-stock').textContent = stock.length;
         document.getElementById('stat-alertes').textContent = alertes.length;
+
+        renderDashboardRdv(rdvAujourdhui);
+        updateAlertesBadges(alertes.length, rdvAujourdhui.filter(r => r.statut === 'en_attente' || r.statut === 'planifié').length);
     } catch(e) { console.error('Erreur dashboard:', e); }
+}
+
+function renderDashboardRdv(rdv) {
+    const tbody = document.getElementById('table-dashboard-rdv');
+    if (!rdv.length) { tbody.innerHTML = '<tr><td colspan="4">Aucun rendez-vous aujourd\'hui</td></tr>'; return; }
+    tbody.innerHTML = rdv.map(r => {
+        const heure = (r.date_heure_rdv || '').split('T')[1] || '';
+        return `<tr>
+            <td>${heure}</td><td>${r.nom ? `${r.nom} ${r.prenom}` : '-'}</td><td>${r.motif || '-'}</td><td>${r.statut || '-'}</td>
+        </tr>`;
+    }).join('');
+}
+
+function updateAlertesBadges(nbAlertesStock, nbRdvEnAttente) {
+    const badgeStock = document.getElementById('badge-stock-alertes');
+    if (badgeStock) {
+        badgeStock.textContent = nbAlertesStock;
+        badgeStock.style.display = nbAlertesStock > 0 ? '' : 'none';
+    }
+    const total = nbAlertesStock + nbRdvEnAttente;
+    const badgeTotal = document.getElementById('badge-total-alertes');
+    if (badgeTotal) {
+        badgeTotal.textContent = total;
+        badgeTotal.style.display = total > 0 ? '' : 'none';
+    }
 }
 
 // Patients
