@@ -68,6 +68,9 @@
         <div class="menu-item" id="menu-type-soins" style="display:none;" onclick="showPage('type-soins')" data-tooltip="Types de soins">
             <span class="icon">💉</span><span class="menu-text"> Types de soins</span>
         </div>
+        <div class="menu-item" id="menu-mutuelles" style="display:none;" onclick="showPage('mutuelles')" data-tooltip="Mutuelles">
+            <span class="icon">🤝</span><span class="menu-text"> Mutuelles</span>
+        </div>
         <div class="menu-item" id="menu-comptabilite" style="display:none;" onclick="showPage('comptabilite')" data-tooltip="Comptabilité">
             <span class="icon">💰</span><span class="menu-text"> Comptabilité</span>
         </div>
@@ -239,11 +242,12 @@
                             <th>Motif</th>
                             <th>Diagnostic</th>
                             <th>Montant</th>
+                            <th>Paiement</th>
                             <th>Actions</th>
                         </tr>
                     </thead>
                     <tbody id="table-consultations">
-                        <tr><td colspan="7" class="loading">Chargement...</td></tr>
+                        <tr><td colspan="8" class="loading">Chargement...</td></tr>
                     </tbody>
                 </table>
             </div>
@@ -386,6 +390,21 @@
                     <div class="form-group">
                         <label>Motif</label>
                         <input type="text" id="o-motif" placeholder="Motif">
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Mode de paiement</label>
+                        <select id="o-mode-paiement" onchange="onModePaiementChange('o')">
+                            <option value="especes">Espèces</option>
+                            <option value="mobile_money">Mobile money</option>
+                            <option value="mutuelle">Mutuelle</option>
+                            <option value="gratuit">Gratuit</option>
+                        </select>
+                    </div>
+                    <div class="form-group" id="o-mutuelle-group" style="display:none;">
+                        <label>Mutuelle</label>
+                        <select id="o-mutuelle"></select>
                     </div>
                 </div>
                 <div class="form-group">
@@ -531,6 +550,27 @@
                     </thead>
                     <tbody id="table-type-soins">
                         <tr><td colspan="3" class="loading">Chargement...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- MUTUELLES (Admin) -->
+        <div id="page-mutuelles" class="page">
+            <div class="table-container">
+                <div class="table-header">
+                    <h3>Mutuelles</h3>
+                    <button class="btn btn-primary" onclick="openNewMutuelleModal()">+ Nouvelle mutuelle</button>
+                </div>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Nom</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="table-mutuelles">
+                        <tr><td colspan="2" class="loading">Chargement...</td></tr>
                     </tbody>
                 </table>
             </div>
@@ -896,6 +936,13 @@
 
                 <div class="table-container">
                     <div class="table-header">
+                        <h3>Recettes par mode de paiement</h3>
+                    </div>
+                    <div id="synthese-recettes-par-mode" style="padding: 20px; font-size:14px; color:#475569; line-height:1.8;"></div>
+                </div>
+
+                <div class="table-container">
+                    <div class="table-header">
                         <h3>Évolution mensuelle</h3>
                     </div>
                     <div style="padding: 20px;">
@@ -1082,6 +1129,21 @@
             <div class="form-group">
                 <label>Montant total</label>
                 <input type="number" id="co-montant-total">
+            </div>
+        </div>
+        <div class="form-row">
+            <div class="form-group">
+                <label>Mode de paiement</label>
+                <select id="co-mode-paiement" onchange="onModePaiementChange('co')">
+                    <option value="especes">Espèces</option>
+                    <option value="mobile_money">Mobile money</option>
+                    <option value="mutuelle">Mutuelle</option>
+                    <option value="gratuit">Gratuit</option>
+                </select>
+            </div>
+            <div class="form-group" id="co-mutuelle-group" style="display:none;">
+                <label>Mutuelle</label>
+                <select id="co-mutuelle"></select>
             </div>
         </div>
         <div class="form-group">
@@ -1336,6 +1398,22 @@
         <div class="modal-actions">
             <button class="btn" onclick="closeModal('modal-type-soin')">Annuler</button>
             <button class="btn btn-primary" onclick="saveTypeSoin()">Enregistrer</button>
+        </div>
+    </div>
+</div>
+
+<!-- MODAL MUTUELLE -->
+<div class="modal-overlay" id="modal-mutuelle">
+    <div class="modal">
+        <h3 id="modal-mutuelle-title">Nouvelle Mutuelle</h3>
+        <input type="hidden" id="mu-id">
+        <div class="form-group">
+            <label>Nom<span class="required-mark">*</span></label>
+            <input type="text" id="mu-nom" placeholder="Nom de la mutuelle">
+        </div>
+        <div class="modal-actions">
+            <button class="btn" onclick="closeModal('modal-mutuelle')">Annuler</button>
+            <button class="btn btn-primary" onclick="saveMutuelle()">Enregistrer</button>
         </div>
     </div>
 </div>
