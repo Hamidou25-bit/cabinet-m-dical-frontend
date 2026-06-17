@@ -71,6 +71,31 @@ function initSidebar() {
     if (avatarEl) avatarEl.textContent = initiales;
     if (nameEl) nameEl.textContent = userName;
     if (roleEl) roleEl.textContent = roleLabels[role] || role;
+
+    // Tooltips flottants sur les items de menu (mode collapsed ou tablette icônes)
+    const tooltip = document.getElementById('sidebar-tooltip');
+    if (!tooltip) return;
+    let tooltipTimer = null;
+
+    document.querySelectorAll('.menu-item[data-tooltip]').forEach(item => {
+        item.addEventListener('mouseenter', (e) => {
+            const sidebar = document.getElementById('sidebar');
+            const isCollapsed = document.body.classList.contains('sidebar-collapsed');
+            const isTablet = window.matchMedia('(min-width: 769px) and (max-width: 1024px)').matches;
+            const sidebarHovered = sidebar && sidebar.matches(':hover');
+            if ((!isCollapsed && !isTablet) || (isTablet && sidebarHovered)) return;
+
+            const rect = item.getBoundingClientRect();
+            tooltip.textContent = item.dataset.tooltip;
+            tooltip.style.top = (rect.top + rect.height / 2 - 14) + 'px';
+            tooltip.classList.add('visible');
+            if (tooltipTimer) clearTimeout(tooltipTimer);
+        });
+        item.addEventListener('mouseleave', () => {
+            tooltipTimer = setTimeout(() => tooltip.classList.remove('visible'), 80);
+        });
+        item.addEventListener('click', () => tooltip.classList.remove('visible'));
+    });
 }
 
 // Utilitaire export Excel : télécharge ET ouvre dans un nouvel onglet

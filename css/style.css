@@ -175,32 +175,33 @@ body {
     transition: opacity 0.2s ease;
 }
 
-/* Tooltip en mode collapsed (desktop) */
+/* Sidebar collapsed — icônes centrées */
 body.sidebar-collapsed .menu-item {
     justify-content: center;
     padding: 10px 0;
 }
-
 body.sidebar-collapsed .menu-item .icon {
     margin-right: 0;
 }
 
-body.sidebar-collapsed .menu-item:hover::after {
-    content: attr(data-tooltip);
-    position: absolute;
-    left: calc(var(--sidebar-collapsed-width) + 6px);
-    top: 50%;
-    transform: translateY(-50%);
+/* Tooltip flottant (JS-managed, position: fixed) */
+.sidebar-tooltip {
+    position: fixed;
+    left: calc(var(--sidebar-collapsed-width) + 8px);
     background: rgba(15, 23, 42, 0.92);
     color: white;
-    padding: 5px 10px;
-    border-radius: 5px;
-    font-size: 12px;
+    padding: 6px 11px;
+    border-radius: 6px;
+    font-size: 12.5px;
+    font-family: 'Plus Jakarta Sans', 'Segoe UI', sans-serif;
     white-space: nowrap;
-    z-index: 300;
+    z-index: 500;
     pointer-events: none;
-    box-shadow: 0 3px 8px rgba(0,0,0,0.25);
+    box-shadow: 0 3px 10px rgba(0,0,0,0.3);
+    opacity: 0;
+    transition: opacity 0.12s ease;
 }
+.sidebar-tooltip.visible { opacity: 1; }
 
 /* PIED DE SIDEBAR : profil utilisateur + bouton toggle */
 .sidebar-footer {
@@ -1243,23 +1244,7 @@ input[type="datetime-local"]:focus {
     .sidebar:hover .sidebar-footer { justify-content: flex-start; }
     .sidebar-toggle-btn { display: none; }
 
-    /* Tooltip tablette */
-    .menu-item:hover::after {
-        content: attr(data-tooltip);
-        position: absolute;
-        left: calc(var(--sidebar-collapsed-width) + 6px);
-        top: 50%;
-        transform: translateY(-50%);
-        background: rgba(15, 23, 42, 0.92);
-        color: white;
-        padding: 5px 10px;
-        border-radius: 5px;
-        font-size: 12px;
-        white-space: nowrap;
-        z-index: 300;
-        pointer-events: none;
-    }
-    .sidebar:hover .menu-item:hover::after { display: none; }
+    /* Les tooltips sont gérés par JS (sidebar-tooltip) */
 
     /* Annuler le collapsed desktop si présent */
     body.sidebar-collapsed .sidebar { width: var(--sidebar-collapsed-width); }
