@@ -181,9 +181,10 @@ function showPage(page) {
         : document.querySelector(`.menu-item[onclick*="showPage('${page}')"]`);
     if (menuItem) menuItem.classList.add('active');
 
-    const titles = { dashboard: 'Tableau de bord', patients: 'Patients', consultations: 'Consultations', stock: 'Stock', ordonnances: 'Ordonnances', examens: 'Examens complémentaires', soins: 'Soins', dossiers: 'Dossiers patients', personnel: 'Personnel', medecins: 'Médecins', 'examens-config': "Types d'examens", 'type-soins': 'Types de soins', mutuelles: 'Mutuelles', comptabilite: 'Comptabilité' };
+    const titles = { dashboard: 'Tableau de bord', 'rendez-vous': 'Rendez-vous', patients: 'Patients', consultations: 'Consultations', stock: 'Stock', ordonnances: 'Ordonnances', examens: 'Examens complémentaires', soins: 'Soins', dossiers: 'Dossiers patients', personnel: 'Personnel', medecins: 'Médecins', 'examens-config': "Types d'examens", 'type-soins': 'Types de soins', mutuelles: 'Mutuelles', comptabilite: 'Comptabilité' };
     if (titles[page]) document.getElementById('page-title').textContent = titles[page];
 
+    if (page === 'rendez-vous') loadRendezVous();
     if (page === 'patients') loadPatients();
     if (page === 'consultations') loadConsultations();
     if (page === 'stock') loadStock();
@@ -376,8 +377,9 @@ function renderDashboardRdv(rdv) {
     if (!rdv.length) { tbody.innerHTML = '<tr><td colspan="4">Aucun rendez-vous aujourd\'hui</td></tr>'; return; }
     tbody.innerHTML = rdv.map(r => {
         const heure = (r.date_heure_rdv || '').split('T')[1] || '';
+        const statutLabel = STATUT_RDV_LABELS[r.statut] || r.statut || '-';
         return `<tr>
-            <td>${heure}</td><td>${r.nom ? `${r.nom} ${r.prenom}` : '-'}</td><td>${r.motif || '-'}</td><td>${r.statut || '-'}</td>
+            <td>${heure}</td><td>${r.nom ? `${r.nom} ${r.prenom}` : '-'}</td><td>${r.motif || '-'}</td><td>${statutLabel}</td>
         </tr>`;
     }).join('');
 }
@@ -1198,6 +1200,157 @@ async function deleteConsultation(id) {
         await apiFetch(`/consultations/${id}`, { method: 'DELETE' });
         loadConsultations();
     } catch(e) { showToast('Erreur lors de la suppression', 'error'); }
+}
+
+// ===== RENDEZ-VOUS =====
+let rdvData = [];
+const STATUT_RDV_LABELS = { en_attente: 'En attente', confirme: 'Confirmé', arrive: 'Arrivé', annule: 'Annulé', reporte: 'Reporté' };
+
+function setRdvDateAujourdhui() {
+    document.getElementById('rdv-date').value = formatDateFR(new Date().toISOString().split('T')[0]);
+    loadRendezVous();
+}
+
+async function loadRendezVous() {
+    const tbody = document.getElementById('table-rendez-vous');
+    tbody.innerHTML = '<tr><td colspan="6" class="loading">Chargement...</td></tr>';
+    if (!document.getElementById('rdv-date').value) {
+        document.getElementById('rdv-date').value = formatDateFR(new Date().toISOString().split('T')[0]);
+    }
+    const date = parseDateFR(document.getElementById('rdv-date').value);
+    const statut = document.getElementById('rdv-filtre-statut').value;
+    try {
+        const params = new URLSearchParams();
+        if (date) params.set('date', date);
+        if (statut) params.set('statut', statut);
+        rdvData = await apiFetch(`/rendez-vous/?${params.toString()}`).then(r => r.json());
+        renderRendezVous(rdvData);
+    } catch(e) { tbody.innerHTML = '<tr><td colspan="6">Erreur de chargement</td></tr>'; }
+}
+
+function renderRendezVous(data) {
+    const tbody = document.getElementById('table-rendez-vous');
+    if (!data.length) { tbody.innerHTML = '<tr><td colspan="6">Aucun rendez-vous</td></tr>'; return; }
+    tbody.innerHTML = data.map(r => {
+        const heure = (r.date_heure_rdv || '').split('T')[1] || '';
+        return `<tr>
+            <td>${heure}</td>
+            <td>${r.nom ? `${r.nom} ${r.prenom}` : '-'}</td>
+            <td>${r.medecin_nom || '-'}</td>
+            <td>${r.motif || '-'}</td>
+            <td>
+                <select onchange="changerStatutRdv(${r.id}, this.value)">
+                    ${Object.keys(STATUT_RDV_LABELS).map(s => `<option value="${s}" ${s === r.statut ? 'selected' : ''}>${STATUT_RDV_LABELS[s]}</option>`).join('')}
+                </select>
+            </td>
+            <td>
+                <button class="btn btn-sm" onclick="creerConsultationDepuisRdv(${r.id})">Créer consultation</button>
+                <button class="btn btn-sm" onclick="editRdv(${r.id})">Modifier</button>
+                <button class="btn btn-sm btn-danger" onclick="deleteRdv(${r.id})">Supprimer</button>
+            </td>
+        </tr>`;
+    }).join('');
+}
+
+async function changerStatutRdv(id, statut) {
+    try {
+        await apiFetch(`/rendez-vous/${id}/statut`, { method: 'PATCH', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ statut }) });
+        showToast('Statut mis à jour', 'success');
+        loadRendezVous();
+    } catch(e) { showToast('Erreur lors de la mise à jour du statut', 'error'); }
+}
+
+async function openNewRdvModal() {
+    document.getElementById('modal-rdv-title').textContent = 'Nouveau Rendez-vous';
+    document.getElementById('rdv-id').value = '';
+
+    const tasks = [ensureMedecinsLoaded()];
+    if (!patientsData.length) tasks.push(loadPatients());
+    await Promise.all(tasks);
+    resetPatientCombo('rdv');
+
+    const medecinSelect = document.getElementById('rdv-medecin');
+    medecinSelect.innerHTML = '<option value="">-- Aucun --</option>' + medecinsData.map(m => `<option value="${m.id}">${m.nom}</option>`).join('');
+
+    const dateFiltre = parseDateFR(document.getElementById('rdv-date').value) || new Date().toISOString().split('T')[0];
+    document.getElementById('rdv-form-date').value = dateFiltre;
+    document.getElementById('rdv-form-heure').value = '08:00';
+    document.getElementById('rdv-motif').value = '';
+    document.getElementById('rdv-statut').value = 'en_attente';
+    document.getElementById('rdv-notes').value = '';
+
+    openModal('modal-rdv');
+}
+
+async function editRdv(id) {
+    const rdv = rdvData.find(r => r.id === id);
+    if (!rdv) return;
+    document.getElementById('modal-rdv-title').textContent = 'Modifier Rendez-vous';
+    document.getElementById('rdv-id').value = rdv.id;
+
+    const tasks = [ensureMedecinsLoaded()];
+    if (!patientsData.length) tasks.push(loadPatients());
+    await Promise.all(tasks);
+    setPatientComboValue('rdv', rdv.patient_id);
+
+    const medecinSelect = document.getElementById('rdv-medecin');
+    medecinSelect.innerHTML = '<option value="">-- Aucun --</option>' + medecinsData.map(m => `<option value="${m.id}">${m.nom}</option>`).join('');
+    medecinSelect.value = rdv.medecin_id || '';
+
+    const [datePart, heurePart] = (rdv.date_heure_rdv || '').split('T');
+    document.getElementById('rdv-form-date').value = datePart || '';
+    document.getElementById('rdv-form-heure').value = heurePart || '';
+    document.getElementById('rdv-motif').value = rdv.motif || '';
+    document.getElementById('rdv-statut').value = rdv.statut || 'en_attente';
+    document.getElementById('rdv-notes').value = rdv.notes || '';
+
+    openModal('modal-rdv');
+}
+
+async function saveRdv() {
+    if (!validateRequiredFields([
+        { id: 'rdv-patient', label: 'Patient', highlightId: 'rdv-patient-search' },
+        { id: 'rdv-form-date', label: 'Date' },
+        { id: 'rdv-form-heure', label: 'Heure' },
+    ])) return;
+
+    const id = document.getElementById('rdv-id').value;
+    const data = {
+        patient_id: parseInt(document.getElementById('rdv-patient').value),
+        medecin_id: document.getElementById('rdv-medecin').value ? parseInt(document.getElementById('rdv-medecin').value) : null,
+        date_heure_rdv: `${document.getElementById('rdv-form-date').value}T${document.getElementById('rdv-form-heure').value}`,
+        motif: document.getElementById('rdv-motif').value,
+        statut: document.getElementById('rdv-statut').value,
+        notes: document.getElementById('rdv-notes').value,
+    };
+    try {
+        if (id) {
+            await apiFetch(`/rendez-vous/${id}`, { method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(data) });
+        } else {
+            await apiFetch('/rendez-vous/', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(data) });
+        }
+        closeModal('modal-rdv');
+        showToast('Rendez-vous enregistré !', 'success');
+        loadRendezVous();
+    } catch(e) { showToast('Erreur lors de l\'enregistrement : ' + e.message, 'error'); }
+}
+
+async function deleteRdv(id) {
+    if (!confirm('Voulez-vous vraiment supprimer ce rendez-vous ?')) return;
+    try {
+        await apiFetch(`/rendez-vous/${id}`, { method: 'DELETE' });
+        loadRendezVous();
+    } catch(e) { showToast('Erreur lors de la suppression', 'error'); }
+}
+
+async function creerConsultationDepuisRdv(id) {
+    const rdv = rdvData.find(r => r.id === id);
+    if (!rdv) return;
+    await openNewConsultationModal();
+    if (rdv.patient_id) setPatientComboValue('co', rdv.patient_id);
+    document.getElementById('co-motif').value = rdv.motif || '';
+    document.getElementById('co-medecin').value = rdv.medecin_id || '';
+    showToast('Formulaire pré-rempli depuis le rendez-vous', 'success');
 }
 
 // ===== CERTIFICATS ET DOCUMENTS MEDICAUX =====

@@ -33,6 +33,9 @@
         <div class="menu-item" onclick="showPage('patients')" data-tooltip="Patients">
             <span class="icon">👥</span><span class="menu-text"> Patients</span>
         </div>
+        <div class="menu-item" onclick="showPage('rendez-vous')" data-tooltip="Rendez-vous">
+            <span class="icon">📅</span><span class="menu-text"> Rendez-vous</span>
+        </div>
         <div class="menu-item" onclick="showPage('consultations')" data-tooltip="Consultations">
             <span class="icon">🩺</span><span class="menu-text"> Consultations</span>
         </div>
@@ -214,6 +217,43 @@
                     </thead>
                     <tbody id="table-patients">
                         <tr><td colspan="9" class="loading">Chargement...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- RENDEZ-VOUS -->
+        <div id="page-rendez-vous" class="page">
+            <div class="table-container">
+                <div class="table-header">
+                    <h3>Agenda des rendez-vous</h3>
+                    <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+                        <input type="text" id="rdv-date" placeholder="JJ/MM/AAAA">
+                        <button class="btn" onclick="setRdvDateAujourdhui()">Aujourd'hui</button>
+                        <select id="rdv-filtre-statut" onchange="loadRendezVous()">
+                            <option value="">Tous les statuts</option>
+                            <option value="en_attente">En attente</option>
+                            <option value="confirme">Confirmé</option>
+                            <option value="arrive">Arrivé</option>
+                            <option value="reporte">Reporté</option>
+                            <option value="annule">Annulé</option>
+                        </select>
+                        <button class="btn btn-primary" onclick="openNewRdvModal()">+ Nouveau rendez-vous</button>
+                    </div>
+                </div>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Heure</th>
+                            <th>Patient</th>
+                            <th>Médecin</th>
+                            <th>Motif</th>
+                            <th>Statut</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="table-rendez-vous">
+                        <tr><td colspan="6" class="loading">Chargement...</td></tr>
                     </tbody>
                 </table>
             </div>
@@ -1403,6 +1443,60 @@
         <div class="modal-actions">
             <button class="btn" onclick="closeModal('modal-type-soin')">Annuler</button>
             <button class="btn btn-primary" onclick="saveTypeSoin()">Enregistrer</button>
+        </div>
+    </div>
+</div>
+
+<!-- MODAL RENDEZ-VOUS -->
+<div class="modal-overlay" id="modal-rdv">
+    <div class="modal modal-lg">
+        <h3 id="modal-rdv-title">Nouveau Rendez-vous</h3>
+        <input type="hidden" id="rdv-id">
+        <div class="form-row">
+            <div class="form-group">
+                <label>Patient<span class="required-mark">*</span></label>
+                <div class="patient-combo" id="rdv-patient-combo">
+                    <input type="text" id="rdv-patient-search" class="patient-combo-input" placeholder="Rechercher un patient..." autocomplete="off" oninput="filterPatientCombo('rdv')" onfocus="filterPatientCombo('rdv')">
+                    <input type="hidden" id="rdv-patient">
+                    <div class="patient-combo-list" id="rdv-patient-list"></div>
+                </div>
+            </div>
+            <div class="form-group">
+                <label>Médecin</label>
+                <select id="rdv-medecin"></select>
+            </div>
+        </div>
+        <div class="form-row">
+            <div class="form-group">
+                <label>Date<span class="required-mark">*</span></label>
+                <input type="date" id="rdv-form-date">
+            </div>
+            <div class="form-group">
+                <label>Heure<span class="required-mark">*</span></label>
+                <input type="time" id="rdv-form-heure">
+            </div>
+        </div>
+        <div class="form-group">
+            <label>Motif</label>
+            <input type="text" id="rdv-motif" placeholder="Motif du rendez-vous">
+        </div>
+        <div class="form-group">
+            <label>Statut</label>
+            <select id="rdv-statut">
+                <option value="en_attente">En attente</option>
+                <option value="confirme">Confirmé</option>
+                <option value="arrive">Arrivé</option>
+                <option value="reporte">Reporté</option>
+                <option value="annule">Annulé</option>
+            </select>
+        </div>
+        <div class="form-group">
+            <label>Notes</label>
+            <textarea id="rdv-notes" rows="2"></textarea>
+        </div>
+        <div class="modal-actions">
+            <button class="btn" onclick="closeModal('modal-rdv')">Annuler</button>
+            <button class="btn btn-primary" onclick="saveRdv()">Enregistrer</button>
         </div>
     </div>
 </div>
