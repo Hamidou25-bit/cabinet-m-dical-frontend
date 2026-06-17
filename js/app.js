@@ -988,6 +988,7 @@ function renderConsultations(data) {
         <td>${(c.montant_total || 0).toLocaleString()} FCFA</td>
         <td>${libellePaiement(c.mode_paiement, c.mutuelle_nom)}</td>
         <td>
+            <button class="btn btn-sm" onclick="openCertificatChoiceModal(${c.id})">📄 Document</button>
             <button class="btn btn-sm" onclick="editConsultation(${c.id})">Modifier</button>
             <button class="btn btn-sm btn-danger" onclick="deleteConsultation(${c.id})">Supprimer</button>
         </td>
@@ -1197,6 +1198,119 @@ async function deleteConsultation(id) {
         await apiFetch(`/consultations/${id}`, { method: 'DELETE' });
         loadConsultations();
     } catch(e) { showToast('Erreur lors de la suppression', 'error'); }
+}
+
+// ===== CERTIFICATS ET DOCUMENTS MEDICAUX =====
+let certificatConsultation = null;
+let certificatType = null;
+
+function openCertificatChoiceModal(consultationId) {
+    certificatConsultation = consultationsData.find(c => c.id === consultationId);
+    if (!certificatConsultation) return;
+    document.getElementById('cert-choice-patient').textContent = `${certificatConsultation.nom || ''} ${certificatConsultation.prenom || ''}`.trim();
+    openModal('modal-certificat-choice');
+}
+
+function openCertificatDetailsModal(type) {
+    certificatType = type;
+    closeModal('modal-certificat-choice');
+    const titles = { medical: 'Certificat médical', repos: 'Certificat de repos', hospitalisation: "Bon d'hospitalisation" };
+    document.getElementById('modal-certificat-details-title').textContent = titles[type];
+    document.getElementById('cert-fields-medical').style.display = type === 'medical' ? '' : 'none';
+    document.getElementById('cert-fields-repos').style.display = type === 'repos' ? '' : 'none';
+    document.getElementById('cert-fields-hospitalisation').style.display = type === 'hospitalisation' ? '' : 'none';
+    document.getElementById('cert-aptitude').value = 'apte';
+    document.getElementById('cert-repos-debut').value = new Date().toISOString().split('T')[0];
+    document.getElementById('cert-repos-fin').value = '';
+    document.getElementById('cert-etablissement').value = '';
+    document.getElementById('cert-observations').value = '';
+    openModal('modal-certificat-details');
+}
+
+function buildCertificatHtml() {
+    const c = certificatConsultation;
+    const patientNom = `${c.nom || ''} ${c.prenom || ''}`.trim();
+    const dateAujourdhui = formatDateFR(new Date().toISOString().split('T')[0]);
+    const observations = document.getElementById('cert-observations').value;
+    const medecinNom = c.medecin_nom || 'Médecin du Cabinet';
+
+    let titre = '';
+    let corps = '';
+
+    if (certificatType === 'medical') {
+        const aptitude = document.getElementById('cert-aptitude').value;
+        titre = 'CERTIFICAT MÉDICAL';
+        corps = `<p>Je soussigné(e), <strong>${escapeHtml(medecinNom)}</strong>, certifie avoir examiné ce jour
+            <strong>${escapeHtml(patientNom)}</strong>${c.diagnostic ? `, présentant : <strong>${escapeHtml(c.diagnostic)}</strong>` : ''}.</p>
+            <p>Le/la patient(e) est déclaré(e) <strong>${aptitude === 'apte' ? 'APTE' : 'INAPTE'}</strong>.</p>`;
+    } else if (certificatType === 'repos') {
+        const debut = document.getElementById('cert-repos-debut').value;
+        const fin = document.getElementById('cert-repos-fin').value;
+        titre = 'CERTIFICAT DE REPOS';
+        corps = `<p>Je soussigné(e), <strong>${escapeHtml(medecinNom)}</strong>, certifie que
+            <strong>${escapeHtml(patientNom)}</strong>${c.diagnostic ? `, présentant : <strong>${escapeHtml(c.diagnostic)}</strong>` : ''},
+            doit observer un repos du <strong>${formatDateFR(debut)}</strong> au <strong>${formatDateFR(fin)}</strong> inclus.</p>`;
+    } else {
+        const etablissement = document.getElementById('cert-etablissement').value;
+        titre = "BON D'HOSPITALISATION";
+        corps = `<p>Je soussigné(e), <strong>${escapeHtml(medecinNom)}</strong>, certifie que l'état de santé de
+            <strong>${escapeHtml(patientNom)}</strong>${c.diagnostic ? `, présentant : <strong>${escapeHtml(c.diagnostic)}</strong>` : ''},
+            nécessite une prise en charge hospitalière. Le/la patient(e) est référé(e) vers : <strong>${escapeHtml(etablissement || '-')}</strong>.</p>`;
+    }
+
+    return `<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<title>${titre}</title>
+<style>
+    body { font-family: 'Segoe UI', Arial, sans-serif; color: #1E293B; padding: 40px; }
+    .header { text-align: center; border-bottom: 2px solid #1565C0; padding-bottom: 12px; margin-bottom: 30px; }
+    .header h1 { color: #1565C0; margin: 0 0 4px; font-size: 20px; }
+    .header p { margin: 0; color: #64748B; }
+    .titre { text-align: center; font-size: 18px; font-weight: bold; text-decoration: underline; margin-bottom: 30px; }
+    .corps p { font-size: 14px; line-height: 1.8; margin: 12px 0; }
+    .meta { margin-top: 30px; font-size: 13px; }
+    .signature { margin-top: 60px; text-align: right; font-size: 13px; }
+    @media print { body { padding: 0; } }
+</style>
+</head>
+<body>
+    <div class="header">
+        <h1>🏥 Cabinet Médical BabaMouneissa</h1>
+        <p>Document médical confidentiel</p>
+    </div>
+    <div class="titre">${titre}</div>
+    <div class="corps">
+        ${corps}
+        ${observations ? `<p><strong>Observations :</strong> ${escapeHtml(observations)}</p>` : ''}
+    </div>
+    <div class="meta">Fait le ${dateAujourdhui}</div>
+    <div class="signature">Signature et cachet du médecin<br><br>${escapeHtml(medecinNom)}</div>
+</body>
+</html>`;
+}
+
+function genererEtImprimerCertificat() {
+    if (certificatType === 'repos' && (!document.getElementById('cert-repos-debut').value || !document.getElementById('cert-repos-fin').value)) {
+        showToast('Veuillez renseigner les dates de repos', 'warning');
+        return;
+    }
+    if (certificatType === 'hospitalisation' && !document.getElementById('cert-etablissement').value.trim()) {
+        showToast("Veuillez renseigner l'établissement de référence", 'warning');
+        return;
+    }
+    const html = buildCertificatHtml();
+    closeModal('modal-certificat-details');
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) {
+        showToast('Veuillez autoriser les pop-ups pour imprimer', 'error');
+        return;
+    }
+    printWindow.document.write(html);
+    printWindow.document.close();
+    printWindow.focus();
+    printWindow.print();
 }
 
 // Stock

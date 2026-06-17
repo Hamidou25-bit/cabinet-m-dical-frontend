@@ -1407,6 +1407,64 @@
     </div>
 </div>
 
+<!-- MODAL CHOIX CERTIFICAT -->
+<div class="modal-overlay" id="modal-certificat-choice">
+    <div class="modal">
+        <h3>Générer un document</h3>
+        <p>Patient : <strong id="cert-choice-patient"></strong></p>
+        <div class="modal-actions" style="flex-direction:column; align-items:stretch; gap:8px;">
+            <button class="btn btn-primary" onclick="openCertificatDetailsModal('medical')">Certificat médical</button>
+            <button class="btn btn-primary" onclick="openCertificatDetailsModal('repos')">Certificat de repos</button>
+            <button class="btn btn-primary" onclick="openCertificatDetailsModal('hospitalisation')">Bon d'hospitalisation</button>
+        </div>
+        <div class="modal-actions">
+            <button class="btn" onclick="closeModal('modal-certificat-choice')">Annuler</button>
+        </div>
+    </div>
+</div>
+
+<!-- MODAL DETAILS CERTIFICAT -->
+<div class="modal-overlay" id="modal-certificat-details">
+    <div class="modal">
+        <h3 id="modal-certificat-details-title">Certificat médical</h3>
+        <div id="cert-fields-medical">
+            <div class="form-group">
+                <label>Aptitude</label>
+                <select id="cert-aptitude">
+                    <option value="apte">Apte</option>
+                    <option value="inapte">Inapte</option>
+                </select>
+            </div>
+        </div>
+        <div id="cert-fields-repos" style="display:none;">
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Date de début<span class="required-mark">*</span></label>
+                    <input type="date" id="cert-repos-debut">
+                </div>
+                <div class="form-group">
+                    <label>Date de fin<span class="required-mark">*</span></label>
+                    <input type="date" id="cert-repos-fin">
+                </div>
+            </div>
+        </div>
+        <div id="cert-fields-hospitalisation" style="display:none;">
+            <div class="form-group">
+                <label>Établissement de référence<span class="required-mark">*</span></label>
+                <input type="text" id="cert-etablissement" placeholder="Nom de l'établissement">
+            </div>
+        </div>
+        <div class="form-group">
+            <label>Observations complémentaires</label>
+            <textarea id="cert-observations" rows="2"></textarea>
+        </div>
+        <div class="modal-actions">
+            <button class="btn" onclick="closeModal('modal-certificat-details')">Annuler</button>
+            <button class="btn btn-primary" onclick="genererEtImprimerCertificat()">Générer et imprimer</button>
+        </div>
+    </div>
+</div>
+
 <!-- MODAL VACCINATION -->
 <div class="modal-overlay" id="modal-vaccination">
     <div class="modal">
