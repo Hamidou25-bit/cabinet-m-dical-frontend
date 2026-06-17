@@ -44,6 +44,9 @@
         <div class="menu-item" onclick="showPage('soins')" data-tooltip="Soins">
             <span class="icon">💉</span><span class="menu-text"> Soins</span>
         </div>
+        <div class="menu-item" onclick="showPage('dossiers')" data-tooltip="Dossiers">
+            <span class="icon">📁</span><span class="menu-text"> Dossiers</span>
+        </div>
 
         <div class="menu-section"><span class="menu-text">Pharmacie</span></div>
         <div class="menu-item" onclick="showPage('stock')" data-tooltip="Stock">
@@ -480,6 +483,70 @@
                         <tr><td colspan="3" class="loading">Chargement...</td></tr>
                     </tbody>
                 </table>
+            </div>
+        </div>
+
+        <!-- DOSSIERS PATIENTS (recherche) -->
+        <div id="page-dossiers" class="page">
+            <div class="table-container">
+                <div class="table-header">
+                    <h3>Dossiers patients</h3>
+                    <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+                        <input type="text" class="search-box" placeholder="Rechercher un patient..." id="search-dossiers" oninput="filterDossiersList()">
+                    </div>
+                </div>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Nom</th>
+                            <th>Prénom</th>
+                            <th>Âge</th>
+                            <th>N° Dossier</th>
+                            <th>Téléphone</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="table-dossiers">
+                        <tr><td colspan="6" class="loading">Chargement...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- DOSSIER PATIENT (detail, page dediee, pas d'entree de menu) -->
+        <div id="page-dossier-patient" class="page">
+            <div class="form-page">
+                <button class="btn btn-sm btn-retour" onclick="showPage('dossiers')">← Retour</button>
+
+                <div class="card" style="margin-bottom:20px;">
+                    <h3 id="dossier-patient-nom">-</h3>
+                    <div id="dossier-patient-infos" style="margin-top:10px; font-size:14px; color:#475569; line-height:1.8;"></div>
+                </div>
+
+                <div style="display:flex; gap:10px; margin-bottom:15px; flex-wrap:wrap;">
+                    <button class="btn" id="dossier-tab-consultations" onclick="showDossierTab('consultations')">Consultations</button>
+                    <button class="btn" id="dossier-tab-ordonnances" onclick="showDossierTab('ordonnances')">Ordonnances</button>
+                    <button class="btn" id="dossier-tab-soins" onclick="showDossierTab('soins')">Soins</button>
+                    <button class="btn" id="dossier-tab-examens" onclick="showDossierTab('examens')">Examens</button>
+                    <span style="flex:1"></span>
+                    <button class="btn" onclick="printDossierDirect()">🖨️ Imprimer</button>
+                    <button class="btn" onclick="exportDossierPDF()">📄 Télécharger PDF</button>
+                    <button class="btn" onclick="exportDossierExcel()">📊 Télécharger Excel</button>
+                </div>
+
+                <div class="table-container">
+                    <table>
+                        <thead id="dossier-table-head"></thead>
+                        <tbody id="dossier-table-body">
+                            <tr><td>Chargement...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="card" style="margin-top:20px;">
+                    <h3>Résumé financier</h3>
+                    <div id="dossier-resume" style="margin-top:10px; font-size:14px; color:#475569; line-height:1.8;"></div>
+                </div>
             </div>
         </div>
 

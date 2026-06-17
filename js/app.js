@@ -180,7 +180,7 @@ function showPage(page) {
         : document.querySelector(`.menu-item[onclick*="showPage('${page}')"]`);
     if (menuItem) menuItem.classList.add('active');
 
-    const titles = { dashboard: 'Tableau de bord', patients: 'Patients', consultations: 'Consultations', stock: 'Stock', ordonnances: 'Ordonnances', examens: 'Examens complémentaires', soins: 'Soins', personnel: 'Personnel', medecins: 'Médecins', 'examens-config': "Types d'examens", 'type-soins': 'Types de soins', comptabilite: 'Comptabilité' };
+    const titles = { dashboard: 'Tableau de bord', patients: 'Patients', consultations: 'Consultations', stock: 'Stock', ordonnances: 'Ordonnances', examens: 'Examens complémentaires', soins: 'Soins', dossiers: 'Dossiers patients', personnel: 'Personnel', medecins: 'Médecins', 'examens-config': "Types d'examens", 'type-soins': 'Types de soins', comptabilite: 'Comptabilité' };
     if (titles[page]) document.getElementById('page-title').textContent = titles[page];
 
     if (page === 'patients') loadPatients();
@@ -189,6 +189,7 @@ function showPage(page) {
     if (page === 'ordonnances') loadOrdonnances();
     if (page === 'examens') loadExamens();
     if (page === 'soins') loadSoins();
+    if (page === 'dossiers') loadDossiersList();
     if (page === 'type-soins') loadTypeSoinsAdmin();
     if (page === 'personnel') loadUtilisateurs();
     if (page === 'medecins') loadMedecins();
@@ -340,6 +341,7 @@ function renderPatients(data) {
     tbody.innerHTML = data.map(p => `<tr>
         <td>${p.nom}</td><td>${p.prenom}</td><td>${p.age}</td><td>${p.sexe}</td><td>${p.telephone || '-'}</td><td>${p.numero_dossier || '-'}</td><td>${p.email || '-'}</td><td>${formatDateFR(p.date_enregistrement)}</td>
         <td>
+            <button class="btn btn-sm" onclick="showDossierPatient(${p.id})">📁 Dossier</button>
             <button class="btn btn-sm" onclick="editPatient(${p.id})">Modifier</button>
             <button class="btn btn-sm btn-danger" onclick="deletePatient(${p.id})">Supprimer</button>
         </td>
@@ -389,6 +391,289 @@ function exportPatientsExcel() {
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Patients');
     telechargerEtOuvrir(wb, `patients_${new Date().toISOString().split('T')[0]}.xlsx`);
+}
+
+// ===== DOSSIER PATIENT =====
+let dossierPatientData = null;
+let dossierActiveTab = 'consultations';
+
+async function loadDossiersList() {
+    try {
+        if (!patientsData.length) patientsData = await apiFetch('/patients').then(r => r.json());
+        renderDossiersList(patientsData);
+    } catch(e) { document.getElementById('table-dossiers').innerHTML = '<tr><td colspan="6">Erreur</td></tr>'; }
+}
+
+function renderDossiersList(data) {
+    const tbody = document.getElementById('table-dossiers');
+    if (!data.length) { tbody.innerHTML = '<tr><td colspan="6">Aucun patient</td></tr>'; return; }
+    tbody.innerHTML = data.map(p => `<tr>
+        <td>${p.nom}</td><td>${p.prenom}</td><td>${p.age}</td><td>${p.numero_dossier || '-'}</td><td>${p.telephone || '-'}</td>
+        <td><button class="btn btn-sm btn-primary" onclick="showDossierPatient(${p.id})">📁 Voir dossier</button></td>
+    </tr>`).join('');
+}
+
+function filterDossiersList() {
+    const q = document.getElementById('search-dossiers').value.toLowerCase();
+    const filtered = patientsData.filter(p =>
+        (p.nom || '').toLowerCase().includes(q) ||
+        (p.prenom || '').toLowerCase().includes(q) ||
+        (p.numero_dossier || '').toLowerCase().includes(q)
+    );
+    renderDossiersList(filtered);
+}
+
+async function showDossierPatient(patientId) {
+    try {
+        dossierPatientData = await apiFetch(`/patients/${patientId}/dossier`).then(r => r.json());
+    } catch(e) { showToast('Erreur lors du chargement du dossier patient', 'error'); return; }
+
+    const p = dossierPatientData.patient;
+    const r = dossierPatientData.resume;
+    const nbVisites = r.nb_consultations + r.nb_ordonnances + r.nb_soins + r.nb_examens;
+
+    document.getElementById('dossier-patient-nom').textContent = `${p.nom} ${p.prenom}`;
+    document.getElementById('dossier-patient-infos').innerHTML = `
+        <div><strong>Âge :</strong> ${p.age ?? '-'} &nbsp; <strong>Sexe :</strong> ${p.sexe || '-'} &nbsp; <strong>N° Dossier :</strong> ${p.numero_dossier || '-'}</div>
+        <div><strong>Téléphone :</strong> ${p.telephone || '-'} &nbsp; <strong>Adresse :</strong> ${p.adresse || '-'}</div>
+        <div><strong>Dernière visite :</strong> ${formatDateFR(r.derniere_visite) || '-'} &nbsp; <strong>Nombre de visites :</strong> ${nbVisites}</div>
+    `;
+    document.getElementById('dossier-resume').innerHTML = `
+        <div>Consultations : <strong>${r.nb_consultations}</strong></div>
+        <div>Ordonnances : <strong>${r.nb_ordonnances}</strong></div>
+        <div>Soins : <strong>${r.nb_soins}</strong></div>
+        <div>Examens : <strong>${r.nb_examens}</strong></div>
+        <div style="margin-top:8px; font-size:16px;">Total dépensé : <strong>${(r.total_depense_patient || 0).toLocaleString()} FCFA</strong></div>
+    `;
+
+    showDossierTab('consultations');
+    document.getElementById('page-title').textContent = `Dossier — ${p.nom} ${p.prenom}`;
+    showPage('dossier-patient');
+}
+
+function showDossierTab(tab) {
+    dossierActiveTab = tab;
+    ['consultations', 'ordonnances', 'soins', 'examens'].forEach(t => {
+        document.getElementById('dossier-tab-' + t).className = t === tab ? 'btn btn-primary' : 'btn';
+    });
+    renderDossierTab();
+}
+
+function renderDossierTab() {
+    if (!dossierPatientData) return;
+    const thead = document.getElementById('dossier-table-head');
+    const tbody = document.getElementById('dossier-table-body');
+
+    if (dossierActiveTab === 'consultations') {
+        thead.innerHTML = '<tr><th>Date</th><th>Médecin</th><th>Motif</th><th>Diagnostic</th><th>Montant</th></tr>';
+        const rows = dossierPatientData.consultations;
+        tbody.innerHTML = rows.length ? rows.map(c => `<tr>
+            <td>${formatDateFR(c.date_consult)}</td><td>${c.medecin_nom || '-'}</td><td>${c.motif || '-'}</td><td>${c.diagnostic || '-'}</td><td>${(c.montant_total || 0).toLocaleString()} FCFA</td>
+        </tr>`).join('') : '<tr><td colspan="5">Aucune consultation</td></tr>';
+    } else if (dossierActiveTab === 'ordonnances') {
+        thead.innerHTML = '<tr><th>Date</th><th>Type</th><th>Statut</th><th>Médicaments</th><th>Total</th></tr>';
+        const rows = dossierPatientData.ordonnances;
+        tbody.innerHTML = rows.length ? rows.map(o => `<tr>
+            <td>${formatDateFR(o.date_ordonnance)}</td><td>${o.type_beneficiaire || '-'}</td><td>${o.est_validee ? 'Validée' : 'Non validée'}</td>
+            <td>${(o.lignes || []).map(l => escapeHtml(l.medicament)).join(', ') || '-'}</td><td>${(o.total || 0).toLocaleString()} FCFA</td>
+        </tr>`).join('') : '<tr><td colspan="5">Aucune ordonnance</td></tr>';
+    } else if (dossierActiveTab === 'soins') {
+        thead.innerHTML = '<tr><th>Date</th><th>Type de soin</th><th>Montant</th><th>Notes</th></tr>';
+        const rows = dossierPatientData.soins;
+        tbody.innerHTML = rows.length ? rows.map(s => `<tr>
+            <td>${formatDateFR(s.date_soin)}</td><td>${s.type_soin_nom || '-'}</td><td>${(s.prix_applique || 0).toLocaleString()} FCFA</td><td>${s.notes || '-'}</td>
+        </tr>`).join('') : '<tr><td colspan="4">Aucun soin</td></tr>';
+    } else if (dossierActiveTab === 'examens') {
+        thead.innerHTML = '<tr><th>Date</th><th>Catégorie</th><th>Type d\'examen</th><th>Résultat</th><th>Prix</th></tr>';
+        const rows = dossierPatientData.examens;
+        tbody.innerHTML = rows.length ? rows.map(e => `<tr>
+            <td>${formatDateFR(e.date_examen)}</td><td>${e.categorie_nom || '-'}</td><td>${e.type_examen_nom || '-'}</td><td>${e.resultat || '-'}</td><td>${(e.prix || 0).toLocaleString()} FCFA</td>
+        </tr>`).join('') : '<tr><td colspan="5">Aucun examen</td></tr>';
+    }
+}
+
+function buildDossierHtml() {
+    const p = dossierPatientData.patient;
+    const r = dossierPatientData.resume;
+
+    const sectionTable = (titre, headers, rows) => `
+        <h2>${titre}</h2>
+        ${rows.length ? `<table><thead><tr>${headers.map(h => `<th>${h}</th>`).join('')}</tr></thead><tbody>${rows}</tbody></table>` : '<p class="empty">Aucune donnée</p>'}
+    `;
+
+    const consultationsRows = dossierPatientData.consultations.map(c => `<tr>
+        <td>${formatDateFR(c.date_consult)}</td><td>${escapeHtml(c.medecin_nom || '-')}</td><td>${escapeHtml(c.motif || '-')}</td><td>${escapeHtml(c.diagnostic || '-')}</td><td>${(c.montant_total || 0).toLocaleString()} FCFA</td>
+    </tr>`).join('');
+
+    const ordonnancesRows = dossierPatientData.ordonnances.map(o => `<tr>
+        <td>${formatDateFR(o.date_ordonnance)}</td><td>${escapeHtml(o.type_beneficiaire || '-')}</td><td>${o.est_validee ? 'Validée' : 'Non validée'}</td>
+        <td>${escapeHtml((o.lignes || []).map(l => l.medicament).join(', ') || '-')}</td><td>${(o.total || 0).toLocaleString()} FCFA</td>
+    </tr>`).join('');
+
+    const soinsRows = dossierPatientData.soins.map(s => `<tr>
+        <td>${formatDateFR(s.date_soin)}</td><td>${escapeHtml(s.type_soin_nom || '-')}</td><td>${(s.prix_applique || 0).toLocaleString()} FCFA</td><td>${escapeHtml(s.notes || '-')}</td>
+    </tr>`).join('');
+
+    const examensRows = dossierPatientData.examens.map(e => `<tr>
+        <td>${formatDateFR(e.date_examen)}</td><td>${escapeHtml(e.categorie_nom || '-')}</td><td>${escapeHtml(e.type_examen_nom || '-')}</td><td>${escapeHtml(e.resultat || '-')}</td><td>${(e.prix || 0).toLocaleString()} FCFA</td>
+    </tr>`).join('');
+
+    return `<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<title>Dossier patient - ${escapeHtml(p.nom)} ${escapeHtml(p.prenom)}</title>
+<style>
+    body { font-family: 'Segoe UI', Arial, sans-serif; color: #1E293B; padding: 30px; }
+    .header { text-align: center; border-bottom: 2px solid #1565C0; padding-bottom: 12px; margin-bottom: 20px; }
+    .header h1 { color: #1565C0; margin: 0 0 4px; font-size: 22px; }
+    .header p { margin: 0; color: #64748B; }
+    .info p { margin: 4px 0; font-size: 14px; }
+    h2 { font-size: 16px; color: #1565C0; margin: 24px 0 8px; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { border: 1px solid #E2E8F0; padding: 8px; font-size: 13px; text-align: left; }
+    th { background: #F1F5F9; }
+    .empty { color: #94A3B8; font-size: 13px; }
+    .total { margin-top: 20px; text-align: right; font-size: 15px; font-weight: bold; }
+    @media print { body { padding: 0; } }
+</style>
+</head>
+<body>
+    <div class="header">
+        <h1>🏥 Cabinet Médical BabaMouneissa</h1>
+        <p>Dossier patient complet</p>
+    </div>
+    <div class="info">
+        <p><strong>Patient :</strong> ${escapeHtml(p.nom)} ${escapeHtml(p.prenom)} — <strong>Âge :</strong> ${p.age ?? '-'} — <strong>Sexe :</strong> ${escapeHtml(p.sexe || '-')}</p>
+        <p><strong>N° Dossier :</strong> ${escapeHtml(p.numero_dossier || '-')} — <strong>Téléphone :</strong> ${escapeHtml(p.telephone || '-')}</p>
+        <p><strong>Dernière visite :</strong> ${formatDateFR(r.derniere_visite) || '-'}</p>
+    </div>
+    ${sectionTable('Consultations', ['Date', 'Médecin', 'Motif', 'Diagnostic', 'Montant'], consultationsRows)}
+    ${sectionTable('Ordonnances', ['Date', 'Type', 'Statut', 'Médicaments', 'Total'], ordonnancesRows)}
+    ${sectionTable('Soins', ['Date', 'Type de soin', 'Montant', 'Notes'], soinsRows)}
+    ${sectionTable('Examens', ['Date', 'Catégorie', "Type d'examen", 'Résultat', 'Prix'], examensRows)}
+    <div class="total">Total dépensé par le patient : ${(r.total_depense_patient || 0).toLocaleString()} FCFA</div>
+</body>
+</html>`;
+}
+
+function printDossierDirect() {
+    if (!dossierPatientData) return;
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) {
+        showToast('Veuillez autoriser les pop-ups pour imprimer', 'error');
+        return;
+    }
+    printWindow.document.write(buildDossierHtml());
+    printWindow.document.close();
+    printWindow.focus();
+    printWindow.print();
+}
+
+function exportDossierPDF() {
+    if (!dossierPatientData) return;
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF();
+    const p = dossierPatientData.patient;
+    const r = dossierPatientData.resume;
+
+    doc.setFontSize(16);
+    doc.setTextColor(21, 101, 192);
+    doc.text('Cabinet Médical BabaMouneissa', 105, 15, { align: 'center' });
+    doc.setFontSize(11);
+    doc.setTextColor(100);
+    doc.text('Dossier patient complet', 105, 22, { align: 'center' });
+
+    doc.setTextColor(30);
+    doc.setFontSize(11);
+    let y = 35;
+    doc.text(`Patient : ${p.nom} ${p.prenom} — Âge : ${p.age ?? '-'} — Sexe : ${p.sexe || '-'}`, 14, y);
+    y += 6;
+    doc.text(`N° Dossier : ${p.numero_dossier || '-'} — Téléphone : ${p.telephone || '-'}`, 14, y);
+    y += 6;
+    doc.text(`Dernière visite : ${formatDateFR(r.derniere_visite) || '-'}`, 14, y);
+    y += 10;
+
+    const addSection = (titre, head, rows) => {
+        doc.setFontSize(13);
+        doc.setFont(undefined, 'bold');
+        doc.setTextColor(21, 101, 192);
+        doc.text(titre, 14, y);
+        doc.setFont(undefined, 'normal');
+        doc.setTextColor(30);
+        if (rows.length) {
+            doc.autoTable({ startY: y + 4, head: [head], body: rows, headStyles: { fillColor: [21, 101, 192] }, styles: { fontSize: 9 } });
+            y = doc.lastAutoTable.finalY + 12;
+        } else {
+            doc.setFontSize(10);
+            doc.text('Aucune donnée', 14, y + 6);
+            y += 16;
+        }
+        if (y > 260) { doc.addPage(); y = 15; }
+    };
+
+    addSection('Consultations', ['Date', 'Médecin', 'Motif', 'Diagnostic', 'Montant'],
+        dossierPatientData.consultations.map(c => [formatDateFR(c.date_consult), c.medecin_nom || '-', c.motif || '-', c.diagnostic || '-', `${(c.montant_total || 0).toLocaleString()} FCFA`]));
+
+    addSection('Ordonnances', ['Date', 'Type', 'Statut', 'Médicaments', 'Total'],
+        dossierPatientData.ordonnances.map(o => [formatDateFR(o.date_ordonnance), o.type_beneficiaire || '-', o.est_validee ? 'Validée' : 'Non validée', (o.lignes || []).map(l => l.medicament).join(', ') || '-', `${(o.total || 0).toLocaleString()} FCFA`]));
+
+    addSection('Soins', ['Date', 'Type de soin', 'Montant', 'Notes'],
+        dossierPatientData.soins.map(s => [formatDateFR(s.date_soin), s.type_soin_nom || '-', `${(s.prix_applique || 0).toLocaleString()} FCFA`, s.notes || '-']));
+
+    addSection('Examens', ['Date', 'Catégorie', "Type d'examen", 'Résultat', 'Prix'],
+        dossierPatientData.examens.map(e => [formatDateFR(e.date_examen), e.categorie_nom || '-', e.type_examen_nom || '-', e.resultat || '-', `${(e.prix || 0).toLocaleString()} FCFA`]));
+
+    doc.setFontSize(12);
+    doc.setFont(undefined, 'bold');
+    doc.text(`Total dépensé : ${(r.total_depense_patient || 0).toLocaleString()} FCFA`, 196, y, { align: 'right' });
+
+    doc.save(`dossier_${p.nom}_${p.prenom}.pdf`);
+}
+
+function exportDossierExcel() {
+    if (!dossierPatientData) return;
+    const p = dossierPatientData.patient;
+    const r = dossierPatientData.resume;
+    const wb = XLSX.utils.book_new();
+
+    const syntheseRows = [
+        { 'Champ': 'Nom', 'Valeur': p.nom },
+        { 'Champ': 'Prénom', 'Valeur': p.prenom },
+        { 'Champ': 'Âge', 'Valeur': p.age },
+        { 'Champ': 'Sexe', 'Valeur': p.sexe },
+        { 'Champ': 'N° Dossier', 'Valeur': p.numero_dossier || '' },
+        { 'Champ': 'Téléphone', 'Valeur': p.telephone || '' },
+        { 'Champ': 'Dernière visite', 'Valeur': formatDateFR(r.derniere_visite) },
+        { 'Champ': 'Nb consultations', 'Valeur': r.nb_consultations },
+        { 'Champ': 'Nb ordonnances', 'Valeur': r.nb_ordonnances },
+        { 'Champ': 'Nb soins', 'Valeur': r.nb_soins },
+        { 'Champ': 'Nb examens', 'Valeur': r.nb_examens },
+        { 'Champ': 'Total dépensé (FCFA)', 'Valeur': r.total_depense_patient },
+    ];
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(syntheseRows), 'Résumé');
+
+    const consultationsRows = dossierPatientData.consultations.length
+        ? dossierPatientData.consultations.map(c => ({ 'Date': formatDateFR(c.date_consult), 'Médecin': c.medecin_nom || '', 'Motif': c.motif || '', 'Diagnostic': c.diagnostic || '', 'Montant (FCFA)': c.montant_total || 0 }))
+        : [{ 'Info': 'Aucune consultation' }];
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(consultationsRows), 'Consultations');
+
+    const ordonnancesRows = dossierPatientData.ordonnances.length
+        ? dossierPatientData.ordonnances.map(o => ({ 'Date': formatDateFR(o.date_ordonnance), 'Type': o.type_beneficiaire || '', 'Statut': o.est_validee ? 'Validée' : 'Non validée', 'Médicaments': (o.lignes || []).map(l => l.medicament).join(', '), 'Total (FCFA)': o.total || 0 }))
+        : [{ 'Info': 'Aucune ordonnance' }];
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(ordonnancesRows), 'Ordonnances');
+
+    const soinsRows = dossierPatientData.soins.length
+        ? dossierPatientData.soins.map(s => ({ 'Date': formatDateFR(s.date_soin), 'Type de soin': s.type_soin_nom || '', 'Montant (FCFA)': s.prix_applique || 0, 'Notes': s.notes || '' }))
+        : [{ 'Info': 'Aucun soin' }];
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(soinsRows), 'Soins');
+
+    const examensRows = dossierPatientData.examens.length
+        ? dossierPatientData.examens.map(e => ({ 'Date': formatDateFR(e.date_examen), 'Catégorie': e.categorie_nom || '', "Type d'examen": e.type_examen_nom || '', 'Résultat': e.resultat || '', 'Prix (FCFA)': e.prix || 0 }))
+        : [{ 'Info': 'Aucun examen' }];
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(examensRows), 'Examens');
+
+    telechargerEtOuvrir(wb, `dossier_${p.nom}_${p.prenom}.xlsx`);
 }
 
 function openNewPatientModal() {
