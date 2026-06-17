@@ -313,12 +313,13 @@ function showToast(message, type = 'success', duration = 3000) {
 // Dashboard
 async function loadDashboard() {
     try {
-        const [patients, consultations, stock, alertes, rdvAujourdhui] = await Promise.all([
+        const [patients, consultations, stock, alertes, rdvAujourdhui, statistiques] = await Promise.all([
             apiFetch('/patients').then(r => r.json()),
             apiFetch('/consultations').then(r => r.json()),
             apiFetch('/stock').then(r => r.json()),
             apiFetch('/stock/alertes').then(r => r.json()),
-            apiFetch('/dashboard/rdv-aujourdhui').then(r => r.json())
+            apiFetch('/dashboard/rdv-aujourdhui').then(r => r.json()),
+            apiFetch('/dashboard/statistiques').then(r => r.json())
         ]);
 
         document.getElementById('stat-patients').textContent = patients.length;
@@ -328,7 +329,44 @@ async function loadDashboard() {
 
         renderDashboardRdv(rdvAujourdhui);
         updateAlertesBadges(alertes.length, rdvAujourdhui.filter(r => r.statut === 'en_attente' || r.statut === 'planifié').length);
+        renderDashboardStatistiques(statistiques);
     } catch(e) { console.error('Erreur dashboard:', e); }
+}
+
+let dashboardConsultationsChart = null;
+
+function renderDashboardStatistiques(stats) {
+    document.getElementById('stat-revenus-mois').textContent = `${stats.revenus.mois_courant.toLocaleString()} FCFA`;
+    const variationEl = document.getElementById('stat-revenus-variation');
+    if (stats.revenus.variation_pct === null) {
+        variationEl.textContent = 'Pas de données le mois précédent';
+    } else {
+        const signe = stats.revenus.variation_pct >= 0 ? '+' : '';
+        variationEl.textContent = `${signe}${stats.revenus.variation_pct}% vs mois précédent (${stats.revenus.mois_precedent.toLocaleString()} FCFA)`;
+    }
+
+    document.getElementById('stat-nouveaux-patients').textContent = stats.nouveaux_patients_mois;
+
+    const tbodyPatho = document.getElementById('table-top-pathologies');
+    tbodyPatho.innerHTML = stats.top_pathologies.length
+        ? stats.top_pathologies.map(p => `<tr><td>${p.diagnostic}</td><td>${p.nb}</td></tr>`).join('')
+        : '<tr><td colspan="2">Aucune donnée</td></tr>';
+
+    const tbodyMed = document.getElementById('table-top-medicaments');
+    tbodyMed.innerHTML = stats.top_medicaments.length
+        ? stats.top_medicaments.map(m => `<tr><td>${m.designation}</td><td>${m.quantite_totale}</td></tr>`).join('')
+        : '<tr><td colspan="2">Aucune donnée</td></tr>';
+
+    const ctx = document.getElementById('dashboard-consultations-chart');
+    if (dashboardConsultationsChart) dashboardConsultationsChart.destroy();
+    dashboardConsultationsChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: stats.consultations_par_semaine.map(s => formatDateFR(s.semaine)),
+            datasets: [{ label: 'Consultations', data: stats.consultations_par_semaine.map(s => s.nb), borderColor: '#1565C0', backgroundColor: 'rgba(21,101,192,0.15)', fill: true, tension: 0.3 }]
+        },
+        options: { responsive: true, scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } } }
+    });
 }
 
 function renderDashboardRdv(rdv) {

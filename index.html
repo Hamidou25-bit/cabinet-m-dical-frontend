@@ -144,6 +144,41 @@
                     </tbody>
                 </table>
             </div>
+
+            <div class="cards-grid" style="margin-top:20px;">
+                <div class="card green">
+                    <h3>Revenus du mois</h3>
+                    <div class="value" id="stat-revenus-mois">...</div>
+                    <div class="sub" id="stat-revenus-variation"></div>
+                </div>
+                <div class="card">
+                    <h3>Nouveaux patients</h3>
+                    <div class="value" id="stat-nouveaux-patients">...</div>
+                    <div class="sub">Ce mois-ci</div>
+                </div>
+            </div>
+
+            <div style="display:flex; gap:20px; margin-top:20px; flex-wrap:wrap;">
+                <div class="table-container" style="flex:1; min-width:280px;">
+                    <div class="table-header"><h3>🩺 Top 5 pathologies</h3></div>
+                    <table>
+                        <thead><tr><th>Diagnostic</th><th>Nombre</th></tr></thead>
+                        <tbody id="table-top-pathologies"><tr><td colspan="2" class="loading">Chargement...</td></tr></tbody>
+                    </table>
+                </div>
+                <div class="table-container" style="flex:1; min-width:280px;">
+                    <div class="table-header"><h3>💊 Top 5 médicaments prescrits</h3></div>
+                    <table>
+                        <thead><tr><th>Médicament</th><th>Quantité totale</th></tr></thead>
+                        <tbody id="table-top-medicaments"><tr><td colspan="2" class="loading">Chargement...</td></tr></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="table-container" style="margin-top:20px;">
+                <div class="table-header"><h3>📈 Consultations par semaine (4 dernières semaines)</h3></div>
+                <canvas id="dashboard-consultations-chart" height="80"></canvas>
+            </div>
         </div>
 
         <!-- PATIENTS -->
