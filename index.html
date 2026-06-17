@@ -618,10 +618,15 @@
                     <button class="btn" id="dossier-tab-ordonnances" onclick="showDossierTab('ordonnances')">Ordonnances</button>
                     <button class="btn" id="dossier-tab-soins" onclick="showDossierTab('soins')">Soins</button>
                     <button class="btn" id="dossier-tab-examens" onclick="showDossierTab('examens')">Examens</button>
+                    <button class="btn" id="dossier-tab-vaccinations" onclick="showDossierTab('vaccinations')">Vaccination</button>
                     <span style="flex:1"></span>
                     <button class="btn" onclick="printDossierDirect()">🖨️ Imprimer</button>
                     <button class="btn" onclick="exportDossierPDF()">📄 Télécharger PDF</button>
                     <button class="btn" onclick="exportDossierExcel()">📊 Télécharger Excel</button>
+                </div>
+
+                <div id="dossier-vaccination-actions" style="display:none; margin-bottom:10px;">
+                    <button class="btn btn-primary" onclick="openNewVaccinationModal()">+ Ajouter un vaccin</button>
                 </div>
 
                 <div class="table-container">
@@ -1398,6 +1403,41 @@
         <div class="modal-actions">
             <button class="btn" onclick="closeModal('modal-type-soin')">Annuler</button>
             <button class="btn btn-primary" onclick="saveTypeSoin()">Enregistrer</button>
+        </div>
+    </div>
+</div>
+
+<!-- MODAL VACCINATION -->
+<div class="modal-overlay" id="modal-vaccination">
+    <div class="modal">
+        <h3 id="modal-vaccination-title">Nouveau Vaccin</h3>
+        <input type="hidden" id="vac-id">
+        <input type="hidden" id="vac-patient-id">
+        <div class="form-group">
+            <label>Vaccin<span class="required-mark">*</span></label>
+            <input type="text" id="vac-vaccin" placeholder="Ex: BCG, Rougeole, Tétanos...">
+        </div>
+        <div class="form-row">
+            <div class="form-group">
+                <label>Date d'administration<span class="required-mark">*</span></label>
+                <input type="date" id="vac-date-administration">
+            </div>
+            <div class="form-group">
+                <label>Dose</label>
+                <input type="text" id="vac-dose" placeholder="Ex: Dose 1, Rappel...">
+            </div>
+        </div>
+        <div class="form-group">
+            <label>Prochain rappel</label>
+            <input type="date" id="vac-prochain-rappel">
+        </div>
+        <div class="form-group">
+            <label>Observations</label>
+            <textarea id="vac-observations" rows="2" placeholder="Observations"></textarea>
+        </div>
+        <div class="modal-actions">
+            <button class="btn" onclick="closeModal('modal-vaccination')">Annuler</button>
+            <button class="btn btn-primary" onclick="saveVaccination()">Enregistrer</button>
         </div>
     </div>
 </div>

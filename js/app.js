@@ -512,6 +512,7 @@ async function showDossierPatient(patientId) {
         <div>Ordonnances : <strong>${r.nb_ordonnances}</strong></div>
         <div>Soins : <strong>${r.nb_soins}</strong></div>
         <div>Examens : <strong>${r.nb_examens}</strong></div>
+        <div>Vaccinations : <strong>${r.nb_vaccinations}</strong>${r.rappels_vaccination_en_retard ? ` <span style="color:#DC2626;">(${r.rappels_vaccination_en_retard} rappel(s) en retard ⚠️)</span>` : ''}</div>
         <div style="margin-top:8px; font-size:16px;">Total dépensé : <strong>${(r.total_depense_patient || 0).toLocaleString()} FCFA</strong></div>
     `;
 
@@ -522,9 +523,10 @@ async function showDossierPatient(patientId) {
 
 function showDossierTab(tab) {
     dossierActiveTab = tab;
-    ['consultations', 'ordonnances', 'soins', 'examens'].forEach(t => {
+    ['consultations', 'ordonnances', 'soins', 'examens', 'vaccinations'].forEach(t => {
         document.getElementById('dossier-tab-' + t).className = t === tab ? 'btn btn-primary' : 'btn';
     });
+    document.getElementById('dossier-vaccination-actions').style.display = tab === 'vaccinations' ? '' : 'none';
     renderDossierTab();
 }
 
@@ -558,7 +560,88 @@ function renderDossierTab() {
         tbody.innerHTML = rows.length ? rows.map(e => `<tr>
             <td>${formatDateFR(e.date_examen)}</td><td>${e.categorie_nom || '-'}</td><td>${e.type_examen_nom || '-'}</td><td>${e.resultat || '-'}</td><td>${(e.prix || 0).toLocaleString()} FCFA</td>
         </tr>`).join('') : '<tr><td colspan="5">Aucun examen</td></tr>';
+    } else if (dossierActiveTab === 'vaccinations') {
+        thead.innerHTML = '<tr><th>Vaccin</th><th>Date administration</th><th>Dose</th><th>Prochain rappel</th><th>Observations</th><th>Actions</th></tr>';
+        const rows = dossierPatientData.vaccinations;
+        const today = new Date().toISOString().split('T')[0];
+        tbody.innerHTML = rows.length ? rows.map(v => {
+            const enRetard = v.prochain_rappel && v.prochain_rappel < today;
+            return `<tr${enRetard ? ' class="row-danger"' : ''}>
+                <td>${escapeHtml(v.vaccin)}</td><td>${formatDateFR(v.date_administration)}</td><td>${v.dose || '-'}</td>
+                <td>${v.prochain_rappel ? formatDateFR(v.prochain_rappel) + (enRetard ? ' ⚠️ En retard' : '') : '-'}</td>
+                <td>${v.observations || '-'}</td>
+                <td>
+                    <button class="btn btn-sm" onclick="editVaccination(${v.id})">Modifier</button>
+                    <button class="btn btn-sm btn-danger" onclick="deleteVaccination(${v.id})">Supprimer</button>
+                </td>
+            </tr>`;
+        }).join('') : '<tr><td colspan="6">Aucune vaccination enregistrée</td></tr>';
     }
+}
+
+function openNewVaccinationModal() {
+    document.getElementById('modal-vaccination-title').textContent = 'Nouveau Vaccin';
+    document.getElementById('vac-id').value = '';
+    document.getElementById('vac-patient-id').value = dossierPatientData.patient.id;
+    document.getElementById('vac-vaccin').value = '';
+    document.getElementById('vac-date-administration').value = new Date().toISOString().split('T')[0];
+    document.getElementById('vac-dose').value = '';
+    document.getElementById('vac-prochain-rappel').value = '';
+    document.getElementById('vac-observations').value = '';
+    openModal('modal-vaccination');
+}
+
+function editVaccination(id) {
+    const v = dossierPatientData.vaccinations.find(x => x.id === id);
+    if (!v) return;
+    document.getElementById('modal-vaccination-title').textContent = 'Modifier Vaccin';
+    document.getElementById('vac-id').value = v.id;
+    document.getElementById('vac-patient-id').value = dossierPatientData.patient.id;
+    document.getElementById('vac-vaccin').value = v.vaccin || '';
+    document.getElementById('vac-date-administration').value = v.date_administration || '';
+    document.getElementById('vac-dose').value = v.dose || '';
+    document.getElementById('vac-prochain-rappel').value = v.prochain_rappel || '';
+    document.getElementById('vac-observations').value = v.observations || '';
+    openModal('modal-vaccination');
+}
+
+async function saveVaccination() {
+    if (!validateRequiredFields([
+        { id: 'vac-vaccin', label: 'Vaccin' },
+        { id: 'vac-date-administration', label: "Date d'administration" },
+    ])) return;
+
+    const id = document.getElementById('vac-id').value;
+    const data = {
+        patient_id: parseInt(document.getElementById('vac-patient-id').value),
+        vaccin: document.getElementById('vac-vaccin').value,
+        date_administration: document.getElementById('vac-date-administration').value,
+        dose: document.getElementById('vac-dose').value,
+        prochain_rappel: document.getElementById('vac-prochain-rappel').value || null,
+        observations: document.getElementById('vac-observations').value,
+    };
+    try {
+        if (id) {
+            await apiFetch(`/vaccinations/${id}`, { method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(data) });
+        } else {
+            await apiFetch('/vaccinations/', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(data) });
+        }
+        closeModal('modal-vaccination');
+        showToast('Vaccination enregistrée !', 'success');
+        await showDossierPatient(data.patient_id);
+        showDossierTab('vaccinations');
+    } catch(e) { showToast('Erreur lors de l\'enregistrement : ' + e.message, 'error'); }
+}
+
+async function deleteVaccination(id) {
+    if (!confirm('Voulez-vous vraiment supprimer cette vaccination ?')) return;
+    const patientId = dossierPatientData.patient.id;
+    try {
+        await apiFetch(`/vaccinations/${id}`, { method: 'DELETE' });
+        showToast('Vaccination supprimée', 'success');
+        await showDossierPatient(patientId);
+        showDossierTab('vaccinations');
+    } catch(e) { showToast('Erreur lors de la suppression', 'error'); }
 }
 
 function buildDossierHtml() {
@@ -585,6 +668,10 @@ function buildDossierHtml() {
 
     const examensRows = dossierPatientData.examens.map(e => `<tr>
         <td>${formatDateFR(e.date_examen)}</td><td>${escapeHtml(e.categorie_nom || '-')}</td><td>${escapeHtml(e.type_examen_nom || '-')}</td><td>${escapeHtml(e.resultat || '-')}</td><td>${(e.prix || 0).toLocaleString()} FCFA</td>
+    </tr>`).join('');
+
+    const vaccinationsRows = dossierPatientData.vaccinations.map(v => `<tr>
+        <td>${escapeHtml(v.vaccin)}</td><td>${formatDateFR(v.date_administration)}</td><td>${escapeHtml(v.dose || '-')}</td><td>${v.prochain_rappel ? formatDateFR(v.prochain_rappel) : '-'}</td>
     </tr>`).join('');
 
     return `<!DOCTYPE html>
@@ -621,6 +708,7 @@ function buildDossierHtml() {
     ${sectionTable('Ordonnances', ['Date', 'Type', 'Statut', 'Médicaments', 'Total'], ordonnancesRows)}
     ${sectionTable('Soins', ['Date', 'Type de soin', 'Montant', 'Notes'], soinsRows)}
     ${sectionTable('Examens', ['Date', 'Catégorie', "Type d'examen", 'Résultat', 'Prix'], examensRows)}
+    ${sectionTable('Vaccinations', ['Vaccin', "Date d'administration", 'Dose', 'Prochain rappel'], vaccinationsRows)}
     <div class="total">Total dépensé par le patient : ${(r.total_depense_patient || 0).toLocaleString()} FCFA</div>
 </body>
 </html>`;
@@ -693,6 +781,9 @@ function exportDossierPDF() {
     addSection('Examens', ['Date', 'Catégorie', "Type d'examen", 'Résultat', 'Prix'],
         dossierPatientData.examens.map(e => [formatDateFR(e.date_examen), e.categorie_nom || '-', e.type_examen_nom || '-', e.resultat || '-', `${(e.prix || 0).toLocaleString()} FCFA`]));
 
+    addSection('Vaccinations', ['Vaccin', "Date d'administration", 'Dose', 'Prochain rappel'],
+        dossierPatientData.vaccinations.map(v => [v.vaccin, formatDateFR(v.date_administration), v.dose || '-', v.prochain_rappel ? formatDateFR(v.prochain_rappel) : '-']));
+
     doc.setFontSize(12);
     doc.setFont(undefined, 'bold');
     doc.text(`Total dépensé : ${(r.total_depense_patient || 0).toLocaleString()} FCFA`, 196, y, { align: 'right' });
@@ -741,6 +832,11 @@ function exportDossierExcel() {
         ? dossierPatientData.examens.map(e => ({ 'Date': formatDateFR(e.date_examen), 'Catégorie': e.categorie_nom || '', "Type d'examen": e.type_examen_nom || '', 'Résultat': e.resultat || '', 'Prix (FCFA)': e.prix || 0 }))
         : [{ 'Info': 'Aucun examen' }];
     XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(examensRows), 'Examens');
+
+    const vaccinationsRows = dossierPatientData.vaccinations.length
+        ? dossierPatientData.vaccinations.map(v => ({ 'Vaccin': v.vaccin, "Date d'administration": formatDateFR(v.date_administration), 'Dose': v.dose || '', 'Prochain rappel': v.prochain_rappel ? formatDateFR(v.prochain_rappel) : '', 'Observations': v.observations || '' }))
+        : [{ 'Info': 'Aucune vaccination' }];
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(vaccinationsRows), 'Vaccinations');
 
     telechargerEtOuvrir(wb, `dossier_${p.nom}_${p.prenom}.xlsx`);
 }
