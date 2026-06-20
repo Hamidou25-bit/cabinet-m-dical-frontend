@@ -1,0 +1,21 @@
+<svg width="512" height="512" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#1976D2"/>
+      <stop offset="100%" stop-color="#0D47A1"/>
+    </linearGradient>
+  </defs>
+  <!-- Fond plein bord a bord (requis pour icones adaptatives Android) -->
+  <rect x="0" y="0" width="512" height="512" fill="url(#bg)"/>
+
+  <!-- Contenu reduit et centre dans la zone de securite (~80% du cadre) -->
+  <g transform="translate(256,256) scale(0.62) translate(-256,-256)">
+    <path d="M 110 300 L 175 300 L 200 250 L 230 340 L 260 230 L 285 300 L 402 300"
+          fill="none" stroke="#FFFFFF" stroke-opacity="0.35" stroke-width="10"
+          stroke-linecap="round" stroke-linejoin="round"/>
+    <rect x="221" y="146" width="70" height="220" rx="18" fill="#FFFFFF"/>
+    <rect x="146" y="221" width="220" height="70" rx="18" fill="#FFFFFF"/>
+    <path d="M256 246 c-10,-16 -34,-16 -44,-2 c-9,12 -6,28 6,40 l38,36 l38,-36
+             c12,-12 15,-28 6,-40 c-10,-14 -34,-14 -44,2 Z" fill="#E53935" opacity="0.92"/>
+  </g>
+</svg>

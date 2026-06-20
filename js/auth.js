@@ -20,7 +20,14 @@ async function apiFetch(path, options = {}) {
         "Authorization": "Bearer " + token,
         "Content-Type": "application/json"
     };
-    const response = await fetch(API_URL + path, options);
+    let response;
+    try {
+        response = await fetch(API_URL + path, options);
+    } catch (err) {
+        const offlineError = new Error("Pas de connexion internet — action impossible hors-ligne.");
+        offlineError.offline = true;
+        throw offlineError;
+    }
 
     if (response.status === 401) {
         localStorage.removeItem("token");
