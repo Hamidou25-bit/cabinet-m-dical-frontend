@@ -5,6 +5,9 @@ let consultationsData = [];
 let fournisseursData = [];
 let depensesData = [];
 let typesDepenseData = [];
+let auditLogsData = [];
+let auditOffset = 0;
+const auditLimit = 100;
 
 // Echappe les caractères HTML sensibles pour éviter d'injecter du HTML
 // dans les pages générées dynamiquement (impression, etc.)
@@ -63,7 +66,7 @@ function initSidebar() {
     }
     const userName = localStorage.getItem('nom_utilisateur') || '';
     const role = localStorage.getItem('role') || '';
-    const roleLabels = { admin: 'Administrateur', medecin: 'Médecin', secretaire: 'Secrétaire' };
+    const roleLabels = { admin: 'Administrateur', medecin: 'Médecin', secretaire: 'Secrétaire', laborantin: 'Laborantin' };
     const initiales = userName ? userName.charAt(0).toUpperCase() : '?';
     const avatarEl = document.getElementById('sidebar-avatar');
     const nameEl = document.getElementById('sidebar-user-name');
@@ -123,6 +126,42 @@ function getCurrentUserId() {
     } catch(e) { return null; }
 }
 
+// Visibilité des items de menu selon le rôle de l'utilisateur connecté
+const MENU_ROLES = {
+    'menu-dashboard':       ['admin'],
+    'menu-patients':        ['admin', 'medecin', 'secretaire'],
+    'menu-rendez-vous':     ['admin', 'medecin', 'secretaire'],
+    'menu-consultations':   ['admin', 'medecin', 'secretaire'],
+    'menu-ordonnances':     ['admin', 'medecin', 'secretaire'],
+    'menu-examens':         ['admin', 'medecin', 'secretaire', 'laborantin'],
+    'menu-soins':           ['admin', 'medecin', 'secretaire'],
+    'menu-dossiers':        ['admin', 'medecin', 'secretaire', 'laborantin'],
+    'menu-stock':           ['admin'],
+    'menu-personnel':       ['admin'],
+    'menu-medecins':        ['admin'],
+    'menu-examens-config':  ['admin'],
+    'menu-type-soins':      ['admin'],
+    'menu-mutuelles':       ['admin'],
+    'menu-comptabilite':    ['admin'],
+    'menu-audit':           ['admin'],
+};
+
+function applyRoleMenu() {
+    const role = localStorage.getItem('role');
+    Object.entries(MENU_ROLES).forEach(([id, roles]) => {
+        const el = document.getElementById(id);
+        if (el) el.style.display = roles.includes(role) ? '' : 'none';
+    });
+    document.getElementById('menu-section-admin').style.display = role === 'admin' ? '' : 'none';
+}
+
+// Première page accessible au rôle de l'utilisateur (le Dashboard étant admin-only,
+// les autres rôles doivent atterrir sur le premier item de menu qui leur est autorisé)
+function getDefaultPageForRole(role) {
+    const entry = Object.entries(MENU_ROLES).find(([, roles]) => roles.includes(role));
+    return entry ? entry[0].replace(/^menu-/, '') : 'patients';
+}
+
 // 1. Initialisation sécurisée (on vérifie si l'élément existe)
 document.addEventListener('DOMContentLoaded', function() {
     // Date
@@ -140,16 +179,8 @@ document.addEventListener('DOMContentLoaded', function() {
         userEl.textContent = '👤 ' + userName;
     }
 
-    // Menu Personnel / Médecins / Comptabilité / Types de soins réservés aux admins
-    if (localStorage.getItem('role') === 'admin') {
-        document.getElementById('menu-section-admin').style.display = '';
-        document.getElementById('menu-personnel').style.display = '';
-        document.getElementById('menu-medecins').style.display = '';
-        document.getElementById('menu-examens-config').style.display = '';
-        document.getElementById('menu-type-soins').style.display = '';
-        document.getElementById('menu-mutuelles').style.display = '';
-        document.getElementById('menu-comptabilite').style.display = '';
-    }
+    // Menu adapté au rôle de l'utilisateur connecté
+    applyRoleMenu();
 
     // Initialisation Flatpickr sur tous les champs de filtre de date (format JJ/MM/AAAA)
     document.querySelectorAll('input[placeholder="JJ/MM/AAAA"]').forEach(input => {
@@ -163,8 +194,14 @@ document.addEventListener('DOMContentLoaded', function() {
     // Initialisation de la sidebar (état collapsed depuis localStorage + avatar utilisateur)
     initSidebar();
 
-    // Chargement initial
-    loadDashboard();
+    // Chargement initial (Dashboard réservé à l'admin — les autres rôles atterrissent
+    // sur le premier item de menu auquel ils ont accès)
+    const role = localStorage.getItem('role');
+    if (role === 'admin') {
+        loadDashboard();
+    } else {
+        showPage(getDefaultPageForRole(role));
+    }
 });
 
 // Navigation
@@ -181,7 +218,7 @@ function showPage(page) {
         : document.querySelector(`.menu-item[onclick*="showPage('${page}')"]`);
     if (menuItem) menuItem.classList.add('active');
 
-    const titles = { dashboard: 'Tableau de bord', 'rendez-vous': 'Rendez-vous', patients: 'Patients', consultations: 'Consultations', stock: 'Stock', ordonnances: 'Ordonnances', examens: 'Examens complémentaires', soins: 'Soins', dossiers: 'Dossiers patients', personnel: 'Personnel', medecins: 'Médecins', 'examens-config': "Types d'examens", 'type-soins': 'Types de soins', mutuelles: 'Mutuelles', comptabilite: 'Comptabilité' };
+    const titles = { dashboard: 'Tableau de bord', 'rendez-vous': 'Rendez-vous', patients: 'Patients', consultations: 'Consultations', stock: 'Stock', ordonnances: 'Ordonnances', examens: 'Examens complémentaires', soins: 'Soins', dossiers: 'Dossiers patients', personnel: 'Personnel', medecins: 'Médecins', 'examens-config': "Types d'examens", 'type-soins': 'Types de soins', mutuelles: 'Mutuelles', comptabilite: 'Comptabilité', audit: "Journal d'audit" };
     if (titles[page]) document.getElementById('page-title').textContent = titles[page];
 
     if (page === 'rendez-vous') loadRendezVous();
@@ -198,6 +235,7 @@ function showPage(page) {
     if (page === 'medecins') loadMedecins();
     if (page === 'examens-config') loadExamensConfig();
     if (page === 'comptabilite') loadFournisseurs();
+    if (page === 'audit') loadAuditLogs();
 }
 
 // Modal
@@ -1086,7 +1124,7 @@ async function ensureFournisseursLoaded() {
 async function ensureStockLoaded() {
     if (stockData.length) return;
     try {
-        const data = await apiFetch('/stock').then(r => r.json());
+        const data = await apiFetch('/stock/designations').then(r => r.json());
         stockData = Array.isArray(data) ? data : [];
     } catch (e) {
         stockData = [];
@@ -2267,34 +2305,80 @@ let medecinsData = [];
 let typesExamensData = [];
 let examensData = [];
 
+const EXAMEN_STATUT_LABELS = { prescrit: 'Prescrit', en_cours: 'En cours', termine: 'Terminé' };
+
 async function loadExamens() {
+    const btnNouvel = document.getElementById('btn-nouvel-examen');
+    if (btnNouvel) btnNouvel.style.display = localStorage.getItem('role') === 'laborantin' ? 'none' : '';
     try {
         examensData = await apiFetch('/examens-complementaires').then(r => r.json());
         renderExamens(examensData);
-    } catch(e) { document.getElementById('table-examens').innerHTML = '<tr><td colspan="7">Erreur</td></tr>'; }
+    } catch(e) { document.getElementById('table-examens').innerHTML = '<tr><td colspan="8">Erreur</td></tr>'; }
 }
 
 function renderExamens(data) {
     const tbody = document.getElementById('table-examens');
-    if (!data.length) { tbody.innerHTML = '<tr><td colspan="7">Aucun examen</td></tr>'; return; }
+    if (!data.length) { tbody.innerHTML = '<tr><td colspan="8">Aucun examen</td></tr>'; return; }
+    const isLaborantin = localStorage.getItem('role') === 'laborantin';
     tbody.innerHTML = data.map(e => {
         const patientDisplay = e.patient_id
             ? `${e.nom || ''} ${e.prenom || ''}`.trim()
             : (e.nom_patient_externe || '-');
+        const statut = e.statut || 'termine';
+
+        let actions = `<button class="btn btn-sm" onclick="printExamen(${e.id})">🖨️ Imprimer</button>`;
+        if (isLaborantin) {
+            if (statut === 'prescrit') {
+                actions += ` <button class="btn btn-sm btn-primary" onclick="prendreEnChargeExamen(${e.id})">Prendre en charge</button>`;
+            } else if (statut === 'en_cours') {
+                actions += ` <button class="btn btn-sm btn-primary" onclick="openResultatExamenModal(${e.id})">Saisir résultat</button>`;
+            }
+        } else {
+            actions += ` <button class="btn btn-sm" onclick="editExamen(${e.id})">Modifier</button>
+                <button class="btn btn-sm btn-danger" onclick="deleteExamen(${e.id})">Supprimer</button>`;
+        }
+
         return `<tr>
             <td>${formatDateFR(e.date_examen)}</td>
             <td>${escapeHtml(patientDisplay)}${!e.patient_id ? ' <span style="font-size:0.75em;color:#6b7280;">(ext.)</span>' : ''}</td>
             <td>${escapeHtml(e.type_nom || '-')}</td>
             <td>${escapeHtml(e.examen_nom || '-')}</td>
+            <td>${escapeHtml(EXAMEN_STATUT_LABELS[statut] || statut)}</td>
             <td>${escapeHtml(e.resultat || '-')}</td>
             <td>${(e.prix || 0).toLocaleString()} FCFA</td>
-            <td>
-                <button class="btn btn-sm" onclick="printExamen(${e.id})">🖨️ Imprimer</button>
-                <button class="btn btn-sm" onclick="editExamen(${e.id})">Modifier</button>
-                <button class="btn btn-sm btn-danger" onclick="deleteExamen(${e.id})">Supprimer</button>
-            </td>
+            <td>${actions}</td>
         </tr>`;
     }).join('');
+}
+
+async function prendreEnChargeExamen(id) {
+    try {
+        await apiFetch(`/examens-complementaires/${id}/statut`, { method: 'PATCH', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ statut: 'en_cours' }) });
+        loadExamens();
+        showToast('Examen pris en charge', 'success');
+    } catch(e) { showToast('Erreur : ' + e.message, 'error'); }
+}
+
+function openResultatExamenModal(id) {
+    document.getElementById('re-id').value = id;
+    document.getElementById('re-resultat').value = '';
+    openModal('modal-resultat-examen');
+}
+
+async function saveResultatExamen() {
+    const id = document.getElementById('re-id').value;
+    const resultat = document.getElementById('re-resultat').value.trim();
+    if (!resultat) {
+        showToast('Le résultat est obligatoire', 'error');
+        document.getElementById('re-resultat').classList.add('input-error');
+        return;
+    }
+    try {
+        await apiFetch(`/examens-complementaires/${id}/resultat`, { method: 'PATCH', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ resultat }) });
+        closeModal('modal-resultat-examen');
+        loadExamens();
+        showToast('Résultat enregistré', 'success');
+    } catch(e) { showToast('Erreur : ' + e.message, 'error'); }
 }
 
 function getFilteredExamens() {
@@ -2435,7 +2519,6 @@ async function openExamenModal() {
 
     document.getElementById('e-date').value = new Date().toISOString().split('T')[0];
     document.getElementById('e-renseignement').value = '';
-    document.getElementById('e-resultat').value = '';
 
     document.getElementById('examen-lignes-container').innerHTML = '';
     addLigneExamen();
@@ -2479,7 +2562,6 @@ async function editExamen(id) {
     document.getElementById('e-date').value = examen.date_examen || '';
     document.getElementById('e-medecin').value = examen.medecin_id || '';
     document.getElementById('e-renseignement').value = examen.renseignement_clinique || '';
-    document.getElementById('e-resultat').value = examen.resultat || '';
 
     openModal('modal-examen');
 }
@@ -2522,7 +2604,6 @@ async function saveExamen() {
     const dateExamen = document.getElementById('e-date').value;
     const medecinId = document.getElementById('e-medecin').value ? parseInt(document.getElementById('e-medecin').value) : null;
     const renseignement = document.getElementById('e-renseignement').value;
-    const resultat = document.getElementById('e-resultat').value || null;
 
     try {
         if (id) {
@@ -2534,8 +2615,7 @@ async function saveExamen() {
                 date_examen: dateExamen,
                 prix: parseFloat(ligne.querySelector('.le-prix').value) || 0,
                 medecin_id: medecinId,
-                renseignement_clinique: renseignement,
-                resultat: resultat
+                renseignement_clinique: renseignement
             };
             await apiFetch(`/examens-complementaires/${id}`, { method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(data) });
         } else {
@@ -2547,8 +2627,7 @@ async function saveExamen() {
                     date_examen: dateExamen,
                     prix: parseFloat(ligne.querySelector('.le-prix').value) || 0,
                     medecin_id: medecinId,
-                    renseignement_clinique: renseignement,
-                    resultat: resultat
+                    renseignement_clinique: renseignement
                 };
                 await apiFetch('/examens-complementaires/', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(data) });
             }
@@ -2649,7 +2728,7 @@ function filterUtilisateurs() {
     renderUtilisateurs(getFilteredUtilisateurs());
 }
 
-const ROLE_LABELS = { admin: 'Administrateur', medecin: 'Médecin', secretaire: 'Secrétaire' };
+const ROLE_LABELS = { admin: 'Administrateur', medecin: 'Médecin', secretaire: 'Secrétaire', laborantin: 'Laborantin' };
 
 function renderUtilisateurs(data) {
     const tbody = document.getElementById('table-utilisateurs');
@@ -4096,5 +4175,109 @@ async function exportBilanExcel() {
         telechargerEtOuvrir(wb, `bilan_${dateDebut}_${dateFin}.xlsx`);
     } catch(e) {
         showToast('Erreur lors de la génération du bilan : ' + e.message, 'error');
+    }
+}
+
+// Journal d'audit (admin uniquement)
+async function loadAuditUserFilter() {
+    if (!utilisateursData.length) {
+        try { utilisateursData = await apiFetch('/utilisateurs/').then(r => r.json()); } catch(e) { return; }
+    }
+    const select = document.getElementById('audit-filter-user');
+    select.innerHTML = '<option value="">Tous les utilisateurs</option>' +
+        utilisateursData.map(u => `<option value="${u.id}">${escapeHtml(u.nom_complet || u.nom_utilisateur)}</option>`).join('');
+}
+
+async function loadAuditLogs(resetOffset = true) {
+    if (resetOffset) auditOffset = 0;
+    await loadAuditUserFilter();
+    await fetchAuditLogs();
+}
+
+function buildAuditQuery() {
+    const params = new URLSearchParams();
+    const userId = document.getElementById('audit-filter-user').value;
+    const tableName = document.getElementById('audit-filter-table').value;
+    const action = document.getElementById('audit-filter-action').value;
+    const dateDebut = parseDateFR(document.getElementById('audit-filter-date-debut').value);
+    const dateFin = parseDateFR(document.getElementById('audit-filter-date-fin').value);
+    if (userId) params.set('user_id', userId);
+    if (tableName) params.set('table_name', tableName);
+    if (action) params.set('action', action);
+    if (dateDebut) params.set('date_debut', dateDebut);
+    if (dateFin) params.set('date_fin', dateFin);
+    params.set('limit', auditLimit);
+    params.set('offset', auditOffset);
+    return params.toString();
+}
+
+async function fetchAuditLogs() {
+    const tbody = document.getElementById('table-audit-logs');
+    tbody.innerHTML = '<tr><td colspan="7" class="loading">Chargement...</td></tr>';
+    try {
+        auditLogsData = await apiFetch(`/audit-logs/?${buildAuditQuery()}`).then(r => r.json());
+        renderAuditLogs(auditLogsData);
+        document.getElementById('audit-page-info').textContent = `Page ${Math.floor(auditOffset / auditLimit) + 1}`;
+        document.getElementById('audit-btn-prev').disabled = auditOffset === 0;
+        document.getElementById('audit-btn-next').disabled = auditLogsData.length < auditLimit;
+    } catch(e) {
+        tbody.innerHTML = '<tr><td colspan="7">Erreur lors du chargement</td></tr>';
+    }
+}
+
+function renderAuditLogs(data) {
+    const tbody = document.getElementById('table-audit-logs');
+    if (!data.length) { tbody.innerHTML = '<tr><td colspan="7">Aucune entrée</td></tr>'; return; }
+    tbody.innerHTML = data.map(log => `<tr>
+        <td>${escapeHtml(log.timestamp || '-')}</td>
+        <td>${escapeHtml(log.username || '-')}</td>
+        <td>${escapeHtml(log.action || '-')}</td>
+        <td>${escapeHtml(log.table_name || '-')}</td>
+        <td>${log.record_id ?? '-'}</td>
+        <td title="${escapeHtml(log.details || '')}" style="max-width:300px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${escapeHtml(log.details || '-')}</td>
+        <td>${escapeHtml(log.ip_address || '-')}</td>
+    </tr>`).join('');
+}
+
+function filterAuditLogs() {
+    auditOffset = 0;
+    fetchAuditLogs();
+}
+
+function resetFilterAuditLogs() {
+    document.getElementById('audit-filter-user').value = '';
+    document.getElementById('audit-filter-table').value = '';
+    document.getElementById('audit-filter-action').value = '';
+    clearFlatpickr('audit-filter-date-debut');
+    clearFlatpickr('audit-filter-date-fin');
+    auditOffset = 0;
+    fetchAuditLogs();
+}
+
+function auditPrevPage() {
+    if (auditOffset === 0) return;
+    auditOffset = Math.max(0, auditOffset - auditLimit);
+    fetchAuditLogs();
+}
+
+function auditNextPage() {
+    if (auditLogsData.length < auditLimit) return;
+    auditOffset += auditLimit;
+    fetchAuditLogs();
+}
+
+async function purgeAuditLogs() {
+    if (!confirm("Cette action va supprimer définitivement tout l'historique du journal d'audit. Cette action est irréversible. Continuer ?")) return;
+    try {
+        await apiFetch('/audit-logs/', { method: 'DELETE' });
+        auditOffset = 0;
+        auditLogsData = [];
+        renderAuditLogs([]);
+        document.getElementById('audit-page-info').textContent = '';
+        document.getElementById('audit-btn-prev').disabled = true;
+        document.getElementById('audit-btn-next').disabled = true;
+        showToast("Journal d'audit vidé", 'success');
+    } catch (e) {
+        showToast("Erreur lors de la suppression du journal d'audit", 'error');
     }
 }
