@@ -1,4 +1,6 @@
-const API_URL = "http://51.161.10.252:8000";
+const API_URL = (location.hostname === "cabinet-babamouneissa.com" || location.hostname === "www.cabinet-babamouneissa.com")
+    ? "https://" + location.hostname + "/api"
+    : (location.hostname === "51.161.10.252" ? "http://51.161.10.252/api" : "http://localhost:8001");
 
 // Redirige vers la page de connexion si pas de token
 function checkAuth() {
