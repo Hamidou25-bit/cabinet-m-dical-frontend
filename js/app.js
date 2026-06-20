@@ -206,6 +206,18 @@ document.addEventListener('DOMContentLoaded', function() {
 
 // Navigation
 function showPage(page) {
+    // Défense en profondeur : bloque l'accès à une page dont le rôle courant n'a pas
+    // le droit (même source de vérité que la sidebar, MENU_ROLES) - empêche tout appel
+    // API inutile (et ses 403) si showPage() est appelée par un autre chemin que le clic
+    // sur le menu (ex: navigation directe, code legacy).
+    const role = localStorage.getItem('role');
+    const menuId = 'menu-' + page;
+    if (MENU_ROLES[menuId] && !MENU_ROLES[menuId].includes(role)) {
+        const fallback = getDefaultPageForRole(role);
+        if (fallback !== page) showPage(fallback);
+        return;
+    }
+
     closeSidebar();
     document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
     document.querySelectorAll('.menu-item').forEach(m => m.classList.remove('active'));
@@ -942,7 +954,9 @@ async function savePatient() {
         } else {
             await apiFetch('/patients', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(patient) });
         }
-        closeModal('modal-patient'); loadPatients(); loadDashboard(); showToast('Patient enregistré !', 'success');
+        closeModal('modal-patient'); loadPatients();
+        if (localStorage.getItem('role') === 'admin') loadDashboard();
+        showToast('Patient enregistré !', 'success');
     } catch(e) { showToast('Erreur lors de l\'enregistrement : ' + e.message, 'error'); }
 }
 
@@ -950,7 +964,8 @@ async function deletePatient(id) {
     if (!confirm('Voulez-vous vraiment supprimer ce patient ?')) return;
     try {
         await apiFetch(`/patients/${id}`, { method: 'DELETE' });
-        loadPatients(); loadDashboard();
+        loadPatients();
+        if (localStorage.getItem('role') === 'admin') loadDashboard();
     } catch(e) { showToast('Erreur lors de la suppression', 'error'); }
 }
 
