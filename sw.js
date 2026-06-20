@@ -67,7 +67,12 @@ self.addEventListener('activate', (event) => {
 async function networkFirst(request, cacheName) {
     const cache = await caches.open(cacheName);
     try {
-        const response = await fetch(request);
+        // cache: 'no-store' contourne le cache HTTP du navigateur (qui peut
+        // appliquer une fraîcheur heuristique en l'absence d'en-tête
+        // Cache-Control explicite côté serveur) - sans ça, "network-first"
+        // peut silencieusement renvoyer une réponse HTTP périmée sans même
+        // toucher le réseau, retardant la propagation des déploiements.
+        const response = await fetch(request, { cache: 'no-store' });
         if (response && response.ok) {
             cache.put(request, response.clone());
         }
