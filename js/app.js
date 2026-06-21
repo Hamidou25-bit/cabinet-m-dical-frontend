@@ -1835,7 +1835,7 @@ function getFilteredOrdonnancesTab(type) {
     const q = document.getElementById('search-ordonnances-' + type).value.toLowerCase();
     return ordonnancesData[type].filter(o => {
         const beneficiaire = type === 'patient' ? `${o.nom || ''} ${o.prenom || ''}` : (o.beneficiaire || '');
-        return beneficiaire.toLowerCase().includes(q) || (o.motif || '').toLowerCase().includes(q);
+        return beneficiaire.toLowerCase().includes(q) || (o.medecin_nom || '').toLowerCase().includes(q);
     });
 }
 
@@ -1849,7 +1849,7 @@ function renderOrdonnancesTab(type) {
         return `<tr ondblclick="editOrdonnance(${o.id})">
             <td>${formatDateFR(o.date_ordonnance)}</td>
             <td>${escapeHtml(beneficiaire)}</td>
-            <td>${escapeHtml(o.motif || '-')}</td>
+            <td>${escapeHtml(o.medecin_nom || '-')}</td>
             <td>${(o.montant_total || 0).toLocaleString()} FCFA</td>
             <td>${statut}</td>
             <td>
@@ -1889,7 +1889,7 @@ async function exportOrdonnancesExcel(type) {
             syntheseRows.push({
                 'Date': formatDateFR(o.date_ordonnance),
                 'Bénéficiaire': beneficiaire,
-                'Motif': o.motif || '',
+                'Prescripteur': o.medecin_nom || '',
                 'Total': o.montant_total || 0,
                 'Statut': o.est_validee ? 'Validée' : 'En attente'
             });
@@ -1969,7 +1969,7 @@ function buildOrdonnanceHtml(ordonnance) {
     <div class="info">
         <p><strong>Bénéficiaire :</strong> ${escapeHtml(beneficiaire)}</p>
         <p><strong>Date :</strong> ${escapeHtml(formatDateFR(ordonnance.date_ordonnance))}</p>
-        ${ordonnance.motif ? `<p><strong>Motif :</strong> ${escapeHtml(ordonnance.motif)}</p>` : ''}
+        ${ordonnance.medecin_nom ? `<p><strong>Prescripteur :</strong> ${escapeHtml(ordonnance.medecin_nom)}</p>` : ''}
     </div>
     <table>
         <thead>
@@ -2022,9 +2022,9 @@ function exportOrdonnancePDF(ordonnance) {
     doc.text(`Bénéficiaire : ${beneficiaire}`, 14, y);
     y += 6;
     doc.text(`Date : ${formatDateFR(ordonnance.date_ordonnance)}`, 14, y);
-    if (ordonnance.motif) {
+    if (ordonnance.medecin_nom) {
         y += 6;
-        doc.text(`Motif : ${ordonnance.motif}`, 14, y);
+        doc.text(`Prescripteur : ${ordonnance.medecin_nom}`, 14, y);
     }
 
     const rows = (ordonnance.lignes || []).map(l => [
@@ -2082,16 +2082,18 @@ async function openOrdonnanceModal(type) {
     ordonnanceFormReturnTab = type || 'patient';
 
     // Remplir la liste des patients + charger dosages/formes/stock en parallèle
-    const tasks = [loadOrdonnanceRefs(), ensureStockLoaded(), ensureMutuellesLoaded()];
+    const tasks = [loadOrdonnanceRefs(), ensureStockLoaded(), ensureMutuellesLoaded(), ensureMedecinsLoaded()];
     if (!patientsData.length) tasks.push(loadPatients());
     await Promise.all(tasks);
     populateStockDesignationsDatalist();
     populateMutuelleSelect('o');
     resetPatientCombo('o');
 
+    const medecinSelect = document.getElementById('o-medecin');
+    medecinSelect.innerHTML = '<option value="">-- Aucun --</option>' + medecinsData.map(m => `<option value="${m.id}">${m.nom}</option>`).join('');
+
     // Date par défaut = aujourd'hui
     document.getElementById('o-date').value = new Date().toISOString().split('T')[0];
-    document.getElementById('o-motif').value = '';
     document.getElementById('o-beneficiaire').value = '';
     document.getElementById('o-est-validee').checked = false;
     document.getElementById('o-mode-paiement').value = 'especes';
@@ -2110,11 +2112,11 @@ async function editOrdonnance(id) {
     document.getElementById('page-title').textContent = 'Modifier l\'ordonnance';
     document.getElementById('o-id').value = id;
 
-    const tasks = [loadOrdonnanceRefs(), ensureStockLoaded(), ensureMutuellesLoaded(), apiFetch(`/ordonnances/${id}`).then(r => r.json())];
+    const tasks = [loadOrdonnanceRefs(), ensureStockLoaded(), ensureMutuellesLoaded(), ensureMedecinsLoaded(), apiFetch(`/ordonnances/${id}`).then(r => r.json())];
     if (!patientsData.length) tasks.push(loadPatients());
 
     try {
-        const [, , , ordonnance] = await Promise.all(tasks);
+        const [, , , , ordonnance] = await Promise.all(tasks);
         populateStockDesignationsDatalist();
         populateMutuelleSelect('o');
 
@@ -2127,7 +2129,9 @@ async function editOrdonnance(id) {
             resetPatientCombo('o');
         }
         document.getElementById('o-date').value = ordonnance.date_ordonnance || '';
-        document.getElementById('o-motif').value = ordonnance.motif || '';
+        const medecinSelect = document.getElementById('o-medecin');
+        medecinSelect.innerHTML = '<option value="">-- Aucun --</option>' + medecinsData.map(m => `<option value="${m.id}">${m.nom}</option>`).join('');
+        medecinSelect.value = ordonnance.medecin_id || '';
         document.getElementById('o-beneficiaire').value = ordonnance.beneficiaire || '';
         document.getElementById('o-est-validee').checked = !!ordonnance.est_validee;
         document.getElementById('o-mode-paiement').value = ordonnance.mode_paiement || 'especes';
@@ -2284,7 +2288,7 @@ async function saveOrdonnance() {
     const data = {
         patient_id: typeBeneficiaire === 'patient' && patientId ? parseInt(patientId) : null,
         date_ordonnance: document.getElementById('o-date').value,
-        motif: document.getElementById('o-motif').value,
+        medecin_id: document.getElementById('o-medecin').value ? parseInt(document.getElementById('o-medecin').value) : null,
         type_beneficiaire: typeBeneficiaire,
         beneficiaire: document.getElementById('o-beneficiaire').value,
         est_validee: document.getElementById('o-est-validee').checked ? 1 : 0,
@@ -4127,7 +4131,7 @@ async function exportBilanExcel() {
                 'Date': formatDateFR(o.date_ordonnance),
                 'Bénéficiaire': o.type_beneficiaire === 'patient' ? `${o.nom || ''} ${o.prenom || ''}`.trim() : (o.beneficiaire || ''),
                 'Type': o.type_beneficiaire || '',
-                'Motif': o.motif || '',
+                'Prescripteur': o.medecin_nom || '',
                 'Montant (FCFA)': o.montant_total || 0,
                 'Validée': o.est_validee ? 'Oui' : 'Non',
             }))
