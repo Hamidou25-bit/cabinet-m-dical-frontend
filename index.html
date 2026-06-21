@@ -70,8 +70,8 @@
         <div class="menu-item" id="menu-personnel" style="display:none;" onclick="showPage('personnel')" data-tooltip="Personnel">
             <span class="icon">👔</span><span class="menu-text"> Personnel</span>
         </div>
-        <div class="menu-item" id="menu-medecins" style="display:none;" onclick="showPage('medecins')" data-tooltip="Médecins">
-            <span class="icon">🆔</span><span class="menu-text"> Médecins</span>
+        <div class="menu-item" id="menu-prescripteurs" style="display:none;" onclick="showPage('prescripteurs')" data-tooltip="Prescripteurs">
+            <span class="icon">🆔</span><span class="menu-text"> Prescripteurs</span>
         </div>
         <div class="menu-item" id="menu-examens-config" style="display:none;" onclick="showPage('examens-config')" data-tooltip="Types d'examens">
             <span class="icon">⚙️</span><span class="menu-text"> Types d'examens</span>
@@ -257,7 +257,7 @@
                         <tr>
                             <th>Heure</th>
                             <th>Patient</th>
-                            <th>Médecin</th>
+                            <th>Prescripteur</th>
                             <th>Motif</th>
                             <th>Statut</th>
                             <th>Actions</th>
@@ -289,7 +289,7 @@
                         <tr>
                             <th>Date</th>
                             <th>Patient</th>
-                            <th>Médecin</th>
+                            <th>Prescripteur</th>
                             <th>Motif</th>
                             <th>Diagnostic</th>
                             <th>Montant</th>
@@ -786,14 +786,14 @@
             </div>
         </div>
 
-        <!-- MEDECINS -->
-        <div id="page-medecins" class="page">
+        <!-- PRESCRIPTEURS -->
+        <div id="page-prescripteurs" class="page">
             <div class="table-container">
                 <div class="table-header">
-                    <h3>Liste des médecins</h3>
+                    <h3>Liste des prescripteurs</h3>
                     <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
-                        <input type="text" class="search-box" placeholder="Rechercher..." id="search-medecins" oninput="filterMedecins()">
-                        <button class="btn btn-primary" onclick="openNewMedecinModal()">+ Nouveau médecin</button>
+                        <input type="text" class="search-box" placeholder="Rechercher..." id="search-prescripteurs" oninput="filterPrescripteurs()">
+                        <button class="btn btn-primary" onclick="openNewPrescripteurModal()">+ Nouveau prescripteur</button>
                     </div>
                 </div>
                 <table>
@@ -803,7 +803,7 @@
                             <th>Actions</th>
                         </tr>
                     </thead>
-                    <tbody id="table-medecins">
+                    <tbody id="table-prescripteurs">
                         <tr><td colspan="2" class="loading">Chargement...</td></tr>
                     </tbody>
                 </table>
@@ -1192,7 +1192,7 @@
                 <input type="text" id="e-total" readonly>
             </div>
             <div class="form-group">
-                <label>Médecin</label>
+                <label>Prescripteur</label>
                 <select id="e-medecin"></select>
             </div>
         </div>
@@ -1242,7 +1242,7 @@
         </div>
         <div class="form-row">
             <div class="form-group">
-                <label>Médecin</label>
+                <label>Prescripteur</label>
                 <select id="co-medecin"></select>
             </div>
             <div class="form-group">
@@ -1452,18 +1452,18 @@
     </div>
 </div>
 
-<!-- MODAL MEDECIN -->
-<div class="modal-overlay" id="modal-medecin">
+<!-- MODAL PRESCRIPTEUR -->
+<div class="modal-overlay" id="modal-prescripteur">
     <div class="modal">
-        <h3 id="modal-medecin-title">Nouveau Médecin</h3>
-        <input type="hidden" id="me-id">
+        <h3 id="modal-prescripteur-title">Nouveau Prescripteur</h3>
+        <input type="hidden" id="pr-id">
         <div class="form-group">
             <label>Nom<span class="required-mark">*</span></label>
-            <input type="text" id="me-nom" placeholder="Nom du médecin">
+            <input type="text" id="pr-nom" placeholder="Nom du prescripteur">
         </div>
         <div class="modal-actions">
-            <button class="btn" onclick="closeModal('modal-medecin')">Annuler</button>
-            <button class="btn btn-primary" onclick="saveMedecin()">Enregistrer</button>
+            <button class="btn" onclick="closeModal('modal-prescripteur')">Annuler</button>
+            <button class="btn btn-primary" onclick="savePrescripteur()">Enregistrer</button>
         </div>
     </div>
 </div>
@@ -1547,7 +1547,7 @@
                 </div>
             </div>
             <div class="form-group">
-                <label>Médecin</label>
+                <label>Prescripteur</label>
                 <select id="rdv-medecin"></select>
             </div>
         </div>

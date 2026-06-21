@@ -138,7 +138,7 @@ const MENU_ROLES = {
     'menu-dossiers':        ['admin', 'medecin', 'secretaire', 'laborantin'],
     'menu-stock':           ['admin'],
     'menu-personnel':       ['admin'],
-    'menu-medecins':        ['admin'],
+    'menu-prescripteurs':   ['admin'],
     'menu-examens-config':  ['admin'],
     'menu-type-soins':      ['admin'],
     'menu-mutuelles':       ['admin'],
@@ -230,7 +230,7 @@ function showPage(page) {
         : document.querySelector(`.menu-item[onclick*="showPage('${page}')"]`);
     if (menuItem) menuItem.classList.add('active');
 
-    const titles = { dashboard: 'Tableau de bord', 'rendez-vous': 'Rendez-vous', patients: 'Patients', consultations: 'Consultations', stock: 'Stock', ordonnances: 'Ordonnances', examens: 'Examens complémentaires', soins: 'Soins', dossiers: 'Dossiers patients', personnel: 'Personnel', medecins: 'Médecins', 'examens-config': "Types d'examens", 'type-soins': 'Types de soins', mutuelles: 'Mutuelles', comptabilite: 'Comptabilité', audit: "Journal d'audit" };
+    const titles = { dashboard: 'Tableau de bord', 'rendez-vous': 'Rendez-vous', patients: 'Patients', consultations: 'Consultations', stock: 'Stock', ordonnances: 'Ordonnances', examens: 'Examens complémentaires', soins: 'Soins', dossiers: 'Dossiers patients', personnel: 'Personnel', prescripteurs: 'Prescripteurs', 'examens-config': "Types d'examens", 'type-soins': 'Types de soins', mutuelles: 'Mutuelles', comptabilite: 'Comptabilité', audit: "Journal d'audit" };
     if (titles[page]) document.getElementById('page-title').textContent = titles[page];
 
     if (page === 'rendez-vous') loadRendezVous();
@@ -244,7 +244,7 @@ function showPage(page) {
     if (page === 'type-soins') loadTypeSoinsAdmin();
     if (page === 'mutuelles') loadMutuellesAdmin();
     if (page === 'personnel') loadUtilisateurs();
-    if (page === 'medecins') loadMedecins();
+    if (page === 'prescripteurs') loadPrescripteurs();
     if (page === 'examens-config') loadExamensConfig();
     if (page === 'comptabilite') loadFournisseurs();
     if (page === 'audit') loadAuditLogs();
@@ -588,7 +588,7 @@ function renderDossierTab() {
     const tbody = document.getElementById('dossier-table-body');
 
     if (dossierActiveTab === 'consultations') {
-        thead.innerHTML = '<tr><th>Date</th><th>Médecin</th><th>Motif</th><th>Diagnostic</th><th>Montant</th></tr>';
+        thead.innerHTML = '<tr><th>Date</th><th>Prescripteur</th><th>Motif</th><th>Diagnostic</th><th>Montant</th></tr>';
         const rows = dossierPatientData.consultations;
         tbody.innerHTML = rows.length ? rows.map(c => `<tr>
             <td>${formatDateFR(c.date_consult)}</td><td>${c.medecin_nom || '-'}</td><td>${c.motif || '-'}</td><td>${c.diagnostic || '-'}</td><td>${(c.montant_total || 0).toLocaleString()} FCFA</td>
@@ -756,7 +756,7 @@ function buildDossierHtml() {
         <p><strong>N° Dossier :</strong> ${escapeHtml(p.numero_dossier || '-')} — <strong>Téléphone :</strong> ${escapeHtml(p.telephone || '-')}</p>
         <p><strong>Dernière visite :</strong> ${formatDateFR(r.derniere_visite) || '-'}</p>
     </div>
-    ${sectionTable('Consultations', ['Date', 'Médecin', 'Motif', 'Diagnostic', 'Montant'], consultationsRows)}
+    ${sectionTable('Consultations', ['Date', 'Prescripteur', 'Motif', 'Diagnostic', 'Montant'], consultationsRows)}
     ${sectionTable('Ordonnances', ['Date', 'Type', 'Statut', 'Médicaments', 'Total'], ordonnancesRows)}
     ${sectionTable('Soins', ['Date', 'Type de soin', 'Montant', 'Notes'], soinsRows)}
     ${sectionTable('Examens', ['Date', 'Catégorie', "Type d'examen", 'Résultat', 'Prix'], examensRows)}
@@ -821,7 +821,7 @@ function exportDossierPDF() {
         if (y > 260) { doc.addPage(); y = 15; }
     };
 
-    addSection('Consultations', ['Date', 'Médecin', 'Motif', 'Diagnostic', 'Montant'],
+    addSection('Consultations', ['Date', 'Prescripteur', 'Motif', 'Diagnostic', 'Montant'],
         dossierPatientData.consultations.map(c => [formatDateFR(c.date_consult), c.medecin_nom || '-', c.motif || '-', c.diagnostic || '-', `${(c.montant_total || 0).toLocaleString()} FCFA`]));
 
     addSection('Ordonnances', ['Date', 'Type', 'Statut', 'Médicaments', 'Total'],
@@ -866,7 +866,7 @@ function exportDossierExcel() {
     XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(syntheseRows), 'Résumé');
 
     const consultationsRows = dossierPatientData.consultations.length
-        ? dossierPatientData.consultations.map(c => ({ 'Date': formatDateFR(c.date_consult), 'Médecin': c.medecin_nom || '', 'Motif': c.motif || '', 'Diagnostic': c.diagnostic || '', 'Montant (FCFA)': c.montant_total || 0 }))
+        ? dossierPatientData.consultations.map(c => ({ 'Date': formatDateFR(c.date_consult), 'Prescripteur': c.medecin_nom || '', 'Motif': c.motif || '', 'Diagnostic': c.diagnostic || '', 'Montant (FCFA)': c.montant_total || 0 }))
         : [{ 'Info': 'Aucune consultation' }];
     XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(consultationsRows), 'Consultations');
 
@@ -1081,7 +1081,7 @@ function exportConsultationsExcel() {
     const rows = data.map(c => ({
         'Date': formatDateFR(c.date_consult),
         'Patient': `${c.nom || ''} ${c.prenom || ''}`.trim(),
-        'Médecin': c.medecin_nom || '',
+        'Prescripteur': c.medecin_nom || '',
         'Motif': c.motif || '',
         'Diagnostic': c.diagnostic || '',
         'Observation': c.observation || '',
@@ -2430,7 +2430,7 @@ function exportExamensExcel() {
         'Type patient': e.patient_id ? 'Enregistré' : 'Externe',
         'Type': e.type_nom || '',
         'Examen': e.examen_nom || '',
-        'Médecin': e.medecin_nom || '',
+        'Prescripteur': e.medecin_nom || '',
         'Renseignement clinique': e.renseignement_clinique || '',
         'Résultat': e.resultat || '',
         'Prix': e.prix || 0
@@ -2702,7 +2702,7 @@ body{font-family:'Helvetica Neue',Arial,sans-serif;margin:0;padding:20px;color:#
     <h2>Détail de l'examen</h2>
     <div class="row"><span class="label">Catégorie :</span><span class="value">${escapeHtml(examen.type_nom || '-')}</span></div>
     <div class="row"><span class="label">Type d'examen :</span><span class="value">${escapeHtml(examen.examen_nom || '-')}</span></div>
-    <div class="row"><span class="label">Médecin :</span><span class="value">${escapeHtml(medecin)}</span></div>
+    <div class="row"><span class="label">Prescripteur :</span><span class="value">${escapeHtml(medecin)}</span></div>
     <div class="row"><span class="label">Prix :</span><span class="value">${(examen.prix || 0).toLocaleString()} FCFA</span></div>
 </div>
 ${examen.renseignement_clinique ? `<div class="section"><h2>Renseignement clinique</h2><div class="resultat-box">${escapeHtml(examen.renseignement_clinique)}</div></div>` : ''}
@@ -2914,73 +2914,73 @@ async function saveMonCompte() {
     } catch(e) { showToast(e.message || 'Erreur', 'error'); }
 }
 
-// Médecins
-async function loadMedecins() {
+// Prescripteurs
+async function loadPrescripteurs() {
     try {
         medecinsData = await apiFetch('/medecins').then(r => r.json());
-        renderMedecins(medecinsData);
-    } catch(e) { document.getElementById('table-medecins').innerHTML = '<tr><td colspan="2">Erreur</td></tr>'; }
+        renderPrescripteurs(medecinsData);
+    } catch(e) { document.getElementById('table-prescripteurs').innerHTML = '<tr><td colspan="2">Erreur</td></tr>'; }
 }
 
-function renderMedecins(data) {
-    const tbody = document.getElementById('table-medecins');
-    if (!data.length) { tbody.innerHTML = '<tr><td colspan="2">Aucun médecin</td></tr>'; return; }
+function renderPrescripteurs(data) {
+    const tbody = document.getElementById('table-prescripteurs');
+    if (!data.length) { tbody.innerHTML = '<tr><td colspan="2">Aucun prescripteur</td></tr>'; return; }
     tbody.innerHTML = data.map(m => `<tr>
         <td>${m.nom}</td>
         <td>
-            <button class="btn btn-sm" onclick="editMedecin(${m.id})">Modifier</button>
-            <button class="btn btn-sm btn-danger" onclick="deleteMedecin(${m.id})">Supprimer</button>
+            <button class="btn btn-sm" onclick="editPrescripteur(${m.id})">Modifier</button>
+            <button class="btn btn-sm btn-danger" onclick="deletePrescripteur(${m.id})">Supprimer</button>
         </td>
     </tr>`).join('');
 }
 
-function filterMedecins() {
-    const q = document.getElementById('search-medecins').value.toLowerCase();
-    renderMedecins(medecinsData.filter(m => (m.nom||'').toLowerCase().includes(q)));
+function filterPrescripteurs() {
+    const q = document.getElementById('search-prescripteurs').value.toLowerCase();
+    renderPrescripteurs(medecinsData.filter(m => (m.nom||'').toLowerCase().includes(q)));
 }
 
-function openNewMedecinModal() {
-    document.getElementById('modal-medecin-title').textContent = 'Nouveau Médecin';
-    document.getElementById('me-id').value = '';
-    document.getElementById('me-nom').value = '';
-    openModal('modal-medecin');
+function openNewPrescripteurModal() {
+    document.getElementById('modal-prescripteur-title').textContent = 'Nouveau Prescripteur';
+    document.getElementById('pr-id').value = '';
+    document.getElementById('pr-nom').value = '';
+    openModal('modal-prescripteur');
 }
 
-function editMedecin(id) {
+function editPrescripteur(id) {
     const medecin = medecinsData.find(m => m.id === id);
     if (!medecin) return;
-    document.getElementById('modal-medecin-title').textContent = 'Modifier Médecin';
-    document.getElementById('me-id').value = medecin.id;
-    document.getElementById('me-nom').value = medecin.nom || '';
-    openModal('modal-medecin');
+    document.getElementById('modal-prescripteur-title').textContent = 'Modifier Prescripteur';
+    document.getElementById('pr-id').value = medecin.id;
+    document.getElementById('pr-nom').value = medecin.nom || '';
+    openModal('modal-prescripteur');
 }
 
-async function saveMedecin() {
+async function savePrescripteur() {
     if (!validateRequiredFields([
-        { id: 'me-nom', label: 'Nom' },
+        { id: 'pr-nom', label: 'Nom' },
     ])) return;
 
-    const id = document.getElementById('me-id').value;
-    const medecin = { nom: document.getElementById('me-nom').value };
+    const id = document.getElementById('pr-id').value;
+    const medecin = { nom: document.getElementById('pr-nom').value };
     try {
         if (id) {
             await apiFetch(`/medecins/${id}`, { method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(medecin) });
         } else {
             await apiFetch('/medecins', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(medecin) });
         }
-        closeModal('modal-medecin');
+        closeModal('modal-prescripteur');
         medecinsData = [];
-        loadMedecins();
-        showToast('Médecin enregistré !', 'success');
+        loadPrescripteurs();
+        showToast('Prescripteur enregistré !', 'success');
     } catch(e) { showToast('Erreur lors de l\'enregistrement : ' + e.message, 'error'); }
 }
 
-async function deleteMedecin(id) {
-    if (!confirm('Voulez-vous vraiment supprimer ce médecin ?')) return;
+async function deletePrescripteur(id) {
+    if (!confirm('Voulez-vous vraiment supprimer ce prescripteur ?')) return;
     try {
         await apiFetch(`/medecins/${id}`, { method: 'DELETE' });
         medecinsData = [];
-        loadMedecins();
+        loadPrescripteurs();
     } catch(e) {
         if (e.status === 409) showToast(e.detail, 'error');
         else showToast('Erreur lors de la suppression : ' + e.message, 'error');
@@ -4156,7 +4156,7 @@ async function exportBilanExcel() {
                 'Patient': e.patient_id ? `${e.nom || ''} ${e.prenom || ''}`.trim() : (e.nom_patient_externe || 'Externe'),
                 'Catégorie': e.type_nom || '',
                 "Type d'examen": e.examen_nom || '',
-                'Médecin': e.medecin_nom || '',
+                'Prescripteur': e.medecin_nom || '',
                 'Montant (FCFA)': e.prix || 0,
             }))
             : [{ 'Info': 'Aucun examen sur la période' }];
