@@ -60,6 +60,9 @@ Le frontend est statique (HTML/CSS/JS). Pour tester avec l'API en local, l'API t
 
 ## Déploiement
 
+**Automatique (GitHub Actions)** : tout push sur `main` déclenche `.github/workflows/deploy.yml`, qui se connecte en SSH au VPS avec une clé dédiée (secret `DEPLOY_SSH_KEY`, restreinte côté serveur via `command=` dans `authorized_keys` — elle ne peut exécuter que `sudo /usr/local/bin/deploy-frontend.sh`, rien d'autre) puis vérifie que `https://cabinet-babamouneissa.com/index.html` répond. Secrets requis sur le dépôt GitHub : `DEPLOY_HOST`, `DEPLOY_USER`, `DEPLOY_SSH_KEY`.
+
+**Manuel (si besoin)** :
 ```bash
 cd /var/www/html && sudo /usr/local/bin/deploy-frontend.sh
 ```
