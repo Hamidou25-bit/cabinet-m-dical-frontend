@@ -2060,6 +2060,7 @@ function onTypeBeneficiaireChange() {
     const patientGroup = document.getElementById('o-patient-group');
     const beneficiaireGroup = document.getElementById('o-beneficiaire-group');
     const beneficiaireLabel = document.getElementById('o-beneficiaire-label');
+    document.getElementById('o-soins-section').style.display = type === 'interne' ? 'none' : '';
 
     if (type === 'patient') {
         patientGroup.style.display = '';
@@ -2082,7 +2083,7 @@ async function openOrdonnanceModal(type) {
     ordonnanceFormReturnTab = type || 'patient';
 
     // Remplir la liste des patients + charger dosages/formes/stock en parallèle
-    const tasks = [loadOrdonnanceRefs(), ensureStockLoaded(), ensureMutuellesLoaded(), ensureMedecinsLoaded()];
+    const tasks = [loadOrdonnanceRefs(), ensureStockLoaded(), ensureMutuellesLoaded(), ensureMedecinsLoaded(), ensureTypeSoinsLoaded()];
     if (!patientsData.length) tasks.push(loadPatients());
     await Promise.all(tasks);
     populateStockDesignationsDatalist();
@@ -2103,6 +2104,7 @@ async function openOrdonnanceModal(type) {
     // Réinitialiser les lignes
     document.getElementById('lignes-ordonnance').innerHTML = '';
     addLigneOrdonnance();
+    document.getElementById('lignes-soin-ordonnance').innerHTML = '';
 
     showPage('ordonnance-form');
 }
@@ -2112,11 +2114,15 @@ async function editOrdonnance(id) {
     document.getElementById('page-title').textContent = 'Modifier l\'ordonnance';
     document.getElementById('o-id').value = id;
 
-    const tasks = [loadOrdonnanceRefs(), ensureStockLoaded(), ensureMutuellesLoaded(), ensureMedecinsLoaded(), apiFetch(`/ordonnances/${id}`).then(r => r.json())];
+    const tasks = [
+        loadOrdonnanceRefs(), ensureStockLoaded(), ensureMutuellesLoaded(), ensureMedecinsLoaded(), ensureTypeSoinsLoaded(),
+        apiFetch(`/ordonnances/${id}`).then(r => r.json()),
+        apiFetch(`/soins/?ordonnance_id=${id}`).then(r => r.json()),
+    ];
     if (!patientsData.length) tasks.push(loadPatients());
 
     try {
-        const [, , , , ordonnance] = await Promise.all(tasks);
+        const [, , , , , ordonnance, soinsLies] = await Promise.all(tasks);
         populateStockDesignationsDatalist();
         populateMutuelleSelect('o');
 
@@ -2144,6 +2150,9 @@ async function editOrdonnance(id) {
         } else {
             addLigneOrdonnance();
         }
+
+        document.getElementById('lignes-soin-ordonnance').innerHTML = '';
+        (soinsLies || []).forEach(soin => addLigneSoinOrdonnance(soin));
 
         showPage('ordonnance-form');
     } catch(e) { showToast('Erreur lors du chargement de l\'ordonnance', 'error'); }
@@ -2183,6 +2192,33 @@ function updateOrdonnanceTotalDisplay() {
     }, 0);
     const totalDiv = document.getElementById('o-montant-total');
     if (totalDiv) totalDiv.textContent = `Total : ${total.toLocaleString()} FCFA`;
+}
+
+function addLigneSoinOrdonnance(soin) {
+    const container = document.getElementById('lignes-soin-ordonnance');
+    const wrapper = document.createElement('div');
+    wrapper.className = 'ligne-soin-ordonnance-wrapper';
+    wrapper.innerHTML = `
+        <div class="ligne-soin-ordonnance">
+            <select class="lso-type-soin" onchange="onTypeSoinOrdonnanceChange(this)"></select>
+            <input type="number" placeholder="Prix" class="lso-prix" min="0" value="${soin ? (soin.prix_applique || 0) : ''}">
+            <button class="btn-remove" onclick="this.closest('.ligne-soin-ordonnance-wrapper').remove()">✕</button>
+        </div>
+    `;
+    container.appendChild(wrapper);
+    const select = wrapper.querySelector('.lso-type-soin');
+    select.innerHTML = '<option value="">-- Type de soin --</option>'
+        + typeSoinsData.map(t => `<option value="${t.id}" data-prix="${t.prix_defaut}" ${soin && soin.type_soin_id === t.id ? 'selected' : ''}>${t.nom}</option>`).join('');
+    if (soin) wrapper.querySelector('.lso-prix').dataset.modified = 'yes';
+}
+
+function onTypeSoinOrdonnanceChange(select) {
+    const wrapper = select.closest('.ligne-soin-ordonnance-wrapper');
+    const prixInput = wrapper.querySelector('.lso-prix');
+    const opt = select.options[select.selectedIndex];
+    if (opt && opt.dataset.prix !== undefined && !prixInput.dataset.modified) {
+        prixInput.value = opt.dataset.prix;
+    }
 }
 
 // Detecte si la designation saisie correspond a un article du stock :
@@ -2285,6 +2321,13 @@ async function saveOrdonnance() {
 
     const patientId = document.getElementById('o-patient').value;
 
+    const soins = Array.from(document.querySelectorAll('.ligne-soin-ordonnance-wrapper'))
+        .map(wrapper => ({
+            type_soin_id: parseInt(wrapper.querySelector('.lso-type-soin').value) || null,
+            prix_applique: parseFloat(wrapper.querySelector('.lso-prix').value) || 0,
+        }))
+        .filter(s => s.type_soin_id);
+
     const data = {
         patient_id: typeBeneficiaire === 'patient' && patientId ? parseInt(patientId) : null,
         date_ordonnance: document.getElementById('o-date').value,
@@ -2295,7 +2338,8 @@ async function saveOrdonnance() {
         mode_paiement: document.getElementById('o-mode-paiement').value,
         mutuelle_id: document.getElementById('o-mode-paiement').value === 'mutuelle' && document.getElementById('o-mutuelle').value
             ? parseInt(document.getElementById('o-mutuelle').value) : null,
-        lignes: lignes
+        lignes: lignes,
+        soins: soins
     };
 
     try {

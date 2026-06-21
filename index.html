@@ -468,6 +468,12 @@
 
                 <div id="o-montant-total" style="margin-top: 15px; font-size: 15px; font-weight: bold; text-align: right;">Total : 0 FCFA</div>
 
+                <div id="o-soins-section" style="margin-top:20px; border:1px solid #e0e0e0; border-radius:6px; padding:12px;">
+                    <h3 style="font-size: 14px; margin-top:0;">Soins (optionnel)</h3>
+                    <div id="lignes-soin-ordonnance"></div>
+                    <button class="btn btn-sm" onclick="addLigneSoinOrdonnance()">+ Ajouter un soin</button>
+                </div>
+
                 <div class="modal-actions">
                     <button class="btn" onclick="showPage('ordonnances')">Annuler</button>
                     <button class="btn btn-primary" onclick="saveOrdonnance()">Enregistrer</button>
