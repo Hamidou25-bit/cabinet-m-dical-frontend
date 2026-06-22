@@ -460,9 +460,9 @@ async function loadPatients() {
 
 function renderPatients(data) {
     const tbody = document.getElementById('table-patients');
-    if (!data.length) { tbody.innerHTML = '<tr><td colspan="9">Aucun patient</td></tr>'; return; }
+    if (!data.length) { tbody.innerHTML = '<tr><td colspan="8">Aucun patient</td></tr>'; return; }
     tbody.innerHTML = data.map(p => `<tr>
-        <td>${p.nom}</td><td>${p.prenom}</td><td>${p.age}</td><td>${p.sexe}</td><td>${p.telephone || '-'}</td><td>${p.numero_dossier || '-'}</td><td>${p.email || '-'}</td><td>${formatDateFR(p.date_enregistrement)}</td>
+        <td>${p.nom}</td><td>${p.prenom}</td><td>${p.age}</td><td>${p.sexe}</td><td>${p.telephone || '-'}</td><td>${p.numero_dossier || '-'}</td><td>${formatDateFR(p.date_enregistrement)}</td>
         <td>
             <button class="btn btn-sm" onclick="showDossierPatient(${p.id})">📁 Dossier</button>
             <button class="btn btn-sm" onclick="editPatient(${p.id})">Modifier</button>
@@ -506,7 +506,6 @@ function exportPatientsExcel() {
         'Adresse': p.adresse || '',
         'Profession': p.profession || '',
         'N° Dossier': p.numero_dossier || '',
-        'Email': p.email || '',
         'Ethnie': p.ethnie || '',
         "Date d'enregistrement": formatDateFR(p.date_enregistrement)
     }));
@@ -905,8 +904,6 @@ function openNewPatientModal() {
     document.getElementById('p-telephone').value = '';
     document.getElementById('p-profession').value = '';
     document.getElementById('p-adresse').value = '';
-    document.getElementById('p-numero-dossier').value = '';
-    document.getElementById('p-email').value = '';
     document.getElementById('p-ethnie').value = '';
     openModal('modal-patient');
 }
@@ -923,8 +920,6 @@ function editPatient(id) {
     document.getElementById('p-telephone').value = patient.telephone || '';
     document.getElementById('p-profession').value = patient.profession || '';
     document.getElementById('p-adresse').value = patient.adresse || '';
-    document.getElementById('p-numero-dossier').value = patient.numero_dossier || '';
-    document.getElementById('p-email').value = patient.email || '';
     document.getElementById('p-ethnie').value = patient.ethnie || '';
     openModal('modal-patient');
 }
@@ -945,20 +940,20 @@ async function savePatient() {
         telephone: document.getElementById('p-telephone').value,
         profession: document.getElementById('p-profession').value,
         adresse: document.getElementById('p-adresse').value,
-        numero_dossier: document.getElementById('p-numero-dossier').value,
-        email: document.getElementById('p-email').value,
         ethnie: document.getElementById('p-ethnie').value,
         date_enregistrement: new Date().toISOString().split('T')[0]
     };
     try {
+        let messageSucces = 'Patient enregistré !';
         if (id) {
             await apiFetch(`/patients/${id}`, { method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(patient) });
         } else {
-            await apiFetch('/patients', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(patient) });
+            const res = await apiFetch('/patients', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(patient) }).then(r => r.json());
+            if (res.numero_dossier) messageSucces = `Patient enregistré ! N° Dossier : ${res.numero_dossier}`;
         }
         closeModal('modal-patient'); loadPatients();
         if (localStorage.getItem('role') === 'admin') loadDashboard();
-        showToast('Patient enregistré !', 'success');
+        showToast(messageSucces, 'success');
     } catch(e) { showToast('Erreur lors de l\'enregistrement : ' + e.message, 'error'); }
 }
 
