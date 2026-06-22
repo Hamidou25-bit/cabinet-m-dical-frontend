@@ -1518,6 +1518,23 @@ function genererEtImprimerCertificat() {
 }
 
 // Stock
+let currentStockTab = 'medicament';
+const STOCK_TAB_LABELS = { medicament: 'Stock médicaments', materiel: 'Stock matériel médical' };
+
+function showStockTab(tab) {
+    currentStockTab = tab;
+    ['medicament', 'materiel'].forEach(t => {
+        document.getElementById('tab-stock-' + t).className = t === tab ? 'btn btn-primary' : 'btn';
+    });
+    document.getElementById('stock-tab-titre').textContent = STOCK_TAB_LABELS[tab];
+    filterStock();
+}
+
+// Variable dédiée à la page Stock (liste complète admin, avec categorie) : distincte de
+// stockData (cache partagé Ordonnances/Achats, alimenté par /stock/designations ou /stock)
+// pour éviter qu'une page contamine le cache de l'autre avec un jeu de données différent.
+let stockAdminData = [];
+
 async function loadStock() {
     try {
         const [data, alertes, alertesPeremption] = await Promise.all([
@@ -1526,13 +1543,14 @@ async function loadStock() {
             apiFetch('/stock/alertes-peremption').then(r => r.json()),
             ensureFournisseursLoaded()
         ]);
-        stockData = data;
+        stockAdminData = data;
         const alertDiv = document.getElementById('alertes-stock');
+        const alertesTab = alertes.filter(a => a.categorie === currentStockTab);
         let alertsHtml = '';
-        if (alertes.length > 0) alertsHtml += `<div class="alert alert-warning">⚠️ ${alertes.length} article(s) en alerte de stock</div>`;
+        if (alertesTab.length > 0) alertsHtml += `<div class="alert alert-warning">⚠️ ${alertesTab.length} article(s) en alerte de stock (${STOCK_TAB_LABELS[currentStockTab].toLowerCase()})</div>`;
         if (alertesPeremption.length > 0) alertsHtml += `<div class="alert alert-warning">⏳ ${alertesPeremption.length} article(s) proche(s) de leur date de péremption</div>`;
         alertDiv.innerHTML = alertsHtml;
-        renderStock(data);
+        filterStock();
     } catch(e) { document.getElementById('table-stock').innerHTML = '<tr><td colspan="10">Erreur</td></tr>'; }
 }
 
@@ -1561,17 +1579,21 @@ function renderStock(data) {
     }).join('');
 }
 
-function filterStock() {
+function getFilteredStock() {
     const q = document.getElementById('search-stock').value.toLowerCase();
-    renderStock(stockData.filter(s => (s.Designation||'').toLowerCase().includes(q)));
+    return stockAdminData.filter(s => s.categorie === currentStockTab && (s.Designation||'').toLowerCase().includes(q));
+}
+
+function filterStock() {
+    renderStock(getFilteredStock());
 }
 
 function exportStockExcel() {
-    const q = document.getElementById('search-stock').value.toLowerCase();
-    const data = stockData.filter(s => (s.Designation||'').toLowerCase().includes(q));
+    const data = getFilteredStock();
     if (!data.length) { showToast('Aucun article à exporter', 'warning'); return; }
     const rows = data.map(s => ({
         'Désignation': s.Designation || '',
+        'Catégorie': s.categorie === 'materiel' ? 'Matériel médical' : 'Médicament',
         'Type': s.Type || '',
         'Dosage': s.Dosage || '',
         'Forme': s.Forme || '',
@@ -1709,12 +1731,13 @@ function populateFournisseurSelect(selected, selectId = 'st-fournisseur', valueF
 
 // Modifier un article
 function editStockArticle(id) {
-    const article = stockData.find(s => s.idStock === id);
+    const article = stockAdminData.find(s => s.idStock === id);
     if (!article) return;
     document.getElementById('st-id').value = article.idStock;
     document.getElementById('st-date-entree').value = article.DateEntree || '';
     document.getElementById('st-designation').value = article.Designation || '';
     document.getElementById('st-type').value = article.Type || '';
+    document.getElementById('st-categorie').value = article.categorie || 'medicament';
     populateFournisseurSelect(article.Fournisseur || '');
     document.getElementById('st-quantite').value = article.Quantite || 0;
     document.getElementById('st-seuil').value = article.SeuilAlerte || 0;
@@ -1737,6 +1760,7 @@ async function saveStockArticle() {
     const article = {
         DateEntree: document.getElementById('st-date-entree').value,
         Type: document.getElementById('st-type').value,
+        categorie: document.getElementById('st-categorie').value,
         Designation: document.getElementById('st-designation').value,
         Fournisseur: document.getElementById('st-fournisseur').value,
         Quantite: parseInt(document.getElementById('st-quantite').value) || 0,
@@ -1757,7 +1781,7 @@ async function saveStockArticle() {
 
 // Sortie de stock
 function openSortieModal(id) {
-    const article = stockData.find(s => s.idStock === id);
+    const article = stockAdminData.find(s => s.idStock === id);
     if (!article) return;
     document.getElementById('so-designation').value = article.Designation;
     document.getElementById('so-article-label').value = article.Designation;

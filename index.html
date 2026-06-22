@@ -713,9 +713,15 @@
         <div id="page-stock" class="page">
             <div id="alertes-stock"></div>
 
+            <!-- Onglets Médicaments / Matériel médical -->
+            <div style="display:flex; gap:10px; margin-bottom:15px;">
+                <button class="btn btn-primary" id="tab-stock-medicament" onclick="showStockTab('medicament')">Médicaments</button>
+                <button class="btn" id="tab-stock-materiel" onclick="showStockTab('materiel')">Matériel médical</button>
+            </div>
+
             <div class="table-container">
                 <div class="table-header">
-                    <h3>Stock médicaments</h3>
+                    <h3 id="stock-tab-titre">Stock médicaments</h3>
                     <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
                         <input type="text" class="search-box" placeholder="Rechercher..." id="search-stock" oninput="filterStock()">
                         <button class="btn" onclick="exportStockExcel()">📊 Exporter Excel</button>
@@ -1309,31 +1315,40 @@
         </div>
         <div class="form-row">
             <div class="form-group">
+                <label>Catégorie<span class="required-mark">*</span></label>
+                <select id="st-categorie">
+                    <option value="medicament">Médicament</option>
+                    <option value="materiel">Matériel médical</option>
+                </select>
+            </div>
+            <div class="form-group">
                 <label>Fournisseur</label>
                 <select id="st-fournisseur">
                     <option value="">-- Aucun --</option>
                 </select>
             </div>
+        </div>
+        <div class="form-row">
             <div class="form-group">
                 <label>Quantité<span class="required-mark">*</span></label>
                 <input type="number" id="st-quantite">
             </div>
-        </div>
-        <div class="form-row">
             <div class="form-group">
                 <label>Seuil alerte</label>
                 <input type="number" id="st-seuil">
             </div>
+        </div>
+        <div class="form-row">
             <div class="form-group">
                 <label>Prix vente<span class="required-mark">*</span></label>
                 <input type="number" id="st-prix-vente">
             </div>
-        </div>
-        <div class="form-row">
             <div class="form-group">
                 <label>Prix achat</label>
                 <input type="number" id="st-prix-achat">
             </div>
+        </div>
+        <div class="form-row">
             <div class="form-group">
                 <label>Date de péremption</label>
                 <input type="date" id="st-peremption">
