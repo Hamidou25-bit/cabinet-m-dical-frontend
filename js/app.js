@@ -2374,13 +2374,23 @@ let examensData = [];
 
 const EXAMEN_STATUT_LABELS = { prescrit: 'Prescrit', en_cours: 'En cours', termine: 'Terminé' };
 
+let currentExamensTab = 'enregistre';
+
+function showExamensTab(tab) {
+    currentExamensTab = tab;
+    ['enregistre', 'externe'].forEach(t => {
+        document.getElementById('tab-examens-' + t).className = t === tab ? 'btn btn-primary' : 'btn';
+    });
+    filterExamens();
+}
+
 async function loadExamens() {
     const btnNouvel = document.getElementById('btn-nouvel-examen');
     if (btnNouvel) btnNouvel.style.display = localStorage.getItem('role') === 'laborantin' ? 'none' : '';
     try {
         examensData = await apiFetch('/examens-complementaires').then(r => r.json());
-        renderExamens(examensData);
-    } catch(e) { document.getElementById('table-examens').innerHTML = '<tr><td colspan="8">Erreur</td></tr>'; }
+        filterExamens();
+    } catch(e) { document.getElementById('table-examens').innerHTML = '<tr><td colspan="9">Erreur</td></tr>'; }
 }
 
 function renderExamens(data) {
@@ -2457,12 +2467,13 @@ function getFilteredExamens() {
     const dateDebut = parseDateFR(document.getElementById('filter-examens-date-debut').value);
     const dateFin = parseDateFR(document.getElementById('filter-examens-date-fin').value);
     return examensData.filter(e => {
+        const matchTab = currentExamensTab === 'enregistre' ? !!e.patient_id : !e.patient_id;
         const matchQ = (e.nom||'').toLowerCase().includes(q) || (e.prenom||'').toLowerCase().includes(q)
             || (e.type_nom||'').toLowerCase().includes(q) || (e.examen_nom||'').toLowerCase().includes(q)
             || (e.resultat||'').toLowerCase().includes(q);
         const matchDateDebut = !dateDebut || (e.date_examen && e.date_examen >= dateDebut);
         const matchDateFin = !dateFin || (e.date_examen && e.date_examen <= dateFin);
-        return matchQ && matchDateDebut && matchDateFin;
+        return matchTab && matchQ && matchDateDebut && matchDateFin;
     });
 }
 
@@ -2579,9 +2590,9 @@ async function openExamenModal() {
     document.getElementById('modal-examen-title').textContent = 'Nouvel Examen Complémentaire';
     document.getElementById('e-id').value = '';
 
-    // Réinitialiser le toggle type patient
-    document.getElementById('e-type-enregistre').checked = true;
-    onExamenTypePatientChange('enregistre');
+    // Préselectionner le toggle type patient selon l'onglet actif
+    document.getElementById(currentExamensTab === 'externe' ? 'e-type-externe' : 'e-type-enregistre').checked = true;
+    onExamenTypePatientChange(currentExamensTab === 'externe' ? 'externe' : 'enregistre');
     document.getElementById('e-nom-externe').value = '';
 
     const tasks = [loadExamenRefs()];

@@ -483,6 +483,12 @@
 
         <!-- EXAMENS COMPLEMENTAIRES -->
         <div id="page-examens" class="page">
+            <!-- Onglets patients enregistrés / externes -->
+            <div style="display:flex; gap:10px; margin-bottom:15px;">
+                <button class="btn btn-primary" id="tab-examens-enregistre" onclick="showExamensTab('enregistre')">Patients enregistrés</button>
+                <button class="btn" id="tab-examens-externe" onclick="showExamensTab('externe')">Patients externes</button>
+            </div>
+
             <div class="table-container">
                 <div class="table-header">
                     <h3>Liste des examens complémentaires</h3>
