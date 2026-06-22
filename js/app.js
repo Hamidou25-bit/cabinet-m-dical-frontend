@@ -2205,7 +2205,7 @@ function addLigneSoinOrdonnance(soin) {
     wrapper.innerHTML = `
         <div class="ligne-soin-ordonnance">
             <select class="lso-type-soin" onchange="onTypeSoinOrdonnanceChange(this)"></select>
-            <input type="number" placeholder="Prix" class="lso-prix" min="0" value="${soin ? (soin.prix_applique || 0) : ''}">
+            <input type="number" placeholder="Prix" class="lso-prix" min="0" value="${soin ? (soin.prix_applique || 0) : ''}" oninput="this.dataset.modified='yes'">
             <button class="btn-remove" onclick="this.closest('.ligne-soin-ordonnance-wrapper').remove()">✕</button>
         </div>
     `;
