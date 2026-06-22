@@ -101,7 +101,9 @@ function initSidebar() {
     });
 }
 
-// Utilitaire export Excel : télécharge ET ouvre dans un nouvel onglet
+// Utilitaire export Excel : déclenche le téléchargement du fichier
+// (un navigateur ne peut pas afficher un .xlsx ni demander à l'OS de l'ouvrir
+// dans Excel - le téléchargement est le maximum atteignable depuis le JS)
 function telechargerEtOuvrir(workbook, nomFichier) {
     const wbout = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' });
     const blob = new Blob([wbout], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
@@ -112,8 +114,8 @@ function telechargerEtOuvrir(workbook, nomFichier) {
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
-    window.open(url, '_blank');
     setTimeout(() => URL.revokeObjectURL(url), 5000);
+    showToast(`Fichier téléchargé : ${nomFichier}`, 'success');
 }
 
 // Lit l'id de l'utilisateur courant depuis le payload JWT stocké en localStorage
@@ -1086,7 +1088,8 @@ function exportConsultationsExcel() {
         'Diagnostic': c.diagnostic || '',
         'Observation': c.observation || '',
         'Prix unitaire': c.prix_unitaire || 0,
-        'Montant total': c.montant_total || 0
+        'Montant total': c.montant_total || 0,
+        'Mode de paiement': libellePaiement(c.mode_paiement, c.mutuelle_nom)
     }));
     const ws = XLSX.utils.json_to_sheet(rows);
     const wb = XLSX.utils.book_new();
@@ -1583,7 +1586,8 @@ function exportStockExcel() {
         'Prix achat': s.PrixAchat || 0,
         'Fournisseur': s.Fournisseur || '',
         'Date entrée': formatDateFR(s.DateEntree),
-        'Péremption': formatDateFR(s.DatePeremption)
+        'Péremption': formatDateFR(s.DatePeremption),
+        'Statut': s.Quantite < 0 ? 'Anomalie' : s.Quantite <= 0 ? 'Rupture' : s.Quantite <= s.SeuilAlerte ? 'Alerte' : 'Normal'
     }));
     const ws = XLSX.utils.json_to_sheet(rows);
     const wb = XLSX.utils.book_new();
@@ -2480,6 +2484,7 @@ function exportExamensExcel() {
         'Examen': e.examen_nom || '',
         'Prescripteur': e.medecin_nom || '',
         'Renseignement clinique': e.renseignement_clinique || '',
+        'Statut': EXAMEN_STATUT_LABELS[e.statut || 'termine'] || (e.statut || 'termine'),
         'Résultat': e.resultat || '',
         'Prix': e.prix || 0
     }));
@@ -3491,16 +3496,33 @@ function resetFilterAchats() {
 function exportAchatsExcel() {
     const data = getFilteredAchats();
     if (!data.length) { showToast('Aucun achat à exporter', 'warning'); return; }
-    const rows = data.map(a => ({
+
+    const syntheseRows = data.map(a => ({
         'N° Facture': a.numero_facture || '',
         'Date': formatDateFR(a.date_achat),
         'Fournisseur': a.fournisseur_nom || '',
         'Montant total': a.montant_total || 0,
         'Statut paiement': a.statut_paiement || '',
     }));
-    const ws = XLSX.utils.json_to_sheet(rows);
+    const lignesRows = [];
+    data.forEach(a => {
+        (a.lignes || []).forEach(l => {
+            lignesRows.push({
+                'Achat': a.numero_facture || a.id,
+                'Date': formatDateFR(a.date_achat),
+                'Fournisseur': a.fournisseur_nom || '',
+                'Article': l.designation || '',
+                'Type': l.type_article || '',
+                'Quantité': l.quantite || 0,
+                'Prix unitaire': l.prix_unitaire || 0,
+                'Montant': l.montant || 0
+            });
+        });
+    });
+
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Achats');
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(lignesRows), 'Détail');
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(syntheseRows), 'Synthèse');
     telechargerEtOuvrir(wb, `achats_${new Date().toISOString().split('T')[0]}.xlsx`);
 }
 
