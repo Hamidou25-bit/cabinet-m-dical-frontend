@@ -2385,7 +2385,7 @@ async function loadExamens() {
 
 function renderExamens(data) {
     const tbody = document.getElementById('table-examens');
-    if (!data.length) { tbody.innerHTML = '<tr><td colspan="8">Aucun examen</td></tr>'; return; }
+    if (!data.length) { tbody.innerHTML = '<tr><td colspan="9">Aucun examen</td></tr>'; return; }
     const isLaborantin = localStorage.getItem('role') === 'laborantin';
     tbody.innerHTML = data.map(e => {
         const patientDisplay = e.patient_id
@@ -2405,11 +2405,15 @@ function renderExamens(data) {
                 <button class="btn btn-sm btn-danger" onclick="deleteExamen(${e.id})">Supprimer</button>`;
         }
 
+        const renseignement = e.renseignement_clinique || '';
+        const renseignementCourt = renseignement.length > 60 ? renseignement.slice(0, 60) + '…' : renseignement;
+
         return `<tr>
             <td>${formatDateFR(e.date_examen)}</td>
             <td>${escapeHtml(patientDisplay)}${!e.patient_id ? ' <span style="font-size:0.75em;color:#6b7280;">(ext.)</span>' : ''}</td>
             <td>${escapeHtml(e.type_nom || '-')}</td>
             <td>${escapeHtml(e.examen_nom || '-')}</td>
+            <td title="${escapeHtml(renseignement)}">${escapeHtml(renseignementCourt || '-')}</td>
             <td>${escapeHtml(EXAMEN_STATUT_LABELS[statut] || statut)}</td>
             <td>${escapeHtml(e.resultat || '-')}</td>
             <td>${(e.prix || 0).toLocaleString()} FCFA</td>
