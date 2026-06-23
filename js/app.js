@@ -3833,7 +3833,6 @@ async function saveAchat() {
     const fournisseurId = document.getElementById('ac-fournisseur').value;
     const data = {
         fournisseur_id: fournisseurId ? parseInt(fournisseurId) : null,
-        numero_facture: document.getElementById('ac-numero-facture').value,
         date_achat: document.getElementById('ac-date').value,
         statut_paiement: document.getElementById('ac-statut-paiement').value,
         notes: document.getElementById('ac-notes').value,
