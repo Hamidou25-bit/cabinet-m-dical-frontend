@@ -2684,9 +2684,10 @@ async function openExamenModal() {
     document.getElementById('modal-examen-title').textContent = 'Nouvel Examen Complémentaire';
     document.getElementById('e-id').value = '';
 
-    // Préselectionner le toggle type patient selon l'onglet actif
-    document.getElementById(currentExamensTab === 'externe' ? 'e-type-externe' : 'e-type-enregistre').checked = true;
-    onExamenTypePatientChange(currentExamensTab === 'externe' ? 'externe' : 'enregistre');
+    // Le type de patient (enregistré/externe) est déterminé par l'onglet actif, pas par un choix dans le formulaire
+    const isExterne = currentExamensTab === 'externe';
+    document.getElementById('e-is-externe').value = isExterne ? '1' : '0';
+    onExamenTypePatientChange(isExterne ? 'externe' : 'enregistre');
     document.getElementById('e-nom-externe').value = '';
 
     const tasks = [loadExamenRefs()];
@@ -2712,9 +2713,9 @@ async function editExamen(id) {
     document.getElementById('modal-examen-title').textContent = 'Modifier Examen';
     document.getElementById('e-id').value = examen.id;
 
-    // Restaurer le bon type de patient
+    // Restaurer le bon type de patient (déduit des données de l'examen, pas de l'onglet actif)
     const isExterne = !examen.patient_id && examen.nom_patient_externe;
-    document.getElementById(isExterne ? 'e-type-externe' : 'e-type-enregistre').checked = true;
+    document.getElementById('e-is-externe').value = isExterne ? '1' : '0';
     onExamenTypePatientChange(isExterne ? 'externe' : 'enregistre');
     document.getElementById('e-nom-externe').value = examen.nom_patient_externe || '';
 
@@ -2744,7 +2745,7 @@ async function editExamen(id) {
 }
 
 async function saveExamen() {
-    const isExterne = document.getElementById('e-type-externe').checked;
+    const isExterne = document.getElementById('e-is-externe').value === '1';
     const requiredFields = [{ id: 'e-date', label: 'Date' }];
     if (isExterne) {
         requiredFields.push({ id: 'e-nom-externe', label: 'Nom du patient externe' });
