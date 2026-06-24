@@ -684,6 +684,18 @@ input[type="datetime-local"]:focus {
     color: var(--danger);
 }
 
+/* BARRE DE TOTAUX */
+.totaux-bar {
+    background: #E3F2FD;
+    border-left: 4px solid var(--primary);
+    padding: 10px 16px;
+    margin: 0 22px 15px;
+    border-radius: var(--radius-sm);
+    font-size: 13px;
+    font-weight: 700;
+    color: #0D47A1;
+}
+
 /* PATIENT COMBOBOX */
 .patient-combo {
     position: relative;

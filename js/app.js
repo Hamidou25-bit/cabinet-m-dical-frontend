@@ -1028,6 +1028,7 @@ function libellePaiement(modePaiement, mutuelleNom) {
 
 function renderConsultations(data) {
     const tbody = document.getElementById('table-consultations');
+    updateConsultationsTotaux(data);
     if (!data.length) { tbody.innerHTML = '<tr><td colspan="8">Aucune consultation</td></tr>'; return; }
     tbody.innerHTML = data.map(c => `<tr>
         <td>${formatDateFR(c.date_consult)}</td>
@@ -1043,6 +1044,12 @@ function renderConsultations(data) {
             <button class="btn btn-sm btn-danger" onclick="deleteConsultation(${c.id})">Supprimer</button>
         </td>
     </tr>`).join('');
+}
+
+function updateConsultationsTotaux(data) {
+    const montant = data.reduce((sum, c) => sum + (c.montant_total || 0), 0);
+    document.getElementById('consultations-totaux-bar').textContent =
+        `Total consultations affichées : ${data.length} | Montant total : ${montant.toLocaleString()} FCFA`;
 }
 
 function getFilteredConsultations() {
@@ -1799,6 +1806,7 @@ function getFilteredOrdonnancesTab(type) {
 function renderOrdonnancesTab(type) {
     const tbody = document.getElementById('table-ordonnances-' + type);
     const data = getFilteredOrdonnancesTab(type);
+    updateOrdonnancesTotaux(type, data);
     if (!data.length) { tbody.innerHTML = '<tr><td colspan="6">Aucune ordonnance</td></tr>'; return; }
     tbody.innerHTML = data.map(o => {
         const beneficiaire = type === 'patient' ? `${o.nom || ''} ${o.prenom || ''}`.trim() || '-' : (o.beneficiaire || '-');
@@ -1820,6 +1828,12 @@ function renderOrdonnancesTab(type) {
 
 function filterOrdonnancesTab(type) {
     renderOrdonnancesTab(type);
+}
+
+function updateOrdonnancesTotaux(type, data) {
+    const montant = data.reduce((sum, o) => sum + (o.montant_total || 0), 0);
+    document.getElementById(`ordonnances-${type}-totaux-bar`).textContent =
+        `Total ordonnances affichées : ${data.length} | Montant total : ${montant.toLocaleString()} FCFA`;
 }
 
 function resetFilterOrdonnances(type) {
@@ -2341,6 +2355,7 @@ async function loadExamens() {
 
 function renderExamens(data) {
     const tbody = document.getElementById('table-examens');
+    updateExamensTotaux(data);
     if (!data.length) { tbody.innerHTML = '<tr><td colspan="9">Aucun examen</td></tr>'; return; }
     const isLaborantin = localStorage.getItem('role') === 'laborantin';
     tbody.innerHTML = data.map(e => {
@@ -2425,6 +2440,12 @@ function getFilteredExamens() {
 
 function filterExamens() {
     renderExamens(getFilteredExamens());
+}
+
+function updateExamensTotaux(data) {
+    const montant = data.reduce((sum, e) => sum + (e.prix || 0), 0);
+    document.getElementById('examens-totaux-bar').textContent =
+        `Total examens affichés : ${data.length} | Montant total : ${montant.toLocaleString()} FCFA`;
 }
 
 function resetFilterExamens() {
@@ -3855,6 +3876,12 @@ function filterSoinsTab(tab) {
     renderSoinsTab(tab);
 }
 
+function updateSoinsTotaux(tab, data) {
+    const montant = data.reduce((sum, s) => sum + (s.prix_applique || 0), 0);
+    document.getElementById(`soins-${tab}-totaux-bar`).textContent =
+        `Total soins affichés : ${data.length} | Montant total : ${montant.toLocaleString()} FCFA`;
+}
+
 function resetFilterSoins(tab) {
     clearFlatpickr(`filter-soins-${tab}-date-debut`);
     clearFlatpickr(`filter-soins-${tab}-date-fin`);
@@ -3865,6 +3892,7 @@ function resetFilterSoins(tab) {
 function renderSoinsTab(tab) {
     const tbody = document.getElementById('table-soins-' + tab);
     const data = getFilteredSoinsTab(tab);
+    updateSoinsTotaux(tab, data);
     if (!data.length) { tbody.innerHTML = '<tr><td colspan="6">Aucun soin</td></tr>'; return; }
     tbody.innerHTML = data.map(s => {
         const patient = tab === 'enregistre'
