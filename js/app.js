@@ -1541,7 +1541,6 @@ function renderStock(data) {
             <td>${s.Designation||''}</td><td>${s.Type||''}</td><td>${s.Dosage||'-'}</td><td>${s.Forme||'-'}</td><td>${s.Quantite||0}</td><td>${s.SeuilAlerte||0}</td><td>${(s.PrixVente||0).toLocaleString()} FCFA</td><td>${peremption}</td><td>${statut}</td>
             <td>
                 <button class="btn btn-sm" onclick="editStockArticle(${s.idStock})">Modifier</button>
-                <button class="btn btn-sm btn-primary" onclick="openSortieModal(${s.idStock})">Sortie</button>
                 <button class="btn btn-sm btn-danger" onclick="deleteStockArticle(${s.idStock})">Supprimer</button>
             </td>
         </tr>`;
@@ -1746,40 +1745,6 @@ async function saveStockArticle() {
         loadStock();
         showToast('Article mis à jour !', 'success');
     } catch(e) { showToast('Erreur lors de la mise à jour : ' + e.message, 'error'); }
-}
-
-// Sortie de stock
-function openSortieModal(id) {
-    const article = stockAdminData.find(s => s.idStock === id);
-    if (!article) return;
-    document.getElementById('so-designation').value = article.Designation;
-    document.getElementById('so-article-label').value = article.Designation;
-    document.getElementById('so-date').value = new Date().toISOString().split('T')[0];
-    document.getElementById('so-quantite').value = 1;
-    document.getElementById('so-prix-vente').value = article.PrixVente || 0;
-    document.getElementById('so-patient').value = '';
-    openModal('modal-sortie');
-}
-
-async function saveSortie() {
-    if (!validateRequiredFields([
-        { id: 'so-date', label: 'Date' },
-        { id: 'so-quantite', label: 'Quantité', min: 1 },
-    ])) return;
-
-    const data = {
-        Designation: document.getElementById('so-designation').value,
-        DateSortie: document.getElementById('so-date').value,
-        QuantiteSortie: parseInt(document.getElementById('so-quantite').value) || 1,
-        PrixVente: parseFloat(document.getElementById('so-prix-vente').value) || 0,
-        Patient: document.getElementById('so-patient').value
-    };
-    try {
-        await apiFetch('/stock/sortie', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(data) });
-        closeModal('modal-sortie');
-        loadStock();
-        showToast('Sortie enregistrée !', 'success');
-    } catch(e) { showToast('Erreur lors de l\'enregistrement : ' + e.message, 'error'); }
 }
 
 async function deleteStockArticle(id) {
