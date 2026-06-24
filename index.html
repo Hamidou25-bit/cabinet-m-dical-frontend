@@ -79,9 +79,6 @@
         <div class="menu-item" id="menu-type-soins" style="display:none;" onclick="showPage('type-soins')" data-tooltip="Types de soins">
             <span class="icon">💉</span><span class="menu-text"> Types de soins</span>
         </div>
-        <div class="menu-item" id="menu-mutuelles" style="display:none;" onclick="showPage('mutuelles')" data-tooltip="Mutuelles">
-            <span class="icon">🤝</span><span class="menu-text"> Mutuelles</span>
-        </div>
         <div class="menu-item" id="menu-comptabilite" style="display:none;" onclick="showPage('comptabilite')" data-tooltip="Comptabilité">
             <span class="icon">💰</span><span class="menu-text"> Comptabilité</span>
         </div>
@@ -445,16 +442,11 @@
                 <div class="form-row">
                     <div class="form-group">
                         <label>Mode de paiement</label>
-                        <select id="o-mode-paiement" onchange="onModePaiementChange('o')">
+                        <select id="o-mode-paiement">
                             <option value="especes">Espèces</option>
                             <option value="mobile_money">Mobile money</option>
-                            <option value="mutuelle">Mutuelle</option>
                             <option value="gratuit">Gratuit</option>
                         </select>
-                    </div>
-                    <div class="form-group" id="o-mutuelle-group" style="display:none;">
-                        <label>Mutuelle</label>
-                        <select id="o-mutuelle"></select>
                     </div>
                 </div>
                 <div class="form-group">
@@ -614,27 +606,6 @@
                     </thead>
                     <tbody id="table-type-soins">
                         <tr><td colspan="3" class="loading">Chargement...</td></tr>
-                    </tbody>
-                </table>
-            </div>
-        </div>
-
-        <!-- MUTUELLES (Admin) -->
-        <div id="page-mutuelles" class="page">
-            <div class="table-container">
-                <div class="table-header">
-                    <h3>Mutuelles</h3>
-                    <button class="btn btn-primary" onclick="openNewMutuelleModal()">+ Nouvelle mutuelle</button>
-                </div>
-                <table>
-                    <thead>
-                        <tr>
-                            <th>Nom</th>
-                            <th>Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody id="table-mutuelles">
-                        <tr><td colspan="2" class="loading">Chargement...</td></tr>
                     </tbody>
                 </table>
             </div>
@@ -919,6 +890,7 @@
                             <button class="btn" onclick="filterDepenses()">Filtrer</button>
                             <button class="btn" onclick="resetFilterDepenses()">Réinitialiser</button>
                             <button class="btn" onclick="exportDepensesExcel()">📊 Exporter Excel</button>
+                            <button class="btn" onclick="openTypeDepenseModal()">Gérer les types</button>
                             <button class="btn btn-primary" onclick="openNewDepenseModal()">+ Nouvelle dépense</button>
                         </div>
                     </div>
@@ -1261,16 +1233,11 @@
         <div class="form-row">
             <div class="form-group">
                 <label>Mode de paiement</label>
-                <select id="co-mode-paiement" onchange="onModePaiementChange('co')">
+                <select id="co-mode-paiement">
                     <option value="especes">Espèces</option>
                     <option value="mobile_money">Mobile money</option>
-                    <option value="mutuelle">Mutuelle</option>
                     <option value="gratuit">Gratuit</option>
                 </select>
-            </div>
-            <div class="form-group" id="co-mutuelle-group" style="display:none;">
-                <label>Mutuelle</label>
-                <select id="co-mutuelle"></select>
             </div>
         </div>
         <div class="form-group">
@@ -1686,21 +1653,6 @@
     </div>
 </div>
 
-<!-- MODAL MUTUELLE -->
-<div class="modal-overlay" id="modal-mutuelle">
-    <div class="modal">
-        <h3 id="modal-mutuelle-title">Nouvelle Mutuelle</h3>
-        <input type="hidden" id="mu-id">
-        <div class="form-group">
-            <label>Nom<span class="required-mark">*</span></label>
-            <input type="text" id="mu-nom" placeholder="Nom de la mutuelle">
-        </div>
-        <div class="modal-actions">
-            <button class="btn" onclick="closeModal('modal-mutuelle')">Annuler</button>
-            <button class="btn btn-primary" onclick="saveMutuelle()">Enregistrer</button>
-        </div>
-    </div>
-</div>
 
 <!-- MODAL CATEGORIE EXAMEN -->
 <div class="modal-overlay" id="modal-categorie-examen">
@@ -1754,7 +1706,8 @@
             </div>
             <div class="form-group">
                 <label>Type d'article</label>
-                <input type="text" id="fo-type-article" placeholder="Ex: Médicaments">
+                <select id="fo-type-article"></select>
+                <a href="#" onclick="openTypeArticleFournisseurModal(); return false;" style="font-size:12px;">Gérer les types</a>
             </div>
         </div>
         <div class="form-row">
@@ -1770,6 +1723,31 @@
         <div class="modal-actions">
             <button class="btn" onclick="closeModal('modal-fournisseur')">Annuler</button>
             <button class="btn btn-primary" onclick="saveFournisseur()">Enregistrer</button>
+        </div>
+    </div>
+</div>
+
+<!-- MODAL GESTION TYPES ARTICLE FOURNISSEUR -->
+<div class="modal-overlay" id="modal-type-article-fournisseur">
+    <div class="modal">
+        <h3>Gérer les types d'article</h3>
+        <table>
+            <thead>
+                <tr><th>Libellé</th><th>Actions</th></tr>
+            </thead>
+            <tbody id="table-types-article-fournisseur">
+                <tr><td colspan="2" class="loading">Chargement...</td></tr>
+            </tbody>
+        </table>
+        <div class="form-row" style="margin-top:10px;">
+            <div class="form-group">
+                <label>Nouveau type</label>
+                <input type="text" id="taf-nouveau" placeholder="Ex: Consommables">
+            </div>
+        </div>
+        <div class="modal-actions">
+            <button class="btn" onclick="closeModal('modal-type-article-fournisseur')">Fermer</button>
+            <button class="btn btn-primary" onclick="addTypeArticleFournisseur()">+ Ajouter</button>
         </div>
     </div>
 </div>
@@ -1812,6 +1790,31 @@
     </div>
 </div>
 
+<!-- MODAL GESTION TYPES DEPENSE -->
+<div class="modal-overlay" id="modal-type-depense">
+    <div class="modal">
+        <h3>Gérer les types de dépense</h3>
+        <table>
+            <thead>
+                <tr><th>Nom</th><th>Actions</th></tr>
+            </thead>
+            <tbody id="table-types-depense-gestion">
+                <tr><td colspan="2" class="loading">Chargement...</td></tr>
+            </tbody>
+        </table>
+        <div class="form-row" style="margin-top:10px;">
+            <div class="form-group">
+                <label>Nouveau type</label>
+                <input type="text" id="tde-nouveau" placeholder="Ex: Fournitures de bureau">
+            </div>
+        </div>
+        <div class="modal-actions">
+            <button class="btn" onclick="closeModal('modal-type-depense')">Fermer</button>
+            <button class="btn btn-primary" onclick="addTypeDepenseAdmin()">+ Ajouter</button>
+        </div>
+    </div>
+</div>
+
 <!-- MODAL ACHAT -->
 <div class="modal-overlay" id="modal-achat">
     <div class="modal modal-lg">
@@ -1819,15 +1822,9 @@
         <input type="hidden" id="ac-id">
         <div class="form-row">
             <div class="form-group">
-                <label>N° Facture</label>
-                <input type="text" id="ac-numero-facture" readonly placeholder="Généré automatiquement à l'enregistrement">
-            </div>
-            <div class="form-group">
                 <label>Date<span class="required-mark">*</span></label>
                 <input type="date" id="ac-date">
             </div>
-        </div>
-        <div class="form-row">
             <div class="form-group">
                 <label>Fournisseur</label>
                 <select id="ac-fournisseur">

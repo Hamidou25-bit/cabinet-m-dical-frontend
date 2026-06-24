@@ -143,7 +143,6 @@ const MENU_ROLES = {
     'menu-prescripteurs':   ['admin'],
     'menu-examens-config':  ['admin'],
     'menu-type-soins':      ['admin'],
-    'menu-mutuelles':       ['admin'],
     'menu-comptabilite':    ['admin'],
     'menu-audit':           ['admin'],
 };
@@ -232,7 +231,7 @@ function showPage(page) {
         : document.querySelector(`.menu-item[onclick*="showPage('${page}')"]`);
     if (menuItem) menuItem.classList.add('active');
 
-    const titles = { dashboard: 'Tableau de bord', 'rendez-vous': 'Rendez-vous', patients: 'Patients', consultations: 'Consultations', stock: 'Stock', ordonnances: 'Ordonnances', examens: 'Examens complémentaires', soins: 'Soins', dossiers: 'Dossiers patients', personnel: 'Personnel', prescripteurs: 'Prescripteurs', 'examens-config': "Types d'examens", 'type-soins': 'Types de soins', mutuelles: 'Mutuelles', comptabilite: 'Comptabilité', audit: "Journal d'audit" };
+    const titles = { dashboard: 'Tableau de bord', 'rendez-vous': 'Rendez-vous', patients: 'Patients', consultations: 'Consultations', stock: 'Stock', ordonnances: 'Ordonnances', examens: 'Examens complémentaires', soins: 'Soins', dossiers: 'Dossiers patients', personnel: 'Personnel', prescripteurs: 'Prescripteurs', 'examens-config': "Types d'examens", 'type-soins': 'Types de soins', comptabilite: 'Comptabilité', audit: "Journal d'audit" };
     if (titles[page]) document.getElementById('page-title').textContent = titles[page];
 
     if (page === 'rendez-vous') loadRendezVous();
@@ -244,7 +243,6 @@ function showPage(page) {
     if (page === 'soins') loadSoins();
     if (page === 'dossiers') loadDossiersList();
     if (page === 'type-soins') loadTypeSoinsAdmin();
-    if (page === 'mutuelles') loadMutuellesAdmin();
     if (page === 'personnel') loadUtilisateurs();
     if (page === 'prescripteurs') loadPrescripteurs();
     if (page === 'examens-config') loadExamensConfig();
@@ -1092,28 +1090,6 @@ function exportConsultationsExcel() {
     telechargerEtOuvrir(wb, `consultations_${new Date().toISOString().split('T')[0]}.xlsx`);
 }
 
-let mutuellesData = [];
-
-async function ensureMutuellesLoaded() {
-    if (mutuellesData.length) return;
-    try {
-        const data = await apiFetch('/mutuelles/').then(r => r.json());
-        mutuellesData = Array.isArray(data) ? data : [];
-    } catch (e) {
-        mutuellesData = [];
-    }
-}
-
-function populateMutuelleSelect(prefix) {
-    const select = document.getElementById(`${prefix}-mutuelle`);
-    if (select) select.innerHTML = mutuellesData.map(m => `<option value="${m.id}">${m.nom}</option>`).join('');
-}
-
-function onModePaiementChange(prefix) {
-    const mode = document.getElementById(`${prefix}-mode-paiement`).value;
-    document.getElementById(`${prefix}-mutuelle-group`).style.display = mode === 'mutuelle' ? '' : 'none';
-}
-
 async function ensureMedecinsLoaded() {
     if (medecinsData.length) return;
     try {
@@ -1156,14 +1132,13 @@ async function openNewConsultationModal() {
     document.getElementById('modal-consultation-title').textContent = 'Nouvelle Consultation';
     document.getElementById('co-id').value = '';
 
-    const tasks = [ensureMedecinsLoaded(), ensureMutuellesLoaded()];
+    const tasks = [ensureMedecinsLoaded()];
     if (!patientsData.length) tasks.push(loadPatients());
     await Promise.all(tasks);
     resetPatientCombo('co');
 
     const medecinSelect = document.getElementById('co-medecin');
     medecinSelect.innerHTML = '<option value="">-- Aucun --</option>' + medecinsData.map(m => `<option value="${m.id}">${m.nom}</option>`).join('');
-    populateMutuelleSelect('co');
 
     document.getElementById('co-date').value = new Date().toISOString().split('T')[0];
     document.getElementById('co-motif').value = '';
@@ -1172,7 +1147,6 @@ async function openNewConsultationModal() {
     document.getElementById('co-diagnostic').value = '';
     document.getElementById('co-observation').value = '';
     document.getElementById('co-mode-paiement').value = 'especes';
-    onModePaiementChange('co');
 
     openModal('modal-consultation');
 }
@@ -1184,7 +1158,7 @@ async function editConsultation(id) {
     document.getElementById('modal-consultation-title').textContent = 'Modifier Consultation';
     document.getElementById('co-id').value = consultation.id;
 
-    const tasks = [ensureMedecinsLoaded(), ensureMutuellesLoaded()];
+    const tasks = [ensureMedecinsLoaded()];
     if (!patientsData.length) tasks.push(loadPatients());
     await Promise.all(tasks);
     setPatientComboValue('co', consultation.patient_id);
@@ -1192,7 +1166,6 @@ async function editConsultation(id) {
     const medecinSelect = document.getElementById('co-medecin');
     medecinSelect.innerHTML = '<option value="">-- Aucun --</option>' + medecinsData.map(m => `<option value="${m.id}">${m.nom}</option>`).join('');
     medecinSelect.value = consultation.medecin_id || '';
-    populateMutuelleSelect('co');
 
     document.getElementById('co-date').value = consultation.date_consult || '';
     document.getElementById('co-motif').value = consultation.motif || '';
@@ -1201,8 +1174,6 @@ async function editConsultation(id) {
     document.getElementById('co-diagnostic').value = consultation.diagnostic || '';
     document.getElementById('co-observation').value = consultation.observation || '';
     document.getElementById('co-mode-paiement').value = consultation.mode_paiement || 'especes';
-    document.getElementById('co-mutuelle').value = consultation.mutuelle_id || '';
-    onModePaiementChange('co');
 
     openModal('modal-consultation');
 }
@@ -1230,8 +1201,6 @@ async function saveConsultation() {
         diagnostic: document.getElementById('co-diagnostic').value,
         observation: document.getElementById('co-observation').value,
         mode_paiement: document.getElementById('co-mode-paiement').value,
-        mutuelle_id: document.getElementById('co-mode-paiement').value === 'mutuelle' && document.getElementById('co-mutuelle').value
-            ? parseInt(document.getElementById('co-mutuelle').value) : null,
     };
     try {
         if (id) {
@@ -2106,11 +2075,10 @@ async function openOrdonnanceModal(type) {
     ordonnanceFormReturnTab = type || 'patient';
 
     // Remplir la liste des patients + charger dosages/formes/stock en parallèle
-    const tasks = [loadOrdonnanceRefs(), ensureStockLoaded(), ensureMutuellesLoaded(), ensureMedecinsLoaded(), ensureTypeSoinsLoaded()];
+    const tasks = [loadOrdonnanceRefs(), ensureStockLoaded(), ensureMedecinsLoaded(), ensureTypeSoinsLoaded()];
     if (!patientsData.length) tasks.push(loadPatients());
     await Promise.all(tasks);
     populateStockDesignationsDatalist();
-    populateMutuelleSelect('o');
     resetPatientCombo('o');
 
     const medecinSelect = document.getElementById('o-medecin');
@@ -2121,7 +2089,6 @@ async function openOrdonnanceModal(type) {
     document.getElementById('o-beneficiaire').value = '';
     document.getElementById('o-est-validee').checked = false;
     document.getElementById('o-mode-paiement').value = 'especes';
-    onModePaiementChange('o');
     onTypeBeneficiaireChange();
 
     // Réinitialiser les lignes
@@ -2138,16 +2105,15 @@ async function editOrdonnance(id) {
     document.getElementById('o-id').value = id;
 
     const tasks = [
-        loadOrdonnanceRefs(), ensureStockLoaded(), ensureMutuellesLoaded(), ensureMedecinsLoaded(), ensureTypeSoinsLoaded(),
+        loadOrdonnanceRefs(), ensureStockLoaded(), ensureMedecinsLoaded(), ensureTypeSoinsLoaded(),
         apiFetch(`/ordonnances/${id}`).then(r => r.json()),
         apiFetch(`/soins/?ordonnance_id=${id}`).then(r => r.json()),
     ];
     if (!patientsData.length) tasks.push(loadPatients());
 
     try {
-        const [, , , , , ordonnance, soinsLies] = await Promise.all(tasks);
+        const [, , , , ordonnance, soinsLies] = await Promise.all(tasks);
         populateStockDesignationsDatalist();
-        populateMutuelleSelect('o');
 
         ordonnanceFormReturnTab = ordonnance.type_beneficiaire || 'patient';
         onTypeBeneficiaireChange();
@@ -2164,8 +2130,6 @@ async function editOrdonnance(id) {
         document.getElementById('o-beneficiaire').value = ordonnance.beneficiaire || '';
         document.getElementById('o-est-validee').checked = !!ordonnance.est_validee;
         document.getElementById('o-mode-paiement').value = ordonnance.mode_paiement || 'especes';
-        document.getElementById('o-mutuelle').value = ordonnance.mutuelle_id || '';
-        onModePaiementChange('o');
 
         document.getElementById('lignes-ordonnance').innerHTML = '';
         if (ordonnance.lignes && ordonnance.lignes.length) {
@@ -2359,8 +2323,6 @@ async function saveOrdonnance() {
         beneficiaire: document.getElementById('o-beneficiaire').value,
         est_validee: document.getElementById('o-est-validee').checked ? 1 : 0,
         mode_paiement: document.getElementById('o-mode-paiement').value,
-        mutuelle_id: document.getElementById('o-mode-paiement').value === 'mutuelle' && document.getElementById('o-mutuelle').value
-            ? parseInt(document.getElementById('o-mutuelle').value) : null,
         lignes: lignes,
         soins: soins
     };
@@ -3256,26 +3218,92 @@ function filterFournisseurs() {
     renderFournisseurs(fournisseursData.filter(f => (f.nom||'').toLowerCase().includes(q) || (f.type_article||'').toLowerCase().includes(q)));
 }
 
-function openNewFournisseurModal() {
+let typesArticleFournisseurData = [];
+
+async function ensureTypesArticleFournisseurLoaded() {
+    if (typesArticleFournisseurData.length) return;
+    try {
+        const data = await apiFetch('/type-article-fournisseur/').then(r => r.json());
+        typesArticleFournisseurData = Array.isArray(data) ? data : [];
+    } catch (e) {
+        typesArticleFournisseurData = [];
+    }
+}
+
+function populateTypeArticleFournisseurSelect(selected) {
+    const select = document.getElementById('fo-type-article');
+    select.innerHTML = '<option value="">-- Aucun --</option>'
+        + typesArticleFournisseurData.map(t => `<option value="${t.libelle}">${t.libelle}</option>`).join('');
+    select.value = selected || '';
+}
+
+async function openNewFournisseurModal() {
     document.getElementById('modal-fournisseur-title').textContent = 'Nouveau Fournisseur';
     document.getElementById('fo-id').value = '';
     document.getElementById('fo-nom').value = '';
-    document.getElementById('fo-type-article').value = '';
+    await ensureTypesArticleFournisseurLoaded();
+    populateTypeArticleFournisseurSelect('');
     document.getElementById('fo-telephone').value = '';
     document.getElementById('fo-adresse').value = '';
     openModal('modal-fournisseur');
 }
 
-function editFournisseur(id) {
+async function editFournisseur(id) {
     const fournisseur = fournisseursData.find(f => f.id === id);
     if (!fournisseur) return;
     document.getElementById('modal-fournisseur-title').textContent = 'Modifier Fournisseur';
     document.getElementById('fo-id').value = fournisseur.id;
     document.getElementById('fo-nom').value = fournisseur.nom || '';
-    document.getElementById('fo-type-article').value = fournisseur.type_article || '';
+    await ensureTypesArticleFournisseurLoaded();
+    populateTypeArticleFournisseurSelect(fournisseur.type_article || '');
     document.getElementById('fo-telephone').value = fournisseur.telephone || '';
     document.getElementById('fo-adresse').value = fournisseur.adresse || '';
     openModal('modal-fournisseur');
+}
+
+async function openTypeArticleFournisseurModal() {
+    await ensureTypesArticleFournisseurLoaded();
+    renderTypesArticleFournisseurGestion();
+    document.getElementById('taf-nouveau').value = '';
+    openModal('modal-type-article-fournisseur');
+}
+
+function renderTypesArticleFournisseurGestion() {
+    const tbody = document.getElementById('table-types-article-fournisseur');
+    if (!typesArticleFournisseurData.length) { tbody.innerHTML = '<tr><td colspan="2">Aucun type</td></tr>'; return; }
+    tbody.innerHTML = typesArticleFournisseurData.map(t => `<tr>
+        <td>${escapeHtml(t.libelle)}</td>
+        <td><button class="btn btn-sm btn-danger" onclick="deleteTypeArticleFournisseur(${t.id})">Supprimer</button></td>
+    </tr>`).join('');
+}
+
+async function addTypeArticleFournisseur() {
+    const libelle = document.getElementById('taf-nouveau').value.trim();
+    if (!libelle) return;
+    try {
+        await apiFetch('/type-article-fournisseur/', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ libelle }) });
+        typesArticleFournisseurData = [];
+        await ensureTypesArticleFournisseurLoaded();
+        renderTypesArticleFournisseurGestion();
+        populateTypeArticleFournisseurSelect(document.getElementById('fo-type-article').value);
+        document.getElementById('taf-nouveau').value = '';
+        showToast('Type ajouté', 'success');
+    } catch(e) { showToast('Erreur lors de l\'ajout : ' + e.message, 'error'); }
+}
+
+async function deleteTypeArticleFournisseur(id) {
+    if (!confirm('Voulez-vous vraiment supprimer ce type ?')) return;
+    try {
+        await apiFetch(`/type-article-fournisseur/${id}`, { method: 'DELETE' });
+        typesArticleFournisseurData = [];
+        await ensureTypesArticleFournisseurLoaded();
+        renderTypesArticleFournisseurGestion();
+        populateTypeArticleFournisseurSelect(document.getElementById('fo-type-article').value);
+        showToast('Type supprimé', 'success');
+    } catch(e) {
+        if (e.status === 409) showToast(e.detail, 'error');
+        else showToast('Erreur lors de la suppression : ' + e.message, 'error');
+    }
 }
 
 async function saveFournisseur() {
@@ -3347,6 +3375,53 @@ function renderDepenses(data) {
 function populateTypeDepenseFilter() {
     const select = document.getElementById('filter-type-depense');
     select.innerHTML = '<option value="">Tous les types</option>' + typesDepenseData.map(t => `<option value="${t.nom}">${t.nom}</option>`).join('');
+}
+
+async function openTypeDepenseModal() {
+    if (!typesDepenseData.length) {
+        try { typesDepenseData = await apiFetch('/type-depense').then(r => r.json()); } catch(e) { typesDepenseData = []; }
+    }
+    renderTypesDepenseGestion();
+    document.getElementById('tde-nouveau').value = '';
+    openModal('modal-type-depense');
+}
+
+function renderTypesDepenseGestion() {
+    const tbody = document.getElementById('table-types-depense-gestion');
+    if (!typesDepenseData.length) { tbody.innerHTML = '<tr><td colspan="2">Aucun type</td></tr>'; return; }
+    tbody.innerHTML = typesDepenseData.map(t => `<tr>
+        <td>${escapeHtml(t.nom)}</td>
+        <td><button class="btn btn-sm btn-danger" onclick="deleteTypeDepenseAdmin(${t.id})">Supprimer</button></td>
+    </tr>`).join('');
+}
+
+async function refreshTypesDepense() {
+    typesDepenseData = await apiFetch('/type-depense').then(r => r.json());
+    populateTypeDepenseFilter();
+    renderTypesDepenseGestion();
+}
+
+async function addTypeDepenseAdmin() {
+    const nom = document.getElementById('tde-nouveau').value.trim();
+    if (!nom) return;
+    try {
+        await apiFetch('/type-depense/', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ nom }) });
+        await refreshTypesDepense();
+        document.getElementById('tde-nouveau').value = '';
+        showToast('Type ajouté', 'success');
+    } catch(e) { showToast('Erreur lors de l\'ajout : ' + e.message, 'error'); }
+}
+
+async function deleteTypeDepenseAdmin(id) {
+    if (!confirm('Voulez-vous vraiment supprimer ce type de dépense ?')) return;
+    try {
+        await apiFetch(`/type-depense/${id}`, { method: 'DELETE' });
+        await refreshTypesDepense();
+        showToast('Type supprimé', 'success');
+    } catch(e) {
+        if (e.status === 409) showToast(e.detail, 'error');
+        else showToast('Erreur lors de la suppression : ' + e.message, 'error');
+    }
 }
 
 function getFilteredDepenses() {
@@ -3567,7 +3642,6 @@ async function openNewAchatModal() {
     await Promise.all([ensureFournisseursLoaded(), ensureStockLoaded()]);
     populateStockDesignationsDatalist();
     populateFournisseurSelect('', 'ac-fournisseur', 'id');
-    document.getElementById('ac-numero-facture').value = '';
     document.getElementById('ac-date').value = new Date().toISOString().split('T')[0];
     document.getElementById('ac-statut-paiement').value = 'Non payé';
     document.getElementById('ac-notes').value = '';
@@ -3591,7 +3665,6 @@ async function editAchat(id) {
         stockData = Array.isArray(stockRaw) ? stockRaw : [];
         populateStockDesignationsDatalist();
         populateFournisseurSelect(achat.fournisseur_id || '', 'ac-fournisseur', 'id');
-        document.getElementById('ac-numero-facture').value = achat.numero_facture || '';
         document.getElementById('ac-date').value = achat.date_achat || '';
         document.getElementById('ac-statut-paiement').value = achat.statut_paiement || 'Non payé';
         document.getElementById('ac-notes').value = achat.notes || '';
@@ -4100,72 +4173,6 @@ async function deleteTypeSoin(id) {
         typeSoinsData = [];
         loadTypeSoinsAdmin();
         showToast('Type de soin supprimé', 'success');
-    } catch(e) {
-        if (e.status === 409) showToast(e.detail, 'error');
-        else showToast('Erreur lors de la suppression : ' + e.message, 'error');
-    }
-}
-
-async function loadMutuellesAdmin() {
-    document.getElementById('table-mutuelles').innerHTML = '<tr><td colspan="2" class="loading">Chargement...</td></tr>';
-    try {
-        mutuellesData = await apiFetch('/mutuelles/').then(r => r.json());
-        renderMutuellesAdmin(mutuellesData);
-    } catch(e) {
-        document.getElementById('table-mutuelles').innerHTML = `<tr><td colspan="2">Erreur de chargement</td></tr>`;
-    }
-}
-
-function renderMutuellesAdmin(data) {
-    const tbody = document.getElementById('table-mutuelles');
-    if (!data.length) { tbody.innerHTML = '<tr><td colspan="2">Aucune mutuelle</td></tr>'; return; }
-    tbody.innerHTML = data.map(m => `<tr>
-        <td>${escapeHtml(m.nom)}</td>
-        <td>
-            <button class="btn btn-sm" onclick="editMutuelle(${m.id})">Modifier</button>
-            <button class="btn btn-sm btn-danger" onclick="deleteMutuelle(${m.id})">Supprimer</button>
-        </td>
-    </tr>`).join('');
-}
-
-function openNewMutuelleModal() {
-    document.getElementById('modal-mutuelle-title').textContent = 'Nouvelle Mutuelle';
-    document.getElementById('mu-id').value = '';
-    document.getElementById('mu-nom').value = '';
-    openModal('modal-mutuelle');
-}
-
-function editMutuelle(id) {
-    const m = mutuellesData.find(x => x.id === id);
-    if (!m) return;
-    document.getElementById('modal-mutuelle-title').textContent = 'Modifier Mutuelle';
-    document.getElementById('mu-id').value = m.id;
-    document.getElementById('mu-nom').value = m.nom || '';
-    openModal('modal-mutuelle');
-}
-
-async function saveMutuelle() {
-    if (!validateRequiredFields([{ id: 'mu-nom', label: 'Nom' }])) return;
-    const id = document.getElementById('mu-id').value;
-    const data = { nom: document.getElementById('mu-nom').value };
-    try {
-        if (id) {
-            await apiFetch(`/mutuelles/${id}`, { method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(data) });
-        } else {
-            await apiFetch('/mutuelles/', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(data) });
-        }
-        closeModal('modal-mutuelle');
-        loadMutuellesAdmin();
-        showToast('Mutuelle enregistrée !', 'success');
-    } catch(e) { showToast('Erreur lors de l\'enregistrement : ' + e.message, 'error'); }
-}
-
-async function deleteMutuelle(id) {
-    if (!confirm('Voulez-vous vraiment supprimer cette mutuelle ?')) return;
-    try {
-        await apiFetch(`/mutuelles/${id}`, { method: 'DELETE' });
-        loadMutuellesAdmin();
-        showToast('Mutuelle supprimée', 'success');
     } catch(e) {
         if (e.status === 409) showToast(e.detail, 'error');
         else showToast('Erreur lors de la suppression : ' + e.message, 'error');

@@ -47,11 +47,10 @@ Le frontend est statique (HTML/CSS/JS). Pour tester avec l'API en local, l'API t
 | Rendez-vous (réactivé Phase 11 : agenda filtrable date/statut, changement de statut en ligne, bouton "Créer consultation") | ✅ |
 | Patients (liste + création) | ✅ |
 | Dossier patient (page dédiée 5 onglets : consultations/ordonnances/soins/examens/vaccinations, résumé financier, export PDF/Excel, impression) | ✅ |
-| Consultations (liste, champ "traitement après diagnostic" supprimé, mode de paiement + mutuelle, génération certificats médicaux) | ✅ |
+| Consultations (liste, champ "traitement après diagnostic" supprimé, mode de paiement (espèces/mobile money/gratuit), génération certificats médicaux) | ✅ |
 | Stock (liste + alertes, export Excel articles, alerte visuelle ligne sous seuil ; "Historique des sorties" retiré) | ✅ |
-| Ordonnances (3 volets patients/tiers/interne, filtres date, export Excel, CRUD, impression avec choix PDF/impression directe, type_beneficiaire auto selon l'onglet, mode de paiement + mutuelle) | ✅ |
+| Ordonnances (3 volets patients/tiers/interne, filtres date, export Excel, CRUD, impression avec choix PDF/impression directe, type_beneficiaire auto selon l'onglet, mode de paiement (espèces/mobile money/gratuit)) | ✅ |
 | Examens complémentaires (sélection multiple de types d'examens avec total + page admin "Types d'examens" : catégories/types/prix) | ✅ |
-| Mutuelles (page admin CRUD) | ✅ |
 | Personnel | ❌ à faire |
 | Comptabilité | 🟡 en cours (onglets Dépenses : liste + filtre par type, Synthèse : recettes/dépenses/profit + graphique + répartition par mode de paiement) |
 | Rapports | ❌ à faire |
