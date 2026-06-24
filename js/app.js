@@ -1729,88 +1729,14 @@ function populateFournisseurSelect(selected, selectId = 'st-fournisseur', valueF
     select.value = selected || '';
 }
 
-// Types de stock (table type_stock) : libellé du champ "Type" du formulaire stock/achats,
-// chaque type étant associé à une categorie ('medicament'/'materiel') qui pilote le volet.
-let typeStockData = [];
-
-async function ensureTypeStockLoaded() {
-    if (typeStockData.length) return;
-    try {
-        typeStockData = await apiFetch('/type-stock').then(r => r.json());
-    } catch(e) { typeStockData = []; }
-}
-
-// Remplit un select de type de stock. Si la valeur actuelle de l'article ne correspond à
-// aucun type_stock connu (donnée historique du champ "Type" en texte libre, cf. Phase 16),
-// une option supplémentaire est ajoutée pour ne pas modifier silencieusement sa categorie.
-function populateTypeStockSelect(selectId, selectedLibelle) {
-    const select = document.getElementById(selectId);
-    let options = typeStockData.map(t => `<option value="${t.libelle}" data-categorie="${t.categorie}">${t.libelle}</option>`).join('');
-    if (selectedLibelle && !typeStockData.some(t => t.libelle === selectedLibelle)) {
-        options += `<option value="${selectedLibelle}">${selectedLibelle}</option>`;
-    }
-    select.innerHTML = options;
-    select.value = selectedLibelle || '';
-}
-
-function onStockTypeChange() {
-    const select = document.getElementById('st-type');
-    const selected = select.options[select.selectedIndex];
-    if (selected && selected.dataset.categorie) {
-        document.getElementById('st-categorie').value = selected.dataset.categorie;
-    }
-}
-
-async function openGererTypesStockModal() {
-    await ensureTypeStockLoaded();
-    renderTypeStockList();
-    document.getElementById('ts-libelle').value = '';
-    openModal('modal-type-stock');
-}
-
-function renderTypeStockList() {
-    const tbody = document.getElementById('table-type-stock');
-    if (!typeStockData.length) { tbody.innerHTML = '<tr><td colspan="3">Aucun type</td></tr>'; return; }
-    tbody.innerHTML = typeStockData.map(t => `<tr>
-        <td>${t.libelle}</td><td>${t.categorie === 'materiel' ? 'Matériel médical' : 'Médicament'}</td>
-        <td><button class="btn btn-sm btn-danger" onclick="deleteTypeStock(${t.id})">Supprimer</button></td>
-    </tr>`).join('');
-}
-
-async function addTypeStock() {
-    const libelle = document.getElementById('ts-libelle').value.trim();
-    if (!libelle) { showToast('Le libellé est obligatoire', 'error'); return; }
-    const categorie = document.getElementById('ts-categorie').value;
-    try {
-        await apiFetch('/type-stock', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ libelle, categorie }) });
-        typeStockData = [];
-        await ensureTypeStockLoaded();
-        renderTypeStockList();
-        document.getElementById('ts-libelle').value = '';
-        showToast('Type ajouté !', 'success');
-    } catch(e) { showToast('Erreur : ' + e.message, 'error'); }
-}
-
-async function deleteTypeStock(id) {
-    if (!confirm('Voulez-vous vraiment supprimer ce type ?')) return;
-    try {
-        await apiFetch(`/type-stock/${id}`, { method: 'DELETE' });
-        typeStockData = [];
-        await ensureTypeStockLoaded();
-        renderTypeStockList();
-        showToast('Type supprimé !', 'success');
-    } catch(e) { showToast('Erreur : ' + e.message, 'error'); }
-}
-
 // Modifier un article
-async function editStockArticle(id) {
+function editStockArticle(id) {
     const article = stockAdminData.find(s => s.idStock === id);
     if (!article) return;
-    await ensureTypeStockLoaded();
     document.getElementById('st-id').value = article.idStock;
     document.getElementById('st-date-entree').value = article.DateEntree || '';
     document.getElementById('st-designation').value = article.Designation || '';
-    populateTypeStockSelect('st-type', article.Type || '');
+    document.getElementById('st-type').value = article.Type || '';
     document.getElementById('st-categorie').value = article.categorie || 'medicament';
     populateFournisseurSelect(article.Fournisseur || '');
     document.getElementById('st-quantite').value = article.Quantite || 0;
@@ -1826,7 +1752,6 @@ async function editStockArticle(id) {
 async function saveStockArticle() {
     if (!validateRequiredFields([
         { id: 'st-designation', label: 'Désignation' },
-        { id: 'st-type', label: 'Type' },
         { id: 'st-quantite', label: 'Quantité', min: 0 },
         { id: 'st-prix-vente', label: 'Prix vente', min: 0 },
     ])) return;
@@ -3548,6 +3473,17 @@ async function deleteDepense(id) {
         loadDepenses();
         showToast('Dépense supprimée !', 'success');
     } catch(e) { showToast('Erreur lors de la suppression : ' + e.message, 'error'); }
+}
+
+// Types de stock (table type_stock) : utilisé par les nouvelles lignes d'achat pour
+// le select de type d'article, distinct du champ "Type" libre du formulaire Stock.
+let typeStockData = [];
+
+async function ensureTypeStockLoaded() {
+    if (typeStockData.length) return;
+    try {
+        typeStockData = await apiFetch('/type-stock').then(r => r.json());
+    } catch(e) { typeStockData = []; }
 }
 
 // Achats

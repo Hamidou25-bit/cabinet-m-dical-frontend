@@ -724,7 +724,6 @@
                     <h3 id="stock-tab-titre">Stock médicaments</h3>
                     <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
                         <input type="text" class="search-box" placeholder="Rechercher..." id="search-stock" oninput="filterStock()">
-                        <button class="btn" onclick="openGererTypesStockModal()">🗂️ Gérer les types</button>
                         <button class="btn" onclick="exportStockExcel()">📊 Exporter Excel</button>
                     </div>
                 </div>
@@ -1304,12 +1303,18 @@
                 <input type="text" id="st-designation">
             </div>
             <div class="form-group">
-                <label>Type<span class="required-mark">*</span></label>
-                <select id="st-type" onchange="onStockTypeChange()"></select>
+                <label>Type</label>
+                <input type="text" id="st-type">
             </div>
         </div>
-        <input type="hidden" id="st-categorie" value="medicament">
         <div class="form-row">
+            <div class="form-group">
+                <label>Catégorie<span class="required-mark">*</span></label>
+                <select id="st-categorie">
+                    <option value="medicament">Médicament</option>
+                    <option value="materiel">Matériel médical</option>
+                </select>
+            </div>
             <div class="form-group">
                 <label>Fournisseur</label>
                 <select id="st-fournisseur">
@@ -1366,37 +1371,6 @@
         <div class="modal-actions">
             <button class="btn" onclick="closeModal('modal-stock-edit')">Annuler</button>
             <button class="btn btn-primary" onclick="saveStockArticle()">Enregistrer</button>
-        </div>
-    </div>
-</div>
-<!-- MODAL GESTION DES TYPES DE STOCK -->
-<div class="modal-overlay" id="modal-type-stock">
-    <div class="modal">
-        <h3>Gérer les types de stock</h3>
-        <table>
-            <thead>
-                <tr><th>Libellé</th><th>Catégorie</th><th>Actions</th></tr>
-            </thead>
-            <tbody id="table-type-stock">
-                <tr><td colspan="3" class="loading">Chargement...</td></tr>
-            </tbody>
-        </table>
-        <div class="form-row" style="margin-top:16px;">
-            <div class="form-group">
-                <label>Nouveau type<span class="required-mark">*</span></label>
-                <input type="text" id="ts-libelle" placeholder="Ex: Consommable">
-            </div>
-            <div class="form-group">
-                <label>Catégorie<span class="required-mark">*</span></label>
-                <select id="ts-categorie">
-                    <option value="medicament">Médicament</option>
-                    <option value="materiel">Matériel médical</option>
-                </select>
-            </div>
-        </div>
-        <button class="btn btn-primary" onclick="addTypeStock()">+ Ajouter</button>
-        <div class="modal-actions">
-            <button class="btn" onclick="closeModal('modal-type-stock')">Fermer</button>
         </div>
     </div>
 </div>
