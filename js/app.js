@@ -3475,37 +3475,15 @@ async function deleteDepense(id) {
     } catch(e) { showToast('Erreur lors de la suppression : ' + e.message, 'error'); }
 }
 
-// Types de stock (table type_stock) : utilisé par les nouvelles lignes d'achat pour
-// le select de type d'article, distinct du champ "Type" libre du formulaire Stock.
-let typeStockData = [];
-
-async function ensureTypeStockLoaded() {
-    if (typeStockData.length) return;
-    try {
-        typeStockData = await apiFetch('/type-stock').then(r => r.json());
-    } catch(e) { typeStockData = []; }
-}
-
 // Achats
 let achatsData = [];
-let currentAchatsVolet = 'medicament';
-const ACHATS_VOLET_LABELS = { medicament: 'Achats médicaments', materiel: 'Achats matériel médical' };
 const statutPaiementClasses = { 'Payé': 'status-ok', 'Non payé': 'status-danger', 'Partiel': 'status-warning' };
-
-function showAchatsVolet(tab) {
-    currentAchatsVolet = tab;
-    ['medicament', 'materiel'].forEach(t => {
-        document.getElementById('tab-achats-' + t).className = t === tab ? 'btn btn-primary' : 'btn';
-    });
-    document.getElementById('achats-volet-titre').textContent = ACHATS_VOLET_LABELS[tab];
-    filterAchats();
-}
 
 async function loadAchats() {
     try {
         const [achats] = await Promise.all([apiFetch('/achats').then(r => r.json()), ensureFournisseursLoaded()]);
         achatsData = achats;
-        renderAchats(getFilteredAchats());
+        renderAchats(achatsData);
     } catch(e) { document.getElementById('table-achats').innerHTML = '<tr><td colspan="6">Erreur</td></tr>'; }
 }
 
@@ -3530,14 +3508,12 @@ function getFilteredAchats() {
     const dateDebut = parseDateFR(document.getElementById('filter-achats-date-debut').value);
     const dateFin = parseDateFR(document.getElementById('filter-achats-date-fin').value);
     return achatsData.filter(a => {
-        // Un achat "mixte" (lignes médicaments + matériel à égalité) est affiché dans les deux volets.
-        const matchVolet = a.volet === currentAchatsVolet || a.volet === 'mixte';
         const matchQ = (a.numero_facture||'').toLowerCase().includes(q)
             || (a.fournisseur_nom||'').toLowerCase().includes(q)
             || (a.statut_paiement||'').toLowerCase().includes(q);
         const matchDateDebut = !dateDebut || (a.date_achat && a.date_achat >= dateDebut);
         const matchDateFin = !dateFin || (a.date_achat && a.date_achat <= dateFin);
-        return matchVolet && matchQ && matchDateDebut && matchDateFin;
+        return matchQ && matchDateDebut && matchDateFin;
     });
 }
 
@@ -3549,7 +3525,7 @@ function resetFilterAchats() {
     document.getElementById('search-achats').value = '';
     clearFlatpickr('filter-achats-date-debut');
     clearFlatpickr('filter-achats-date-fin');
-    renderAchats(getFilteredAchats());
+    renderAchats(achatsData);
 }
 
 function exportAchatsExcel() {
@@ -3588,7 +3564,7 @@ function exportAchatsExcel() {
 async function openNewAchatModal() {
     document.getElementById('modal-achat-title').textContent = 'Nouvel Achat';
     document.getElementById('ac-id').value = '';
-    await Promise.all([ensureFournisseursLoaded(), ensureStockLoaded(), ensureTypeStockLoaded()]);
+    await Promise.all([ensureFournisseursLoaded(), ensureStockLoaded()]);
     populateStockDesignationsDatalist();
     populateFournisseurSelect('', 'ac-fournisseur', 'id');
     document.getElementById('ac-numero-facture').value = '';
@@ -3610,8 +3586,7 @@ async function editAchat(id) {
         const [, stockRaw, achat] = await Promise.all([
             ensureFournisseursLoaded(),
             apiFetch('/stock').then(r => r.json()),
-            apiFetch(`/achats/${id}`).then(r => r.json()),
-            ensureTypeStockLoaded()
+            apiFetch(`/achats/${id}`).then(r => r.json())
         ]);
         stockData = Array.isArray(stockRaw) ? stockRaw : [];
         populateStockDesignationsDatalist();
@@ -3648,7 +3623,6 @@ function addLigneAchat(ligne) {
         <input type="hidden" class="la-stock-id" value="${ligne && ligne.stock_id ? ligne.stock_id : ''}">
         <div class="ligne-achat-info"></div>
         <div class="ligne-achat-nouvel" style="display:none;">
-            <select class="la-type"><option value="">-- Type (Médicament par défaut) --</option>${typeStockData.map(t => `<option value="${t.libelle}">${t.libelle}</option>`).join('')}</select>
             <input type="number" placeholder="Prix de vente" class="la-prix-vente" min="0">
             <input type="number" placeholder="Seuil alerte" class="la-seuil-alerte" min="0">
             <input type="text" placeholder="Dosage (ex: 500mg)" class="la-dosage">
@@ -3666,7 +3640,6 @@ function addLigneAchat(ligne) {
             <input type="date" placeholder="Date péremption" class="la-date-peremption">
         </div>
     `;
-    if (ligne && ligne.type_article) wrapper.querySelector('.la-type').value = ligne.type_article;
     container.appendChild(wrapper);
     refreshLigneAchatInfo(wrapper);
     updateAchatTotal();
@@ -3750,13 +3723,11 @@ async function saveAchat() {
         if (stockId) {
             ligne.stock_id = parseInt(stockId);
         } else {
-            const typeArticle = wrapper.querySelector('.la-type').value;
             const prixVente = wrapper.querySelector('.la-prix-vente').value;
             const seuilAlerte = wrapper.querySelector('.la-seuil-alerte').value;
             const dosage = wrapper.querySelector('.la-dosage').value;
             const forme = wrapper.querySelector('.la-forme').value;
             const datePeremption = wrapper.querySelector('.la-date-peremption').value;
-            if (typeArticle) ligne.type_article = typeArticle;
             if (prixVente) ligne.prix_vente = parseFloat(prixVente);
             if (seuilAlerte) ligne.seuil_alerte = parseInt(seuilAlerte);
             if (dosage) ligne.dosage = dosage;
