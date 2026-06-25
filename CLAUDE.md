@@ -52,10 +52,12 @@ Le frontend est statique (HTML/CSS/JS). Pour tester avec l'API en local, l'API t
 | Ordonnances (3 volets patients/tiers/interne, filtres date, export Excel, CRUD, impression avec choix PDF/impression directe, type_beneficiaire auto selon l'onglet, mode de paiement (espèces/mobile money/gratuit)) | ✅ |
 | Examens complémentaires (sélection multiple de types d'examens avec total + page admin "Types d'examens" : catégories/types/prix) | ✅ |
 | Personnel | ❌ à faire |
-| Comptabilité | 🟡 en cours (onglets Dépenses : liste + filtre par type, Synthèse : recettes/dépenses/profit + graphique + répartition par mode de paiement) |
+| Comptabilité | 🟡 en cours (onglets Dépenses : liste + filtre par type, Synthèse : recettes/dépenses/profit + graphique + répartition par mode de paiement, basée sur les enregistrements encaissés depuis la Phase 20) |
 | Rapports | ❌ à faire |
 | CRUD Patients (modifier/supprimer) | ❌ à faire |
 | CRUD Stock (entrées/sorties) | 🟡 sortie uniquement (bouton "Sortie") |
+| Paramètres cabinet (Phase 20) | ✅ page admin dédiée (menu Administration) |
+| Caisse/encaissement (Phase 20) | ✅ bouton "💰 Encaisser" sur Consultations/Soins/Examens/Ordonnances (admin/secrétaire) |
 
 ## Déploiement
 
