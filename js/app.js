@@ -1017,6 +1017,48 @@ document.addEventListener('click', (e) => {
     });
 });
 
+// Création rapide d'un patient depuis le combobox d'une autre page (Consultations,
+// Ordonnances, Soins, Examens) - réutilise le même combobox générique (setPatientComboValue)
+// que la sélection manuelle, plutôt qu'un callback dédié par page.
+let _patientRapidePrefix = null;
+
+function ouvrirModalPatientRapide(prefix) {
+    _patientRapidePrefix = prefix;
+    ['pr-nom', 'pr-prenom', 'pr-age', 'pr-telephone', 'pr-profession', 'pr-adresse', 'pr-ethnie'].forEach(id => {
+        document.getElementById(id).value = '';
+    });
+    document.getElementById('pr-sexe').value = 'Masculin';
+    openModal('modal-patient-rapide');
+}
+
+async function savePatientRapide() {
+    if (!validateRequiredFields([
+        { id: 'pr-nom', label: 'Nom' },
+        { id: 'pr-prenom', label: 'Prénom' },
+        { id: 'pr-age', label: 'Âge', min: 0 },
+    ])) return;
+
+    const patient = {
+        nom: document.getElementById('pr-nom').value.toUpperCase(),
+        prenom: document.getElementById('pr-prenom').value,
+        age: parseInt(document.getElementById('pr-age').value),
+        sexe: document.getElementById('pr-sexe').value,
+        telephone: document.getElementById('pr-telephone').value,
+        profession: document.getElementById('pr-profession').value,
+        adresse: document.getElementById('pr-adresse').value,
+        ethnie: document.getElementById('pr-ethnie').value,
+        date_enregistrement: new Date().toISOString().split('T')[0]
+    };
+    try {
+        const res = await apiFetch('/patients', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(patient) }).then(r => r.json());
+        const nouveauPatient = { id: res.id, numero_dossier: res.numero_dossier, ...patient };
+        patientsData.unshift(nouveauPatient);
+        closeModal('modal-patient-rapide');
+        if (_patientRapidePrefix) setPatientComboValue(_patientRapidePrefix, nouveauPatient.id);
+        showToast(`Patient créé ! N° Dossier : ${res.numero_dossier}`, 'success');
+    } catch(e) { showToast('Erreur lors de la création du patient : ' + e.message, 'error'); }
+}
+
 // Consultations
 async function loadConsultations() {
     try {
