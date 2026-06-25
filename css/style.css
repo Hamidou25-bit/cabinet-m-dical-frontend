@@ -1500,3 +1500,50 @@ input[type="datetime-local"]:focus {
         width: 100%;
     }
 }
+
+#recu-impression {
+    display: none;
+}
+
+@media print {
+    body > *:not(#recu-impression) {
+        display: none !important;
+    }
+
+    #recu-impression {
+        display: block;
+        width: 72mm;
+        margin: 0 auto;
+        font-family: 'Courier New', monospace;
+        font-size: 11px;
+        color: #000;
+    }
+
+    #recu-impression .recu-titre {
+        text-align: center;
+        font-weight: bold;
+        font-size: 13px;
+        margin-bottom: 4px;
+    }
+
+    #recu-impression .recu-separateur {
+        border-top: 1px dashed #000;
+        margin: 4px 0;
+    }
+
+    #recu-impression .recu-ligne {
+        display: flex;
+        justify-content: space-between;
+    }
+
+    #recu-impression .recu-total {
+        font-weight: bold;
+        font-size: 13px;
+    }
+
+    #recu-impression .recu-footer {
+        text-align: center;
+        margin-top: 8px;
+        font-size: 10px;
+    }
+}
