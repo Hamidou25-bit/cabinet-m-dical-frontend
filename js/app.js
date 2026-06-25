@@ -145,6 +145,7 @@ const MENU_ROLES = {
     'menu-type-soins':      ['admin'],
     'menu-comptabilite':    ['admin'],
     'menu-audit':           ['admin'],
+    'menu-parametres':      ['admin'],
 };
 
 function applyRoleMenu() {
@@ -188,6 +189,10 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Menu adapté au rôle de l'utilisateur connecté
     applyRoleMenu();
+
+    // Paramètres du cabinet (nom/adresse/téléphone/logo/prix consultation), mis en
+    // cache dans window._parametresCabinet pour les pages qui en ont besoin (reçus, etc.)
+    initParametresCabinet();
 
     // Initialisation Flatpickr sur tous les champs de filtre de date (format JJ/MM/AAAA)
     document.querySelectorAll('input[placeholder="JJ/MM/AAAA"]').forEach(input => {
@@ -237,7 +242,7 @@ function showPage(page) {
         : document.querySelector(`.menu-item[onclick*="showPage('${page}')"]`);
     if (menuItem) menuItem.classList.add('active');
 
-    const titles = { dashboard: 'Tableau de bord', 'rendez-vous': 'Rendez-vous', patients: 'Patients', consultations: 'Consultations', stock: 'Stock', ordonnances: 'Ordonnances', examens: 'Examens complémentaires', soins: 'Soins', dossiers: 'Dossiers patients', personnel: 'Personnel', prescripteurs: 'Prescripteurs', 'examens-config': "Types d'examens", 'type-soins': 'Types de soins', comptabilite: 'Comptabilité', audit: "Journal d'audit" };
+    const titles = { dashboard: 'Tableau de bord', 'rendez-vous': 'Rendez-vous', patients: 'Patients', consultations: 'Consultations', stock: 'Stock', ordonnances: 'Ordonnances', examens: 'Examens complémentaires', soins: 'Soins', dossiers: 'Dossiers patients', personnel: 'Personnel', prescripteurs: 'Prescripteurs', 'examens-config': "Types d'examens", 'type-soins': 'Types de soins', comptabilite: 'Comptabilité', audit: "Journal d'audit", parametres: 'Paramètres' };
     if (titles[page]) document.getElementById('page-title').textContent = titles[page];
 
     if (page === 'rendez-vous') loadRendezVous();
@@ -254,6 +259,7 @@ function showPage(page) {
     if (page === 'examens-config') loadExamensConfig();
     if (page === 'comptabilite') loadFournisseurs();
     if (page === 'audit') loadAuditLogs();
+    if (page === 'parametres') loadParametres();
 }
 
 // Modal
@@ -4446,5 +4452,49 @@ async function purgeAuditLogs() {
         showToast("Journal d'audit vidé", 'success');
     } catch (e) {
         showToast("Erreur lors de la suppression du journal d'audit", 'error');
+    }
+}
+
+// Paramètres du cabinet (page admin)
+async function loadParametres() {
+    try {
+        const data = await apiFetch('/parametres/').then(r => r.json());
+        document.getElementById('param-nom-cabinet').value = data.nom_cabinet?.valeur || '';
+        document.getElementById('param-adresse-cabinet').value = data.adresse_cabinet?.valeur || '';
+        document.getElementById('param-telephone-cabinet').value = data.telephone_cabinet?.valeur || '';
+        document.getElementById('param-prix-consultation').value = data.prix_consultation?.valeur || '';
+        document.getElementById('param-logo-cabinet').value = data.logo_cabinet?.valeur || '';
+    } catch (e) {
+        showToast('Erreur lors du chargement des paramètres', 'error');
+    }
+}
+
+async function enregistrerParametres() {
+    const data = {
+        nom_cabinet: document.getElementById('param-nom-cabinet').value,
+        adresse_cabinet: document.getElementById('param-adresse-cabinet').value,
+        telephone_cabinet: document.getElementById('param-telephone-cabinet').value,
+        prix_consultation: document.getElementById('param-prix-consultation').value,
+        logo_cabinet: document.getElementById('param-logo-cabinet').value,
+    };
+    try {
+        await apiFetch('/parametres/', { method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(data) });
+        window._parametresCabinet = data;
+        showToast('Paramètres enregistrés avec succès', 'success');
+    } catch (e) {
+        showToast("Erreur lors de l'enregistrement des paramètres : " + e.message, 'error');
+    }
+}
+
+// Charge les paramètres publics du cabinet au démarrage (utilisés sur les reçus/impressions)
+async function initParametresCabinet() {
+    try {
+        const data = await apiFetch('/parametres/').then(r => r.json());
+        window._parametresCabinet = {};
+        for (const [cle, obj] of Object.entries(data)) {
+            window._parametresCabinet[cle] = obj.valeur;
+        }
+    } catch (e) {
+        window._parametresCabinet = {};
     }
 }
