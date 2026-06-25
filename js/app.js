@@ -1080,6 +1080,16 @@ function libellePaiement(modePaiement, mutuelleNom) {
     return modePaiement === 'mutuelle' && mutuelleNom ? `${label} (${mutuelleNom})` : label;
 }
 
+// Bouton "Encaisser" (caisse) réutilisé sur Consultations/Soins/Examens/Ordonnances :
+// affiche un badge si déjà encaissé, sinon le bouton d'action.
+function boutonEncaisser(paye, onclickAppel) {
+    if (paye) return '<span style="color:#16a34a; font-size:0.85em; white-space:nowrap;">✅ Encaissé</span>';
+    if (!['admin', 'secretaire'].includes(localStorage.getItem('role'))) {
+        return '<span style="color:#b45309; font-size:0.85em; white-space:nowrap;">Non encaissé</span>';
+    }
+    return `<button class="btn btn-sm btn-primary" onclick="${onclickAppel}">💰 Encaisser</button>`;
+}
+
 function renderConsultations(data) {
     const tbody = document.getElementById('table-consultations');
     updateConsultationsTotaux(data);
@@ -1093,11 +1103,21 @@ function renderConsultations(data) {
         <td>${(c.montant_total || 0).toLocaleString()} FCFA</td>
         <td>${libellePaiement(c.mode_paiement, c.mutuelle_nom)}</td>
         <td>
+            ${boutonEncaisser(c.paye, `encaisserConsultation(${c.id})`)}
             <button class="btn btn-sm" onclick="openCertificatChoiceModal(${c.id})">📄 Document</button>
             <button class="btn btn-sm" onclick="editConsultation(${c.id})">Modifier</button>
             <button class="btn btn-sm btn-danger" onclick="deleteConsultation(${c.id})">Supprimer</button>
         </td>
     </tr>`).join('');
+}
+
+async function encaisserConsultation(id) {
+    if (!confirm('Encaisser cette consultation ?')) return;
+    try {
+        const result = await apiFetch(`/consultations/${id}/encaisser`, { method: 'POST' }).then(r => r.json());
+        showToast(`Consultation encaissée — ${result.montant.toLocaleString()} FCFA`, 'success');
+        loadConsultations();
+    } catch (e) { showToast('Erreur lors de l\'encaissement : ' + e.message, 'error'); }
 }
 
 function updateConsultationsTotaux(data) {
@@ -1872,12 +1892,26 @@ function renderOrdonnancesTab(type) {
             <td>${(o.montant_total || 0).toLocaleString()} FCFA</td>
             <td>${statut}</td>
             <td>
+                ${type !== 'interne' && o.est_validee ? boutonEncaisser(o.paye, `encaisserOrdonnance(${o.id}, '${type}')`) : ''}
                 <button class="btn btn-sm" onclick="editOrdonnance(${o.id})">Modifier</button>
                 <button class="btn btn-sm" onclick="printOrdonnance(${o.id})">Imprimer</button>
                 <button class="btn btn-sm btn-danger" onclick="deleteOrdonnance(${o.id}, '${type}')">Supprimer</button>
             </td>
         </tr>`;
     }).join('');
+}
+
+async function encaisserOrdonnance(id, type) {
+    if (!confirm('Encaisser cette ordonnance ?')) return;
+    try {
+        const result = await apiFetch(`/ordonnances/${id}/encaisser`, { method: 'POST' }).then(r => r.json());
+        if (!result.encaisse) {
+            showToast('Aucun médicament en stock cabinet à facturer', 'warning');
+            return;
+        }
+        showToast(`Ordonnance encaissée — ${result.montant.toLocaleString()} FCFA`, 'success');
+        loadOrdonnancesTab(type);
+    } catch (e) { showToast('Erreur lors de l\'encaissement : ' + e.message, 'error'); }
 }
 
 function filterOrdonnancesTab(type) {
@@ -2418,7 +2452,7 @@ function renderExamens(data) {
             : (e.nom_patient_externe || '-');
         const statut = e.statut || 'termine';
 
-        let actions = `<button class="btn btn-sm" onclick="printExamen(${e.id})">🖨️ Imprimer</button>`;
+        let actions = boutonEncaisser(e.paye, `encaisserExamen(${e.id})`) + ` <button class="btn btn-sm" onclick="printExamen(${e.id})">🖨️ Imprimer</button>`;
         if (isLaborantin) {
             if (statut === 'prescrit') {
                 actions += ` <button class="btn btn-sm btn-primary" onclick="prendreEnChargeExamen(${e.id})">Prendre en charge</button>`;
@@ -2445,6 +2479,15 @@ function renderExamens(data) {
             <td>${actions}</td>
         </tr>`;
     }).join('');
+}
+
+async function encaisserExamen(id) {
+    if (!confirm('Encaisser cet examen ?')) return;
+    try {
+        const result = await apiFetch(`/examens-complementaires/${id}/encaisser`, { method: 'POST' }).then(r => r.json());
+        showToast(`Examen encaissé — ${result.montant.toLocaleString()} FCFA`, 'success');
+        loadExamens();
+    } catch (e) { showToast('Erreur lors de l\'encaissement : ' + e.message, 'error'); }
 }
 
 async function prendreEnChargeExamen(id) {
@@ -3959,12 +4002,22 @@ function renderSoinsTab(tab) {
             <td>${(s.prix_applique || 0).toLocaleString()} FCFA</td>
             <td>${escapeHtml(s.notes || '-')}</td>
             <td>
+                ${boutonEncaisser(s.paye, `encaisserSoin(${s.id}, '${tab}')`)}
                 <button class="btn btn-sm" onclick="editSoin(${s.id}, '${tab}')">Modifier</button>
                 <button class="btn btn-sm btn-danger" onclick="deleteSoin(${s.id}, '${tab}')">Supprimer</button>
                 <button class="btn btn-sm" onclick="printSoin(${s.id}, '${tab}')">🖨️ Imprimer</button>
             </td>
         </tr>`;
     }).join('');
+}
+
+async function encaisserSoin(id, tab) {
+    if (!confirm('Encaisser ce soin ?')) return;
+    try {
+        const result = await apiFetch(`/soins/${id}/encaisser`, { method: 'POST' }).then(r => r.json());
+        showToast(`Soin encaissé — ${result.montant.toLocaleString()} FCFA`, 'success');
+        loadSoins();
+    } catch (e) { showToast('Erreur lors de l\'encaissement : ' + e.message, 'error'); }
 }
 
 function exportSoinsExcel(tab) {
