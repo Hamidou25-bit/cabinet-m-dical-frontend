@@ -154,6 +154,12 @@ function applyRoleMenu() {
         if (el) el.style.display = roles.includes(role) ? '' : 'none';
     });
     document.getElementById('menu-section-admin').style.display = role === 'admin' ? '' : 'none';
+
+    // Éléments réservés à l'admin au sein des pages (boutons d'export Excel, barres de
+    // totaux montants) - même logique de masquage que les items de menu ci-dessus.
+    document.querySelectorAll('.admin-only').forEach(el => {
+        el.style.display = role === 'admin' ? '' : 'none';
+    });
 }
 
 // Première page accessible au rôle de l'utilisateur (le Dashboard étant admin-only,

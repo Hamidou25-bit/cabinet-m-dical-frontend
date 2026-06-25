@@ -276,11 +276,11 @@
                         <input type="text" id="filter-consultations-date-debut" placeholder="JJ/MM/AAAA" title="Date - du" oninput="filterConsultations()">
                         <input type="text" id="filter-consultations-date-fin" placeholder="JJ/MM/AAAA" title="Date - au" oninput="filterConsultations()">
                         <button class="btn" onclick="resetFilterConsultations()">Réinitialiser</button>
-                        <button class="btn" onclick="exportConsultationsExcel()">📊 Exporter Excel</button>
+                        <button class="btn admin-only" onclick="exportConsultationsExcel()">📊 Exporter Excel</button>
                         <button class="btn btn-primary" onclick="openNewConsultationModal()">+ Nouvelle consultation</button>
                     </div>
                 </div>
-                <div class="totaux-bar" id="consultations-totaux-bar"></div>
+                <div class="totaux-bar admin-only" id="consultations-totaux-bar"></div>
                 <table>
                     <thead>
                         <tr>
@@ -319,11 +319,11 @@
                             <input type="text" id="filter-ordonnances-patient-date-fin" placeholder="JJ/MM/AAAA" title="Date - au">
                             <button class="btn" onclick="loadOrdonnancesTab('patient')">Filtrer</button>
                             <button class="btn" onclick="resetFilterOrdonnances('patient')">Réinitialiser</button>
-                            <button class="btn" onclick="exportOrdonnancesExcel('patient')">📊 Exporter Excel</button>
+                            <button class="btn admin-only" onclick="exportOrdonnancesExcel('patient')">📊 Exporter Excel</button>
                             <button class="btn btn-primary" onclick="openOrdonnanceModal('patient')">+ Nouvelle ordonnance</button>
                         </div>
                     </div>
-                    <div class="totaux-bar" id="ordonnances-patient-totaux-bar"></div>
+                    <div class="totaux-bar admin-only" id="ordonnances-patient-totaux-bar"></div>
                     <table>
                         <thead>
                             <tr>
@@ -353,11 +353,11 @@
                             <input type="text" id="filter-ordonnances-tiers-date-fin" placeholder="JJ/MM/AAAA" title="Date - au">
                             <button class="btn" onclick="loadOrdonnancesTab('tiers')">Filtrer</button>
                             <button class="btn" onclick="resetFilterOrdonnances('tiers')">Réinitialiser</button>
-                            <button class="btn" onclick="exportOrdonnancesExcel('tiers')">📊 Exporter Excel</button>
+                            <button class="btn admin-only" onclick="exportOrdonnancesExcel('tiers')">📊 Exporter Excel</button>
                             <button class="btn btn-primary" onclick="openOrdonnanceModal('tiers')">+ Nouvelle ordonnance</button>
                         </div>
                     </div>
-                    <div class="totaux-bar" id="ordonnances-tiers-totaux-bar"></div>
+                    <div class="totaux-bar admin-only" id="ordonnances-tiers-totaux-bar"></div>
                     <table>
                         <thead>
                             <tr>
@@ -387,11 +387,11 @@
                             <input type="text" id="filter-ordonnances-interne-date-fin" placeholder="JJ/MM/AAAA" title="Date - au">
                             <button class="btn" onclick="loadOrdonnancesTab('interne')">Filtrer</button>
                             <button class="btn" onclick="resetFilterOrdonnances('interne')">Réinitialiser</button>
-                            <button class="btn" onclick="exportOrdonnancesExcel('interne')">📊 Exporter Excel</button>
+                            <button class="btn admin-only" onclick="exportOrdonnancesExcel('interne')">📊 Exporter Excel</button>
                             <button class="btn btn-primary" onclick="openOrdonnanceModal('interne')">+ Nouvelle ordonnance</button>
                         </div>
                     </div>
-                    <div class="totaux-bar" id="ordonnances-interne-totaux-bar"></div>
+                    <div class="totaux-bar admin-only" id="ordonnances-interne-totaux-bar"></div>
                     <table>
                         <thead>
                             <tr>
@@ -492,11 +492,11 @@
                         <input type="text" id="filter-examens-date-debut" placeholder="JJ/MM/AAAA" title="Date - du" oninput="filterExamens()">
                         <input type="text" id="filter-examens-date-fin" placeholder="JJ/MM/AAAA" title="Date - au" oninput="filterExamens()">
                         <button class="btn" onclick="resetFilterExamens()">Réinitialiser</button>
-                        <button class="btn" onclick="exportExamensExcel()">📊 Exporter Excel</button>
+                        <button class="btn admin-only" onclick="exportExamensExcel()">📊 Exporter Excel</button>
                         <button class="btn btn-primary" id="btn-nouvel-examen" onclick="openExamenModal()">+ Nouvel examen</button>
                     </div>
                 </div>
-                <div class="totaux-bar" id="examens-totaux-bar"></div>
+                <div class="totaux-bar admin-only" id="examens-totaux-bar"></div>
                 <table>
                     <thead>
                         <tr>
@@ -537,11 +537,11 @@
                             <input type="text" id="filter-soins-enregistre-date-fin" placeholder="JJ/MM/AAAA" title="Date - au">
                             <button class="btn" onclick="loadSoinsTab('enregistre')">Filtrer</button>
                             <button class="btn" onclick="resetFilterSoins('enregistre')">Réinitialiser</button>
-                            <button class="btn" onclick="exportSoinsExcel('enregistre')">📊 Exporter Excel</button>
+                            <button class="btn admin-only" onclick="exportSoinsExcel('enregistre')">📊 Exporter Excel</button>
                             <button class="btn btn-primary" onclick="openNewSoinModal('enregistre')">+ Nouveau soin</button>
                         </div>
                     </div>
-                    <div class="totaux-bar" id="soins-enregistre-totaux-bar"></div>
+                    <div class="totaux-bar admin-only" id="soins-enregistre-totaux-bar"></div>
                     <table>
                         <thead>
                             <tr>
@@ -571,11 +571,11 @@
                             <input type="text" id="filter-soins-externe-date-fin" placeholder="JJ/MM/AAAA" title="Date - au">
                             <button class="btn" onclick="loadSoinsTab('externe')">Filtrer</button>
                             <button class="btn" onclick="resetFilterSoins('externe')">Réinitialiser</button>
-                            <button class="btn" onclick="exportSoinsExcel('externe')">📊 Exporter Excel</button>
+                            <button class="btn admin-only" onclick="exportSoinsExcel('externe')">📊 Exporter Excel</button>
                             <button class="btn btn-primary" onclick="openNewSoinModal('externe')">+ Nouveau soin</button>
                         </div>
                     </div>
-                    <div class="totaux-bar" id="soins-externe-totaux-bar"></div>
+                    <div class="totaux-bar admin-only" id="soins-externe-totaux-bar"></div>
                     <table>
                         <thead>
                             <tr>
