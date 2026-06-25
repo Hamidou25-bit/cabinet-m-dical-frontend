@@ -1090,6 +1090,55 @@ function boutonEncaisser(paye, onclickAppel) {
     return `<button class="btn btn-sm btn-primary" onclick="${onclickAppel}">💰 Encaisser</button>`;
 }
 
+// Génère le reçu thermique (#recu-impression) et lance l'impression navigateur (window.print()).
+// Réutilisé par les 4 fonctions encaisserXxx() ci-dessous.
+function genererEtImprimerRecu(type, data) {
+    const params = window._parametresCabinet || {};
+    const nomCabinet = params.nom_cabinet || 'Cabinet Médical';
+    const adresse = params.adresse_cabinet || '';
+    const telephone = params.telephone_cabinet || '';
+    const maintenant = new Date();
+    const dateStr = maintenant.toLocaleDateString('fr-FR');
+    const heureStr = maintenant.toLocaleTimeString('fr-FR', {hour: '2-digit', minute: '2-digit'});
+
+    const titres = {
+        consultation: 'REÇU DE CONSULTATION',
+        soin: 'REÇU DE SOINS',
+        examen: "REÇU D'EXAMENS",
+        ordonnance: 'REÇU DE MÉDICAMENTS'
+    };
+
+    const lignesHTML = (data.lignes || [{ libelle: 'Consultation', montant: data.montant }])
+        .map(l => `<div class="recu-ligne"><span>${escapeHtml(l.libelle)}</span><span>${l.montant.toLocaleString()} FCFA</span></div>`)
+        .join('');
+
+    const validite = type === 'consultation'
+        ? `<div class="recu-footer">Valable 7 jours — exp. ${new Date(maintenant.getTime() + 7*24*60*60*1000).toLocaleDateString('fr-FR')}</div>`
+        : '';
+
+    document.getElementById('recu-impression').innerHTML = `
+        <div class="recu-titre">${escapeHtml(nomCabinet)}</div>
+        <div style="text-align:center">${escapeHtml(adresse)}</div>
+        <div style="text-align:center">${escapeHtml(telephone)}</div>
+        <div class="recu-separateur"></div>
+        <div class="recu-titre">${titres[type]}</div>
+        <div class="recu-separateur"></div>
+        <div class="recu-ligne"><span>Date :</span><span>${dateStr} ${heureStr}</span></div>
+        <div class="recu-ligne"><span>Patient :</span><span>${escapeHtml(data.patient_nom || '-')}</span></div>
+        <div class="recu-ligne"><span>N° reçu :</span><span>${escapeHtml(data.reference)}</span></div>
+        <div class="recu-separateur"></div>
+        ${lignesHTML}
+        <div class="recu-separateur"></div>
+        <div class="recu-ligne recu-total"><span>TOTAL</span><span>${data.total.toLocaleString()} FCFA</span></div>
+        <div class="recu-ligne"><span>Payé</span><span>${data.total.toLocaleString()} FCFA</span></div>
+        <div class="recu-separateur"></div>
+        ${validite}
+        <div class="recu-footer">Merci de votre confiance</div>
+    `;
+
+    window.print();
+}
+
 function renderConsultations(data) {
     const tbody = document.getElementById('table-consultations');
     updateConsultationsTotaux(data);
@@ -1116,6 +1165,12 @@ async function encaisserConsultation(id) {
     try {
         const result = await apiFetch(`/consultations/${id}/encaisser`, { method: 'POST' }).then(r => r.json());
         showToast(`Consultation encaissée — ${result.montant.toLocaleString()} FCFA`, 'success');
+        genererEtImprimerRecu('consultation', {
+            patient_nom: result.consultation.patient_nom,
+            reference: `CONS-${result.consultation.id}`,
+            montant: result.montant,
+            total: result.montant
+        });
         loadConsultations();
     } catch (e) { showToast('Erreur lors de l\'encaissement : ' + e.message, 'error'); }
 }
@@ -1910,6 +1965,12 @@ async function encaisserOrdonnance(id, type) {
             return;
         }
         showToast(`Ordonnance encaissée — ${result.montant.toLocaleString()} FCFA`, 'success');
+        genererEtImprimerRecu('ordonnance', {
+            patient_nom: result.ordonnance.patient_nom,
+            reference: `ORD-${result.ordonnance.id}`,
+            lignes: result.lignes,
+            total: result.montant
+        });
         loadOrdonnancesTab(type);
     } catch (e) { showToast('Erreur lors de l\'encaissement : ' + e.message, 'error'); }
 }
@@ -2486,6 +2547,12 @@ async function encaisserExamen(id) {
     try {
         const result = await apiFetch(`/examens-complementaires/${id}/encaisser`, { method: 'POST' }).then(r => r.json());
         showToast(`Examen encaissé — ${result.montant.toLocaleString()} FCFA`, 'success');
+        genererEtImprimerRecu('examen', {
+            patient_nom: result.examen.patient_nom,
+            reference: `EXA-${result.examen.id}`,
+            lignes: [{ libelle: result.examen.libelle, montant: result.montant }],
+            total: result.montant
+        });
         loadExamens();
     } catch (e) { showToast('Erreur lors de l\'encaissement : ' + e.message, 'error'); }
 }
@@ -4016,6 +4083,12 @@ async function encaisserSoin(id, tab) {
     try {
         const result = await apiFetch(`/soins/${id}/encaisser`, { method: 'POST' }).then(r => r.json());
         showToast(`Soin encaissé — ${result.montant.toLocaleString()} FCFA`, 'success');
+        genererEtImprimerRecu('soin', {
+            patient_nom: result.soin.patient_nom,
+            reference: `SOIN-${result.soin.id}`,
+            lignes: [{ libelle: result.soin.libelle, montant: result.montant }],
+            total: result.montant
+        });
         loadSoins();
     } catch (e) { showToast('Erreur lors de l\'encaissement : ' + e.message, 'error'); }
 }
