@@ -1090,9 +1090,17 @@ function boutonEncaisser(paye, onclickAppel) {
     return `<button class="btn btn-sm btn-primary" onclick="${onclickAppel}">💰 Encaisser</button>`;
 }
 
+// Titres de reçu communs aux deux modes d'impression (thermique native / navigateur).
+const RECU_TITRES = {
+    consultation: 'REÇU DE CONSULTATION',
+    soin: 'REÇU DE SOINS',
+    examen: "REÇU D'EXAMENS",
+    ordonnance: 'REÇU DE MÉDICAMENTS'
+};
+
 // Génère le reçu thermique (#recu-impression) et lance l'impression navigateur (window.print()).
-// Réutilisé par les 4 fonctions encaisserXxx() ci-dessous.
-function genererEtImprimerRecu(type, data) {
+// Fallback de genererEtImprimerRecu() si le serveur d'impression locale (PC secrétaire) est indisponible.
+function genererEtImprimerRecuNavigateur(type, data) {
     const params = window._parametresCabinet || {};
     const nomCabinet = params.nom_cabinet || 'Cabinet Médical';
     const adresse = params.adresse_cabinet || '';
@@ -1100,13 +1108,6 @@ function genererEtImprimerRecu(type, data) {
     const maintenant = new Date();
     const dateStr = maintenant.toLocaleDateString('fr-FR');
     const heureStr = maintenant.toLocaleTimeString('fr-FR', {hour: '2-digit', minute: '2-digit'});
-
-    const titres = {
-        consultation: 'REÇU DE CONSULTATION',
-        soin: 'REÇU DE SOINS',
-        examen: "REÇU D'EXAMENS",
-        ordonnance: 'REÇU DE MÉDICAMENTS'
-    };
 
     const lignesHTML = (data.lignes || [{ libelle: 'Consultation', montant: data.montant }])
         .map(l => `<div class="recu-ligne"><span>${escapeHtml(l.libelle)}</span><span>${l.montant.toLocaleString()} FCFA</span></div>`)
@@ -1121,7 +1122,7 @@ function genererEtImprimerRecu(type, data) {
         <div style="text-align:center">${escapeHtml(adresse)}</div>
         <div style="text-align:center">${escapeHtml(telephone)}</div>
         <div class="recu-separateur"></div>
-        <div class="recu-titre">${titres[type]}</div>
+        <div class="recu-titre">${RECU_TITRES[type]}</div>
         <div class="recu-separateur"></div>
         <div class="recu-ligne"><span>Date :</span><span>${dateStr} ${heureStr}</span></div>
         <div class="recu-ligne"><span>Patient :</span><span>${escapeHtml(data.patient_nom || '-')}</span></div>
@@ -1137,6 +1138,46 @@ function genererEtImprimerRecu(type, data) {
     `;
 
     window.print();
+}
+
+// Tente l'impression thermique 80mm native via le serveur Python local (PC secrétaire,
+// http://127.0.0.1:9999, voir outils-locaux/imprimante_serveur.py) ; si indisponible,
+// retombe sur l'impression navigateur (genererEtImprimerRecuNavigateur).
+// Réutilisé par les 4 fonctions encaisserXxx() ci-dessus/ci-dessous.
+async function genererEtImprimerRecu(type, data) {
+    const params = window._parametresCabinet || {};
+    const maintenant = new Date();
+
+    const payload = {
+        nom_cabinet: params.nom_cabinet || 'Cabinet Médical',
+        adresse: params.adresse_cabinet || '',
+        telephone: params.telephone_cabinet || '',
+        titre: RECU_TITRES[type],
+        date: maintenant.toLocaleDateString('fr-FR') + ' ' +
+              maintenant.toLocaleTimeString('fr-FR', {hour: '2-digit', minute: '2-digit'}),
+        patient_nom: data.patient_nom,
+        reference: data.reference,
+        lignes: data.lignes || [{ libelle: 'Consultation', montant: data.montant }],
+        total: data.total,
+        validite: type === 'consultation'
+            ? `Valable 7 jours — exp. ${new Date(maintenant.getTime() + 7*24*60*60*1000).toLocaleDateString('fr-FR')}`
+            : null
+    };
+
+    try {
+        const response = await fetch('http://127.0.0.1:9999/imprimer', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        const result = await response.json();
+        if (!result.success) throw new Error(result.error || 'échec impression thermique');
+        showToast('Reçu imprimé avec succès');
+    } catch (e) {
+        console.warn('Imprimante thermique non disponible, fallback navigateur :', e);
+        showToast('Impression thermique indisponible — impression navigateur utilisée', 'warning');
+        genererEtImprimerRecuNavigateur(type, data);
+    }
 }
 
 function renderConsultations(data) {
