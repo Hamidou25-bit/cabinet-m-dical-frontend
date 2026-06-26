@@ -2093,16 +2093,37 @@ function getOrdonnanceBeneficiaire(ordonnance) {
         : (ordonnance.beneficiaire || '-');
 }
 
-function buildOrdonnanceHtml(ordonnance) {
-    const beneficiaire = getOrdonnanceBeneficiaire(ordonnance);
-    const lignesHtml = (ordonnance.lignes || []).map(l => `
+function buildOrdonnanceLigneRow(l) {
+    return `
         <tr>
             <td>${escapeHtml(l.designation || '')}</td>
             <td>${escapeHtml(l.forme || '')}</td>
             <td>${escapeHtml(l.dosage || '')}</td>
             <td>${l.quantite || ''}</td>
             <td>${escapeHtml(l.posologie || '')}${l.duree_jours ? ' — ' + l.duree_jours + ' jour(s)' : ''}</td>
-        </tr>`).join('');
+        </tr>`;
+}
+
+// Une ligne d'ordonnance liee a un article du stock (stock_id) est dispensee
+// directement au cabinet ; une ligne sans stock_id est un medicament externe
+// que le patient doit acheter en pharmacie (cf. refreshLigneOrdonnanceInfo).
+function buildOrdonnanceSectionHtml(titre, lignes) {
+    if (!lignes.length) return '';
+    return `
+    <h3 class="section-titre">${titre}</h3>
+    <table>
+        <thead>
+            <tr><th>Médicament</th><th>Forme</th><th>Dosage</th><th>Qté</th><th>Posologie</th></tr>
+        </thead>
+        <tbody>${lignes.map(buildOrdonnanceLigneRow).join('')}</tbody>
+    </table>`;
+}
+
+function buildOrdonnanceHtml(ordonnance) {
+    const beneficiaire = getOrdonnanceBeneficiaire(ordonnance);
+    const lignes = ordonnance.lignes || [];
+    const lignesStock = lignes.filter(l => l.stock_id);
+    const lignesExternes = lignes.filter(l => !l.stock_id);
 
     return `<!DOCTYPE html>
 <html lang="fr">
@@ -2115,7 +2136,8 @@ function buildOrdonnanceHtml(ordonnance) {
     .header h1 { color: #0F766E; margin: 0 0 4px; font-size: 22px; }
     .header p { margin: 0; color: #64748B; }
     .info p { margin: 4px 0; font-size: 14px; }
-    table { width: 100%; border-collapse: collapse; margin-top: 16px; }
+    .section-titre { margin: 18px 0 6px; font-size: 14px; color: #0F766E; border-bottom: 1px solid #0D9488; padding-bottom: 4px; }
+    table { width: 100%; border-collapse: collapse; margin-top: 8px; }
     th, td { border: 1px solid #E2E8F0; padding: 8px; font-size: 13px; text-align: left; }
     th { background: #F1F5F9; }
     .total { margin-top: 16px; text-align: right; font-size: 15px; font-weight: bold; }
@@ -2132,12 +2154,8 @@ function buildOrdonnanceHtml(ordonnance) {
         <p><strong>Date :</strong> ${escapeHtml(formatDateFR(ordonnance.date_ordonnance))}</p>
         ${ordonnance.medecin_nom ? `<p><strong>Prescripteur :</strong> ${escapeHtml(ordonnance.medecin_nom)}</p>` : ''}
     </div>
-    <table>
-        <thead>
-            <tr><th>Médicament</th><th>Forme</th><th>Dosage</th><th>Qté</th><th>Posologie</th></tr>
-        </thead>
-        <tbody>${lignesHtml}</tbody>
-    </table>
+    ${buildOrdonnanceSectionHtml('Médicaments dispensés au cabinet', lignesStock)}
+    ${buildOrdonnanceSectionHtml('Médicaments à acheter en pharmacie', lignesExternes)}
     <div class="total">Total : ${(ordonnance.montant_total || 0).toLocaleString()} FCFA</div>
 </body>
 </html>`;
@@ -2188,25 +2206,41 @@ function exportOrdonnancePDF(ordonnance) {
         doc.text(`Prescripteur : ${ordonnance.medecin_nom}`, 14, y);
     }
 
-    const rows = (ordonnance.lignes || []).map(l => [
+    const ligneRow = l => [
         l.designation || '',
         l.forme || '',
         l.dosage || '',
         String(l.quantite || ''),
         `${l.posologie || ''}${l.duree_jours ? ' - ' + l.duree_jours + ' jour(s)' : ''}`
-    ]);
+    ];
+    const lignes = ordonnance.lignes || [];
+    const lignesStock = lignes.filter(l => l.stock_id);
+    const lignesExternes = lignes.filter(l => !l.stock_id);
 
-    doc.autoTable({
-        startY: y + 6,
-        head: [['Médicament', 'Forme', 'Dosage', 'Qté', 'Posologie']],
-        body: rows,
-        headStyles: { fillColor: [13, 148, 136] },
-    });
+    let currentY = y + 6;
+    const addOrdonnanceSection = (titre, rows) => {
+        if (!rows.length) return;
+        doc.setFontSize(11);
+        doc.setFont(undefined, 'bold');
+        doc.setTextColor(15, 118, 110);
+        doc.text(titre, 14, currentY);
+        doc.setFont(undefined, 'normal');
+        doc.setTextColor(30);
+        doc.autoTable({
+            startY: currentY + 4,
+            head: [['Médicament', 'Forme', 'Dosage', 'Qté', 'Posologie']],
+            body: rows,
+            headStyles: { fillColor: [13, 148, 136] },
+        });
+        currentY = doc.lastAutoTable.finalY + 10;
+    };
 
-    const finalY = doc.lastAutoTable.finalY + 10;
+    addOrdonnanceSection('Médicaments dispensés au cabinet', lignesStock.map(ligneRow));
+    addOrdonnanceSection('Médicaments à acheter en pharmacie', lignesExternes.map(ligneRow));
+
     doc.setFontSize(12);
     doc.setFont(undefined, 'bold');
-    doc.text(`Total : ${(ordonnance.montant_total || 0).toLocaleString()} FCFA`, 196, finalY, { align: 'right' });
+    doc.text(`Total : ${(ordonnance.montant_total || 0).toLocaleString()} FCFA`, 196, currentY, { align: 'right' });
 
     doc.save(`ordonnance_${ordonnance.id}_${ordonnance.date_ordonnance || ''}.pdf`);
 }
@@ -2535,8 +2569,6 @@ function showExamensTab(tab) {
 }
 
 async function loadExamens() {
-    const btnNouvel = document.getElementById('btn-nouvel-examen');
-    if (btnNouvel) btnNouvel.style.display = localStorage.getItem('role') === 'laborantin' ? 'none' : '';
     try {
         examensData = await apiFetch('/examens-complementaires').then(r => r.json());
         filterExamens();
