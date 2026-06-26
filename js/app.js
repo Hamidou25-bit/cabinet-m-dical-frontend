@@ -1030,29 +1030,29 @@ let _patientRapidePrefix = null;
 
 function ouvrirModalPatientRapide(prefix) {
     _patientRapidePrefix = prefix;
-    ['pr-nom', 'pr-prenom', 'pr-age', 'pr-telephone', 'pr-profession', 'pr-adresse', 'pr-ethnie'].forEach(id => {
+    ['pat-nom', 'pat-prenom', 'pat-age', 'pat-telephone', 'pat-profession', 'pat-adresse', 'pat-ethnie'].forEach(id => {
         document.getElementById(id).value = '';
     });
-    document.getElementById('pr-sexe').value = 'Masculin';
+    document.getElementById('pat-sexe').value = 'Masculin';
     openModal('modal-patient-rapide');
 }
 
 async function savePatientRapide() {
     if (!validateRequiredFields([
-        { id: 'pr-nom', label: 'Nom' },
-        { id: 'pr-prenom', label: 'Prénom' },
-        { id: 'pr-age', label: 'Âge', min: 0 },
+        { id: 'pat-nom', label: 'Nom' },
+        { id: 'pat-prenom', label: 'Prénom' },
+        { id: 'pat-age', label: 'Âge', min: 0 },
     ])) return;
 
     const patient = {
-        nom: document.getElementById('pr-nom').value.toUpperCase(),
-        prenom: document.getElementById('pr-prenom').value,
-        age: parseInt(document.getElementById('pr-age').value),
-        sexe: document.getElementById('pr-sexe').value,
-        telephone: document.getElementById('pr-telephone').value,
-        profession: document.getElementById('pr-profession').value,
-        adresse: document.getElementById('pr-adresse').value,
-        ethnie: document.getElementById('pr-ethnie').value,
+        nom: document.getElementById('pat-nom').value.toUpperCase(),
+        prenom: document.getElementById('pat-prenom').value,
+        age: parseInt(document.getElementById('pat-age').value),
+        sexe: document.getElementById('pat-sexe').value,
+        telephone: document.getElementById('pat-telephone').value,
+        profession: document.getElementById('pat-profession').value,
+        adresse: document.getElementById('pat-adresse').value,
+        ethnie: document.getElementById('pat-ethnie').value,
         date_enregistrement: new Date().toISOString().split('T')[0]
     };
     try {
