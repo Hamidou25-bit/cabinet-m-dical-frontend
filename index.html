@@ -82,6 +82,9 @@
         <div class="menu-item" id="menu-comptabilite" style="display:none;" onclick="showPage('comptabilite')" data-tooltip="Comptabilité">
             <span class="icon">💰</span><span class="menu-text"> Comptabilité</span>
         </div>
+        <div class="menu-item" id="menu-bilan-garde" style="display:none;" onclick="showPage('bilan-garde')" data-tooltip="Bilan de garde">
+            <span class="icon">📋</span><span class="menu-text"> Bilan de garde</span>
+        </div>
         <div class="menu-item" id="menu-audit" style="display:none;" onclick="showPage('audit')" data-tooltip="Journal d'audit">
             <span class="icon">🗒️</span><span class="menu-text"> Journal d'audit</span>
         </div>
@@ -653,6 +656,56 @@
                     </div>
                     <button class="btn btn-primary" onclick="enregistrerParametres()">Enregistrer</button>
                 </div>
+
+                <div class="card" style="margin-top:20px;">
+                    <h3>Taux de répartition des recettes</h3>
+                    <p style="color:#64748B; font-size:13px; margin-top:-8px;">La part cabinet est calculée automatiquement (100% - les autres parts). S'applique aux nouveaux encaissements uniquement, pas aux encaissements déjà effectués.</p>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Part médecin sur consultation (%)</label>
+                            <input type="number" id="param-taux-medecin-consultation" min="0" max="100">
+                        </div>
+                        <div class="form-group">
+                            <label>Part médecin (prescripteur) sur examen (%)</label>
+                            <input type="number" id="param-taux-medecin-examen" min="0" max="100">
+                        </div>
+                        <div class="form-group">
+                            <label>Part laborantin sur examen (%)</label>
+                            <input type="number" id="param-taux-laborantin-examen" min="0" max="100">
+                        </div>
+                    </div>
+                    <button class="btn btn-primary" onclick="enregistrerParametres()">Enregistrer</button>
+                </div>
+
+                <div class="card" style="margin-top:20px;">
+                    <h3>Taux personnalisés</h3>
+                    <p style="color:#64748B; font-size:13px; margin-top:-8px;">Remplace le taux global ci-dessus pour un médecin (consultation) ou un laborantin (examen) en particulier.</p>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Type d'acte</label>
+                            <select id="tp-type-acte" onchange="onTauxPersoTypeChange()">
+                                <option value="consultation">Consultation (médecin)</option>
+                                <option value="examen">Examen (laborantin)</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label id="tp-cible-label">Médecin</label>
+                            <select id="tp-cible-id"></select>
+                        </div>
+                        <div class="form-group">
+                            <label>Taux personnel (%)</label>
+                            <input type="number" id="tp-taux" min="0" max="100">
+                        </div>
+                    </div>
+                    <button class="btn btn-primary" onclick="ajouterTauxPersonnalise()">+ Ajouter</button>
+
+                    <table style="margin-top:15px;">
+                        <thead><tr><th>Type d'acte</th><th>Personne</th><th>Taux (%)</th><th>Actions</th></tr></thead>
+                        <tbody id="table-taux-personnalises">
+                            <tr><td colspan="4" class="loading">Chargement...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
             </div>
         </div>
 
@@ -1041,9 +1094,92 @@
                         <canvas id="synthese-chart" height="100"></canvas>
                     </div>
                 </div>
+
+                <div class="table-container">
+                    <div class="table-header">
+                        <h3>Marges médicaments (ordonnances)</h3>
+                    </div>
+                    <table>
+                        <thead>
+                            <tr><th>Médicament</th><th>Qté vendue</th><th>Coût total</th><th>Recette totale</th><th>Marge</th><th>Taux de marge</th></tr>
+                        </thead>
+                        <tbody id="table-marges-ordonnances">
+                            <tr><td colspan="6" class="loading">Chargement...</td></tr>
+                        </tbody>
+                        <tfoot>
+                            <tr style="font-weight:bold;">
+                                <td colspan="2">Total</td>
+                                <td id="marges-total-cout">-</td>
+                                <td id="marges-total-recette">-</td>
+                                <td id="marges-total-marge">-</td>
+                                <td></td>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
             </div>
         </div>
 
+    </div>
+
+    <!-- BILAN DE GARDE -->
+    <div id="page-bilan-garde" class="page">
+        <div class="table-container">
+            <div class="table-header">
+                <h3>Bilan de garde</h3>
+                <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+                    <select id="bilan-medecin-id" onchange="loadBilanGarde()">
+                        <option value="">-- Sélectionner un médecin --</option>
+                    </select>
+                    <input type="text" id="bilan-date-debut" placeholder="JJ/MM/AAAA" title="Date de début">
+                    <input type="text" id="bilan-date-fin" placeholder="JJ/MM/AAAA" title="Date de fin">
+                    <button class="btn" onclick="setBilanGardePeriode('mois')">Ce mois</button>
+                    <button class="btn btn-primary" onclick="loadBilanGarde()">Appliquer</button>
+                    <button class="btn" onclick="imprimerBilanGarde()">🖨️ Imprimer</button>
+                </div>
+            </div>
+
+            <div id="bilan-resume" style="display:none; padding: 0 20px 20px;">
+                <div class="cards-grid">
+                    <div class="card">
+                        <h3>Actes</h3>
+                        <div class="value" id="bilan-total-actes">0</div>
+                    </div>
+                    <div class="card green">
+                        <h3>Total encaissé</h3>
+                        <div class="value" id="bilan-total-encaisse">0 FCFA</div>
+                    </div>
+                    <div class="card">
+                        <h3>Part médecin</h3>
+                        <div class="value" id="bilan-part-medecin">0 FCFA</div>
+                    </div>
+                    <div class="card orange">
+                        <h3>Part cabinet</h3>
+                        <div class="value" id="bilan-part-cabinet">0 FCFA</div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="bilan-par-type-wrap" style="display:none; padding: 0 20px 20px;">
+                <h4>Détail par type d'acte</h4>
+                <table>
+                    <thead><tr><th>Type</th><th>Nb actes</th><th>Total encaissé</th><th>Part médecin</th></tr></thead>
+                    <tbody id="bilan-par-type-body"></tbody>
+                </table>
+            </div>
+
+            <table>
+                <thead>
+                    <tr><th>Date</th><th>Type</th><th>Montant</th><th>Part médecin</th><th>Versé</th></tr>
+                </thead>
+                <tbody id="bilan-detail-body">
+                    <tr><td colspan="5" class="loading">Sélectionnez un médecin et une période</td></tr>
+                </tbody>
+            </table>
+            <div style="padding: 15px 20px;">
+                <button class="btn btn-primary" id="bilan-btn-verser" onclick="marquerBilanVerse()" disabled>💰 Marquer la part médecin comme versée (période affichée)</button>
+            </div>
+        </div>
     </div>
 
     <!-- AUDIT -->

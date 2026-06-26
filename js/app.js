@@ -144,6 +144,7 @@ const MENU_ROLES = {
     'menu-examens-config':  ['admin'],
     'menu-type-soins':      ['admin'],
     'menu-comptabilite':    ['admin'],
+    'menu-bilan-garde':     ['admin'],
     'menu-audit':           ['admin'],
     'menu-parametres':      ['admin'],
 };
@@ -242,7 +243,7 @@ function showPage(page) {
         : document.querySelector(`.menu-item[onclick*="showPage('${page}')"]`);
     if (menuItem) menuItem.classList.add('active');
 
-    const titles = { dashboard: 'Tableau de bord', 'rendez-vous': 'Rendez-vous', patients: 'Patients', consultations: 'Consultations', stock: 'Stock', ordonnances: 'Ordonnances', examens: 'Examens complémentaires', soins: 'Soins', dossiers: 'Dossiers patients', personnel: 'Personnel', prescripteurs: 'Prescripteurs', 'examens-config': "Types d'examens", 'type-soins': 'Types de soins', comptabilite: 'Comptabilité', audit: "Journal d'audit", parametres: 'Paramètres' };
+    const titles = { dashboard: 'Tableau de bord', 'rendez-vous': 'Rendez-vous', patients: 'Patients', consultations: 'Consultations', stock: 'Stock', ordonnances: 'Ordonnances', examens: 'Examens complémentaires', soins: 'Soins', dossiers: 'Dossiers patients', personnel: 'Personnel', prescripteurs: 'Prescripteurs', 'examens-config': "Types d'examens", 'type-soins': 'Types de soins', comptabilite: 'Comptabilité', 'bilan-garde': 'Bilan de garde', audit: "Journal d'audit", parametres: 'Paramètres' };
     if (titles[page]) document.getElementById('page-title').textContent = titles[page];
 
     if (page === 'rendez-vous') loadRendezVous();
@@ -258,6 +259,7 @@ function showPage(page) {
     if (page === 'prescripteurs') loadPrescripteurs();
     if (page === 'examens-config') loadExamensConfig();
     if (page === 'comptabilite') loadFournisseurs();
+    if (page === 'bilan-garde') loadMedecinsSelectBilan();
     if (page === 'audit') loadAuditLogs();
     if (page === 'parametres') loadParametres();
 }
@@ -1813,6 +1815,29 @@ async function loadSynthese() {
     } catch (e) {
         showToast('Erreur lors du chargement de la synthèse', 'error');
     }
+    loadMargesOrdonnances(dateDebut, dateFin);
+}
+
+async function loadMargesOrdonnances(dateDebut, dateFin) {
+    const tbody = document.getElementById('table-marges-ordonnances');
+    try {
+        const data = await apiFetch(`/ordonnances/marges?date_debut=${dateDebut}&date_fin=${dateFin}`).then(r => r.json());
+        tbody.innerHTML = data.lignes.length ? data.lignes.map(l => `
+            <tr>
+                <td>${escapeHtml(l.designation)}</td>
+                <td>${l.quantite_vendue}</td>
+                <td>${l.cout_total.toLocaleString()} FCFA</td>
+                <td>${l.recette_totale.toLocaleString()} FCFA</td>
+                <td style="color:${l.marge_totale >= 0 ? '#16A34A' : '#DC2626'};">${l.marge_totale.toLocaleString()} FCFA</td>
+                <td>${l.taux_marge_pct}%</td>
+            </tr>
+        `).join('') : '<tr><td colspan="6">Aucune vente de médicament sur cette période</td></tr>';
+        document.getElementById('marges-total-cout').textContent = `${data.totaux.cout_total.toLocaleString()} FCFA`;
+        document.getElementById('marges-total-recette').textContent = `${data.totaux.recette_totale.toLocaleString()} FCFA`;
+        document.getElementById('marges-total-marge').textContent = `${data.totaux.marge_totale.toLocaleString()} FCFA`;
+    } catch (e) {
+        tbody.innerHTML = '<tr><td colspan="6">Erreur chargement</td></tr>';
+    }
 }
 
 function renderSynthese(data) {
@@ -3210,6 +3235,152 @@ function renderPrescripteurs(data) {
 function filterPrescripteurs() {
     const q = document.getElementById('search-prescripteurs').value.toLowerCase();
     renderPrescripteurs(medecinsData.filter(m => (m.nom||'').toLowerCase().includes(q)));
+}
+
+// Bilan de garde (répartition des recettes par médecin)
+const TYPE_ACTE_LABELS = { consultation: 'Consultation', soin: 'Soin', examen: 'Examen', ordonnance: 'Ordonnance' };
+let bilanGardeData = null;
+
+async function loadMedecinsSelectBilan() {
+    const select = document.getElementById('bilan-medecin-id');
+    if (!medecinsData.length) {
+        try { medecinsData = await apiFetch('/medecins').then(r => r.json()); }
+        catch (e) { showToast('Erreur lors du chargement des médecins', 'error'); return; }
+    }
+    const selected = select.value;
+    select.innerHTML = '<option value="">-- Sélectionner un médecin --</option>'
+        + medecinsData.map(m => `<option value="${m.id}">${escapeHtml(m.nom)}</option>`).join('');
+    select.value = selected;
+
+    if (!document.getElementById('bilan-date-debut').value) setBilanGardePeriode('mois');
+}
+
+function setBilanGardePeriode(periode) {
+    const today = new Date();
+    let debut, fin;
+    if (periode === 'mois') {
+        debut = new Date(today.getFullYear(), today.getMonth(), 1);
+        fin = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+    }
+    document.getElementById('bilan-date-debut').value = formatDateFR(debut.toISOString().split('T')[0]);
+    document.getElementById('bilan-date-fin').value = formatDateFR(fin.toISOString().split('T')[0]);
+    loadBilanGarde();
+}
+
+async function loadBilanGarde() {
+    const medecinId = document.getElementById('bilan-medecin-id').value;
+    if (!medecinId) return;
+    const dateDebut = parseDateFR(document.getElementById('bilan-date-debut').value);
+    const dateFin = parseDateFR(document.getElementById('bilan-date-fin').value);
+    if (!dateDebut || !dateFin) return;
+
+    try {
+        bilanGardeData = await apiFetch(`/repartition/bilan-garde?medecin_id=${medecinId}&date_debut=${dateDebut}&date_fin=${dateFin}`).then(r => r.json());
+        renderBilanGarde(bilanGardeData);
+    } catch (e) {
+        showToast('Erreur lors du chargement du bilan de garde', 'error');
+    }
+}
+
+function renderBilanGarde(data) {
+    document.getElementById('bilan-total-actes').textContent = data.total_actes;
+    document.getElementById('bilan-total-encaisse').textContent = `${data.total_encaisse.toLocaleString()} FCFA`;
+    document.getElementById('bilan-part-medecin').textContent = `${data.total_medecin.toLocaleString()} FCFA`;
+    document.getElementById('bilan-part-cabinet').textContent = `${data.total_cabinet.toLocaleString()} FCFA`;
+    document.getElementById('bilan-resume').style.display = '';
+
+    const parTypeEntries = Object.entries(data.par_type);
+    document.getElementById('bilan-par-type-wrap').style.display = parTypeEntries.length ? '' : 'none';
+    document.getElementById('bilan-par-type-body').innerHTML = parTypeEntries.map(([type, info]) => `
+        <tr>
+            <td>${TYPE_ACTE_LABELS[type] || type}</td>
+            <td>${info.count}</td>
+            <td>${info.total.toLocaleString()} FCFA</td>
+            <td>${info.part_medecin.toLocaleString()} FCFA</td>
+        </tr>
+    `).join('');
+
+    const tbody = document.getElementById('bilan-detail-body');
+    if (!data.lignes.length) {
+        tbody.innerHTML = '<tr><td colspan="5" class="loading">Aucun acte encaissé sur cette période</td></tr>';
+    } else {
+        tbody.innerHTML = data.lignes.map(l => `
+            <tr>
+                <td>${formatDateFR(l.date_acte)}</td>
+                <td>${TYPE_ACTE_LABELS[l.reference_type] || l.reference_type}</td>
+                <td>${parseFloat(l.montant_total).toLocaleString()} FCFA</td>
+                <td>${parseFloat(l.part_medecin).toLocaleString()} FCFA</td>
+                <td>${l.medecin_verse ? '✅ ' + formatDateFR(l.medecin_verse_le) : '⏳ En attente'}</td>
+            </tr>
+        `).join('');
+    }
+
+    const resteAVerser = data.lignes.some(l => !l.medecin_verse && parseFloat(l.part_medecin) > 0);
+    document.getElementById('bilan-btn-verser').disabled = !resteAVerser;
+}
+
+async function marquerBilanVerse() {
+    if (!bilanGardeData) return;
+    openConfirmModal(
+        `Marquer ${bilanGardeData.total_medecin.toLocaleString()} FCFA comme versés à ${bilanGardeData.medecin_nom} pour la période du ${formatDateFR(bilanGardeData.date_debut)} au ${formatDateFR(bilanGardeData.date_fin)} ?`,
+        async () => {
+            try {
+                await apiFetch('/repartition/marquer-verse', {
+                    method: 'POST',
+                    body: JSON.stringify({
+                        type_beneficiaire: 'medecin',
+                        medecin_id: bilanGardeData.medecin_id,
+                        date_debut: bilanGardeData.date_debut,
+                        date_fin: bilanGardeData.date_fin,
+                    }),
+                });
+                showToast('Versement enregistré', 'success');
+                loadBilanGarde();
+            } catch (e) {
+                showToast('Erreur lors de l\'enregistrement du versement', 'error');
+            }
+        }
+    );
+}
+
+function imprimerBilanGarde() {
+    if (!bilanGardeData) { showToast('Sélectionnez un médecin et une période', 'error'); return; }
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) { showToast('Veuillez autoriser les pop-ups pour imprimer', 'error'); return; }
+    const d = bilanGardeData;
+    const rows = d.lignes.map(l => `<tr>
+        <td>${formatDateFR(l.date_acte)}</td><td>${TYPE_ACTE_LABELS[l.reference_type] || l.reference_type}</td>
+        <td>${parseFloat(l.montant_total).toLocaleString()} FCFA</td><td>${parseFloat(l.part_medecin).toLocaleString()} FCFA</td>
+        <td>${l.medecin_verse ? 'Versé' : 'En attente'}</td>
+    </tr>`).join('');
+    printWindow.document.write(`<!DOCTYPE html>
+<html lang="fr"><head><meta charset="UTF-8"><title>Bilan de garde - ${escapeHtml(d.medecin_nom)}</title>
+<style>
+    body { font-family: 'Segoe UI', Arial, sans-serif; color: #1E293B; padding: 30px; }
+    .header { text-align: center; border-bottom: 2px solid #1565C0; padding-bottom: 12px; margin-bottom: 20px; }
+    .header h1 { color: #1565C0; margin: 0 0 4px; font-size: 22px; }
+    .info p { margin: 4px 0; font-size: 14px; }
+    table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+    th, td { border: 1px solid #E2E8F0; padding: 8px; font-size: 13px; text-align: left; }
+    th { background: #F1F5F9; }
+    .total { margin-top: 20px; text-align: right; font-size: 15px; font-weight: bold; }
+    @media print { body { padding: 0; } }
+</style></head>
+<body>
+    <div class="header"><h1>🏥 Cabinet Médical BabaMouneissa</h1><p>Bilan de garde</p></div>
+    <div class="info">
+        <p><strong>Médecin :</strong> ${escapeHtml(d.medecin_nom)}</p>
+        <p><strong>Période :</strong> ${formatDateFR(d.date_debut)} au ${formatDateFR(d.date_fin)}</p>
+    </div>
+    <table><thead><tr><th>Date</th><th>Type</th><th>Montant</th><th>Part médecin</th><th>Versé</th></tr></thead><tbody>${rows}</tbody></table>
+    <div class="total">
+        Total encaissé : ${d.total_encaisse.toLocaleString()} FCFA<br>
+        Part médecin : ${d.total_medecin.toLocaleString()} FCFA
+    </div>
+</body></html>`);
+    printWindow.document.close();
+    printWindow.focus();
+    printWindow.print();
 }
 
 function openNewPrescripteurModal() {
@@ -4663,9 +4834,14 @@ async function loadParametres() {
         document.getElementById('param-telephone-cabinet').value = data.telephone_cabinet?.valeur || '';
         document.getElementById('param-prix-consultation').value = data.prix_consultation?.valeur || '';
         document.getElementById('param-logo-cabinet').value = data.logo_cabinet?.valeur || '';
+        document.getElementById('param-taux-medecin-consultation').value = data.taux_medecin_consultation?.valeur || '';
+        document.getElementById('param-taux-medecin-examen').value = data.taux_medecin_examen?.valeur || '';
+        document.getElementById('param-taux-laborantin-examen').value = data.taux_laborantin_examen?.valeur || '';
     } catch (e) {
         showToast('Erreur lors du chargement des paramètres', 'error');
     }
+    onTauxPersoTypeChange();
+    loadTauxPersonnalisesAdmin();
 }
 
 async function enregistrerParametres() {
@@ -4675,6 +4851,9 @@ async function enregistrerParametres() {
         telephone_cabinet: document.getElementById('param-telephone-cabinet').value,
         prix_consultation: document.getElementById('param-prix-consultation').value,
         logo_cabinet: document.getElementById('param-logo-cabinet').value,
+        taux_medecin_consultation: document.getElementById('param-taux-medecin-consultation').value,
+        taux_medecin_examen: document.getElementById('param-taux-medecin-examen').value,
+        taux_laborantin_examen: document.getElementById('param-taux-laborantin-examen').value,
     };
     try {
         await apiFetch('/parametres/', { method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(data) });
@@ -4683,6 +4862,69 @@ async function enregistrerParametres() {
     } catch (e) {
         showToast("Erreur lors de l'enregistrement des paramètres : " + e.message, 'error');
     }
+}
+
+// Taux personnalisés (par médecin pour les consultations, par laborantin pour les examens)
+async function onTauxPersoTypeChange() {
+    const typeActe = document.getElementById('tp-type-acte').value;
+    const cibleSelect = document.getElementById('tp-cible-id');
+    document.getElementById('tp-cible-label').textContent = typeActe === 'consultation' ? 'Médecin' : 'Laborantin';
+
+    if (typeActe === 'consultation') {
+        if (!medecinsData.length) { try { medecinsData = await apiFetch('/medecins').then(r => r.json()); } catch (e) {} }
+        cibleSelect.innerHTML = medecinsData.map(m => `<option value="${m.id}">${escapeHtml(m.nom)}</option>`).join('');
+    } else {
+        if (!utilisateursData.length) { try { utilisateursData = await apiFetch('/utilisateurs/').then(r => r.json()); } catch (e) {} }
+        const laborantins = utilisateursData.filter(u => u.role === 'laborantin');
+        cibleSelect.innerHTML = laborantins.map(u => `<option value="${u.id}">${escapeHtml(u.nom_complet || u.nom_utilisateur)}</option>`).join('');
+    }
+}
+
+async function loadTauxPersonnalisesAdmin() {
+    const tbody = document.getElementById('table-taux-personnalises');
+    try {
+        const data = await apiFetch('/repartition/taux-personnalises').then(r => r.json());
+        tbody.innerHTML = data.length ? data.map(t => `
+            <tr>
+                <td>${TYPE_ACTE_LABELS[t.type_acte] || t.type_acte}</td>
+                <td>${escapeHtml(t.cible_nom || '-')}</td>
+                <td>${t.taux_personnel}%</td>
+                <td><button class="btn btn-sm btn-danger" onclick="supprimerTauxPersonnalise('${t.type_acte}', ${t.cible_id})">Supprimer</button></td>
+            </tr>
+        `).join('') : '<tr><td colspan="4">Aucun taux personnalisé</td></tr>';
+    } catch (e) {
+        tbody.innerHTML = '<tr><td colspan="4">Erreur chargement</td></tr>';
+    }
+}
+
+async function ajouterTauxPersonnalise() {
+    const typeActe = document.getElementById('tp-type-acte').value;
+    const cibleId = document.getElementById('tp-cible-id').value;
+    const taux = document.getElementById('tp-taux').value;
+    if (!cibleId || taux === '') { showToast('Veuillez sélectionner une personne et saisir un taux', 'error'); return; }
+    try {
+        await apiFetch('/repartition/taux-personnalises', {
+            method: 'POST',
+            body: JSON.stringify({ type_acte: typeActe, cible_id: parseInt(cibleId), taux_personnel: parseFloat(taux) }),
+        });
+        showToast('Taux personnalisé enregistré', 'success');
+        document.getElementById('tp-taux').value = '';
+        loadTauxPersonnalisesAdmin();
+    } catch (e) {
+        showToast("Erreur lors de l'enregistrement : " + e.message, 'error');
+    }
+}
+
+function supprimerTauxPersonnalise(typeActe, cibleId) {
+    openConfirmModal('Supprimer ce taux personnalisé ?', async () => {
+        try {
+            await apiFetch(`/repartition/taux-personnalises/${typeActe}/${cibleId}`, { method: 'DELETE' });
+            showToast('Taux personnalisé supprimé', 'success');
+            loadTauxPersonnalisesAdmin();
+        } catch (e) {
+            showToast('Erreur lors de la suppression', 'error');
+        }
+    });
 }
 
 // Charge les paramètres publics du cabinet au démarrage (utilisés sur les reçus/impressions)
