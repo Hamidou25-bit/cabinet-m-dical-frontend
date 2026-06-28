@@ -1744,3 +1744,92 @@ input[type="datetime-local"]:focus {
         font-size: 10px;
     }
 }
+
+/* ===== AIDE AU DIAGNOSTIC IA ===== */
+#panel-ia-diagnostic {
+    position: fixed;
+    right: 0;
+    top: 60px;
+    width: 420px;
+    height: calc(100vh - 60px);
+    background: white;
+    box-shadow: -4px 0 20px rgba(0,0,0,0.15);
+    z-index: 1500;
+    overflow-y: auto;
+    padding: 20px;
+    border-left: 3px solid var(--color-primary);
+}
+
+.ia-panel-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-weight: 600;
+    font-size: 16px;
+    color: var(--color-primary);
+    margin-bottom: 12px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--color-border);
+}
+
+.ia-panel-header button {
+    background: none;
+    border: none;
+    font-size: 16px;
+    cursor: pointer;
+    color: var(--color-text-light);
+}
+
+.ia-panel-disclaimer {
+    background: #FEF3C7;
+    border: 1px solid #F59E0B;
+    border-radius: 6px;
+    padding: 10px 12px;
+    font-size: 13px;
+    color: #92400E;
+    margin-bottom: 16px;
+}
+
+.ia-loading {
+    text-align: center;
+    padding: 40px;
+    color: var(--color-text-light);
+    font-size: 15px;
+}
+
+.ia-resultat {
+    font-size: 14px;
+    line-height: 1.7;
+    color: var(--color-text);
+}
+
+.ia-erreur {
+    color: var(--color-danger);
+    text-align: center;
+    padding: 20px;
+}
+
+@media (max-width: 768px) {
+    #panel-ia-diagnostic {
+        width: 100%;
+        top: 0;
+        height: 100vh;
+    }
+}
+
+#btn-aide-diagnostic {
+    background: linear-gradient(135deg, var(--color-primary), #7C3AED);
+    color: white;
+    border: none;
+    padding: 6px 14px;
+    border-radius: var(--radius-btn);
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 500;
+    margin-top: 8px;
+    transition: opacity 0.2s;
+}
+
+#btn-aide-diagnostic:hover {
+    opacity: 0.9;
+}

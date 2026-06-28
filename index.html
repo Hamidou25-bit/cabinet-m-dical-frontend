@@ -1419,6 +1419,7 @@
             <div class="form-group">
                 <label>Motif<span class="required-mark">*</span></label>
                 <input type="text" id="co-motif" placeholder="Motif">
+                <button type="button" id="btn-aide-diagnostic" onclick="lancerAideDiagnostic()" style="display:none">🤖 Aide au diagnostic</button>
             </div>
         </div>
         <div class="form-row">
@@ -2119,5 +2120,16 @@
 <script src="js/app.js"></script>
 <script src="js/sw-register.js"></script>
 <div id="recu-impression"></div>
+
+<div id="panel-ia-diagnostic" style="display:none">
+    <div class="ia-panel-header">
+        <span>🤖 Aide au diagnostic IA</span>
+        <button onclick="fermerPanelIA()">✕</button>
+    </div>
+    <div class="ia-panel-disclaimer">
+        ⚠️ Ceci est une aide au diagnostic. Le médecin reste seul responsable de la décision clinique.
+    </div>
+    <div id="ia-diagnostic-contenu"></div>
+</div>
 </body>
 </html>

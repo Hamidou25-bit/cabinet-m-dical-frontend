@@ -191,6 +191,9 @@ document.addEventListener('DOMContentLoaded', function() {
     // Menu adapté au rôle de l'utilisateur connecté
     applyRoleMenu();
 
+    // Bouton "Aide au diagnostic" IA, visible uniquement admin/médecin
+    initBoutonIA();
+
     // Paramètres du cabinet (nom/adresse/téléphone/logo/prix consultation), mis en
     // cache dans window._parametresCabinet pour les pages qui en ont besoin (reçus, etc.)
     initParametresCabinet();
@@ -1440,6 +1443,55 @@ async function deleteConsultation(id) {
         await apiFetch(`/consultations/${id}`, { method: 'DELETE' });
         loadConsultations();
     } catch(e) { showToast('Erreur lors de la suppression', 'error'); }
+}
+
+// ===== AIDE AU DIAGNOSTIC IA =====
+async function lancerAideDiagnostic() {
+    const motif = document.getElementById('co-motif').value.trim();
+    if (!motif) {
+        showToast('Veuillez saisir le motif de consultation avant de lancer le diagnostic', 'warning');
+        return;
+    }
+
+    const patientId = parseInt(document.getElementById('co-patient').value);
+    const patient = patientsData.find(p => p.id === patientId);
+
+    document.getElementById('panel-ia-diagnostic').style.display = 'block';
+    document.getElementById('ia-diagnostic-contenu').innerHTML = '<div class="ia-loading">⏳ Analyse en cours...</div>';
+
+    try {
+        const result = await apiFetch('/ia/diagnostic', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                motif,
+                age: patient?.age ?? null,
+                sexe: patient?.sexe ?? null,
+            }),
+        });
+
+        const texteFormate = escapeHtml(result.diagnostic)
+            .replace(/\n/g, '<br>')
+            .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+
+        document.getElementById('ia-diagnostic-contenu').innerHTML = `<div class="ia-resultat">${texteFormate}</div>`;
+    } catch (e) {
+        document.getElementById('ia-diagnostic-contenu').innerHTML = '<div class="ia-erreur">❌ Erreur lors de la connexion au service IA</div>';
+        showToast('Erreur service IA', 'error');
+    }
+}
+
+function fermerPanelIA() {
+    document.getElementById('panel-ia-diagnostic').style.display = 'none';
+    document.getElementById('ia-diagnostic-contenu').innerHTML = '';
+}
+
+function initBoutonIA() {
+    const role = localStorage.getItem('role');
+    const btn = document.getElementById('btn-aide-diagnostic');
+    if (btn && ['admin', 'medecin'].includes(role)) {
+        btn.style.display = 'inline-flex';
+    }
 }
 
 // ===== RENDEZ-VOUS =====
