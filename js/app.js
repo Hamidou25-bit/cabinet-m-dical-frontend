@@ -1445,7 +1445,64 @@ async function deleteConsultation(id) {
     } catch(e) { showToast('Erreur lors de la suppression', 'error'); }
 }
 
-// ===== AIDE AU DIAGNOSTIC IA =====
+// ===== CHAT MÉDICAL IA =====
+let iaChatHistorique = [];
+let iaContextePatient = {};
+
+function formaterTexteIA(texte) {
+    return escapeHtml(texte)
+        .replace(/\n/g, '<br>')
+        .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+        .replace(/💊/g, '<br>💊');
+}
+
+function ajouterMessageChat(role, contenu, options = {}) {
+    const messagesDiv = document.getElementById('ia-chat-messages');
+    const bienvenue = messagesDiv.querySelector('.ia-chat-bienvenue');
+    if (bienvenue) bienvenue.remove();
+
+    const msgId = 'ia-msg-' + Date.now() + '-' + Math.random().toString(36).slice(2, 7);
+    const msgDiv = document.createElement('div');
+    msgDiv.id = msgId;
+    msgDiv.className = 'ia-msg ' + (role === 'user' ? 'ia-msg-user' : 'ia-msg-assistant');
+
+    const bulle = document.createElement('div');
+    if (options.loading) {
+        bulle.className = 'ia-msg-bulle ia-loading';
+        bulle.textContent = '⏳ L\'IA analyse...';
+    } else if (options.erreur) {
+        bulle.className = 'ia-msg-bulle ia-erreur';
+        bulle.textContent = contenu;
+    } else {
+        bulle.className = 'ia-msg-bulle';
+        bulle.innerHTML = formaterTexteIA(contenu);
+    }
+
+    msgDiv.appendChild(bulle);
+    messagesDiv.appendChild(msgDiv);
+    messagesDiv.scrollTop = messagesDiv.scrollHeight;
+    return msgId;
+}
+
+function ouvrirPanelIA() {
+    document.getElementById('panel-ia-diagnostic').style.display = 'flex';
+}
+
+function fermerPanelIA() {
+    document.getElementById('panel-ia-diagnostic').style.display = 'none';
+}
+
+function reinitierChatIA() {
+    iaChatHistorique = [];
+    iaContextePatient = {};
+    document.getElementById('ia-chat-messages').innerHTML = `
+        <div class="ia-chat-bienvenue">
+            👋 Bonjour Docteur !<br><br>
+            Cliquez sur <strong>"Aide au diagnostic"</strong> pour analyser le motif de consultation,
+            ou posez directement votre question médicale ci-dessous.
+        </div>`;
+}
+
 async function lancerAideDiagnostic() {
     const motif = document.getElementById('co-motif').value.trim();
     if (!motif) {
@@ -1456,34 +1513,56 @@ async function lancerAideDiagnostic() {
     const patientId = parseInt(document.getElementById('co-patient').value);
     const patient = patientsData.find(p => p.id === patientId);
 
-    document.getElementById('panel-ia-diagnostic').style.display = 'block';
-    document.getElementById('ia-diagnostic-contenu').innerHTML = '<div class="ia-loading">⏳ Analyse en cours...</div>';
+    iaContextePatient = {
+        motif,
+        age: patient?.age ?? null,
+        sexe: patient?.sexe ?? null,
+    };
 
+    ouvrirPanelIA();
+    reinitierChatIA();
+
+    const premierMessage = `Motif de consultation : ${motif}`;
+    ajouterMessageChat('user', premierMessage);
+    iaChatHistorique.push({ role: 'user', content: premierMessage });
+
+    await appellerIAChat();
+}
+
+async function envoyerMessageIA() {
+    const input = document.getElementById('ia-chat-input');
+    const message = input.value.trim();
+    if (!message) return;
+
+    ajouterMessageChat('user', message);
+    iaChatHistorique.push({ role: 'user', content: message });
+    input.value = '';
+
+    await appellerIAChat();
+}
+
+async function appellerIAChat() {
+    const loadingId = ajouterMessageChat('assistant', '', { loading: true });
     try {
-        const result = await apiFetch('/ia/diagnostic', {
+        const result = await apiFetch('/ia/chat', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-                motif,
-                age: patient?.age ?? null,
-                sexe: patient?.sexe ?? null,
+                messages: iaChatHistorique,
+                motif: iaContextePatient.motif ?? null,
+                age: iaContextePatient.age ?? null,
+                sexe: iaContextePatient.sexe ?? null,
             }),
         }).then(r => r.json());
 
-        const texteFormate = escapeHtml(result.diagnostic)
-            .replace(/\n/g, '<br>')
-            .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
-
-        document.getElementById('ia-diagnostic-contenu').innerHTML = `<div class="ia-resultat">${texteFormate}</div>`;
+        document.getElementById(loadingId)?.remove();
+        ajouterMessageChat('assistant', result.response);
+        iaChatHistorique.push({ role: 'assistant', content: result.response });
     } catch (e) {
-        document.getElementById('ia-diagnostic-contenu').innerHTML = '<div class="ia-erreur">❌ Erreur lors de la connexion au service IA</div>';
+        document.getElementById(loadingId)?.remove();
+        ajouterMessageChat('assistant', '❌ Erreur lors de la connexion au service IA', { erreur: true });
         showToast('Erreur service IA', 'error');
     }
-}
-
-function fermerPanelIA() {
-    document.getElementById('panel-ia-diagnostic').style.display = 'none';
-    document.getElementById('ia-diagnostic-contenu').innerHTML = '';
 }
 
 function initBoutonIA() {

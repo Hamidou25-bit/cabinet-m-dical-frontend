@@ -2123,13 +2123,20 @@
 
 <div id="panel-ia-diagnostic" style="display:none">
     <div class="ia-panel-header">
-        <span>🤖 Aide au diagnostic IA</span>
-        <button onclick="fermerPanelIA()">✕</button>
+        <span>🤖 Assistant Médical IA</span>
+        <div class="ia-panel-header-actions">
+            <button onclick="reinitierChatIA()" title="Nouvelle conversation">🔄</button>
+            <button onclick="fermerPanelIA()" title="Fermer">✕</button>
+        </div>
     </div>
     <div class="ia-panel-disclaimer">
-        ⚠️ Ceci est une aide au diagnostic. Le médecin reste seul responsable de la décision clinique.
+        ⚠️ Aide au diagnostic uniquement. Le médecin reste seul responsable de la décision clinique.
     </div>
-    <div id="ia-diagnostic-contenu"></div>
+    <div id="ia-chat-messages"></div>
+    <div class="ia-chat-input-zone">
+        <textarea id="ia-chat-input" placeholder="Posez une question de suivi au médecin IA..." onkeydown="if(event.key==='Enter' && !event.shiftKey){event.preventDefault();envoyerMessageIA();}"></textarea>
+        <button onclick="envoyerMessageIA()" title="Envoyer">➤</button>
+    </div>
 </div>
 </body>
 </html>
