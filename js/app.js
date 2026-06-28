@@ -1468,7 +1468,7 @@ async function lancerAideDiagnostic() {
                 age: patient?.age ?? null,
                 sexe: patient?.sexe ?? null,
             }),
-        });
+        }).then(r => r.json());
 
         const texteFormate = escapeHtml(result.diagnostic)
             .replace(/\n/g, '<br>')
