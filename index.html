@@ -1144,7 +1144,7 @@
     <div id="page-bilan-garde" class="page">
         <div class="table-container">
             <div class="table-header">
-                <h3>Bilan de garde</h3>
+                <h3 id="bilan-page-titre">Bilan de garde</h3>
                 <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
                     <select id="bilan-medecin-id" onchange="loadBilanGarde()">
                         <option value="">-- Sélectionner un médecin --</option>
@@ -1168,10 +1168,10 @@
                         <div class="value" id="bilan-total-encaisse">0 FCFA</div>
                     </div>
                     <div class="card">
-                        <h3>Part médecin</h3>
+                        <h3 id="bilan-label-part-beneficiaire">Part médecin</h3>
                         <div class="value" id="bilan-part-medecin">0 FCFA</div>
                     </div>
-                    <div class="card orange">
+                    <div class="card orange" id="bilan-card-cabinet">
                         <h3>Part cabinet</h3>
                         <div class="value" id="bilan-part-cabinet">0 FCFA</div>
                     </div>
@@ -1181,14 +1181,14 @@
             <div id="bilan-par-type-wrap" style="display:none; padding: 0 20px 20px;">
                 <h4>Détail par type d'acte</h4>
                 <table>
-                    <thead><tr><th>Type</th><th>Nb actes</th><th>Total encaissé</th><th>Part médecin</th></tr></thead>
+                    <thead><tr><th>Type</th><th>Nb actes</th><th>Total encaissé</th><th id="bilan-th-part-beneficiaire">Part médecin</th></tr></thead>
                     <tbody id="bilan-par-type-body"></tbody>
                 </table>
             </div>
 
             <table>
                 <thead>
-                    <tr><th>Date</th><th>Type</th><th>Montant</th><th>Part médecin</th><th>Versé</th></tr>
+                    <tr><th>Date</th><th>Type</th><th>Montant</th><th id="bilan-th-part-beneficiaire-detail">Part médecin</th><th>Versé</th></tr>
                 </thead>
                 <tbody id="bilan-detail-body">
                     <tr><td colspan="5" class="loading">Sélectionnez un médecin et une période</td></tr>
@@ -1558,12 +1558,16 @@
         </div>
         <div class="form-group">
             <label>Rôle<span class="required-mark">*</span></label>
-            <select id="u-role">
+            <select id="u-role" onchange="onUtilisateurRoleChange()">
                 <option value="admin">Administrateur</option>
                 <option value="medecin">Médecin</option>
                 <option value="secretaire">Secrétaire</option>
                 <option value="laborantin">Laborantin</option>
             </select>
+        </div>
+        <div class="form-group" id="u-medecin-group" style="display:none;">
+            <label>Médecin lié<span class="required-mark">*</span></label>
+            <select id="u-medecin-id"><option value="">-- Sélectionner --</option></select>
         </div>
         <div class="modal-actions">
             <button class="btn" onclick="closeModal('modal-utilisateur')">Annuler</button>

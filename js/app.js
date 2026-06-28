@@ -144,7 +144,7 @@ const MENU_ROLES = {
     'menu-examens-config':  ['admin'],
     'menu-type-soins':      ['admin'],
     'menu-comptabilite':    ['admin'],
-    'menu-bilan-garde':     ['admin'],
+    'menu-bilan-garde':     ['admin', 'medecin', 'laborantin'],
     'menu-audit':           ['admin'],
     'menu-parametres':      ['admin'],
 };
@@ -259,7 +259,7 @@ function showPage(page) {
     if (page === 'prescripteurs') loadPrescripteurs();
     if (page === 'examens-config') loadExamensConfig();
     if (page === 'comptabilite') loadFournisseurs();
-    if (page === 'bilan-garde') loadMedecinsSelectBilan();
+    if (page === 'bilan-garde') initBilanGarde();
     if (page === 'audit') loadAuditLogs();
     if (page === 'parametres') loadParametres();
 }
@@ -3111,6 +3111,19 @@ function renderUtilisateurs(data) {
     }).join('');
 }
 
+async function onUtilisateurRoleChange() {
+    const role = document.getElementById('u-role').value;
+    const group = document.getElementById('u-medecin-group');
+    if (role !== 'medecin') { group.style.display = 'none'; return; }
+    await ensureMedecinsLoaded();
+    const select = document.getElementById('u-medecin-id');
+    const selected = select.value;
+    select.innerHTML = '<option value="">-- Sélectionner --</option>'
+        + medecinsData.map(m => `<option value="${m.id}">${escapeHtml(m.nom)}</option>`).join('');
+    select.value = selected;
+    group.style.display = '';
+}
+
 function openNewUtilisateurModal() {
     document.getElementById('modal-utilisateur-title').textContent = 'Nouvel Utilisateur';
     document.getElementById('u-id').value = '';
@@ -3118,12 +3131,14 @@ function openNewUtilisateurModal() {
     document.getElementById('u-login').value = '';
     document.getElementById('u-password').value = '';
     document.getElementById('u-role').value = 'secretaire';
+    document.getElementById('u-medecin-id').value = '';
     document.getElementById('u-password-group').style.display = '';
     document.querySelector('#u-password-group label').innerHTML = 'Mot de passe<span class="required-mark">*</span>';
+    onUtilisateurRoleChange();
     openModal('modal-utilisateur');
 }
 
-function editUtilisateur(id) {
+async function editUtilisateur(id) {
     const u = utilisateursData.find(x => x.id === id);
     if (!u) return;
     document.getElementById('modal-utilisateur-title').textContent = 'Modifier Utilisateur';
@@ -3133,6 +3148,8 @@ function editUtilisateur(id) {
     document.getElementById('u-password').value = '';
     document.getElementById('u-role').value = u.role || 'secretaire';
     document.getElementById('u-password-group').style.display = 'none';
+    await onUtilisateurRoleChange();
+    document.getElementById('u-medecin-id').value = u.medecin_id || '';
     openModal('modal-utilisateur');
 }
 
@@ -3153,6 +3170,10 @@ async function saveUtilisateur() {
         nom_utilisateur: document.getElementById('u-login').value.trim(),
         role: document.getElementById('u-role').value,
     };
+    if (payload.role === 'medecin') {
+        const medecinId = document.getElementById('u-medecin-id').value;
+        payload.medecin_id = medecinId ? parseInt(medecinId, 10) : null;
+    }
     if (isNew) payload.mot_de_passe = document.getElementById('u-password').value;
 
     try {
@@ -3278,9 +3299,55 @@ function filterPrescripteurs() {
     renderPrescripteurs(medecinsData.filter(m => (m.nom||'').toLowerCase().includes(q)));
 }
 
-// Bilan de garde (répartition des recettes par médecin)
+// Bilan de garde (répartition des recettes par médecin/laborantin)
 const TYPE_ACTE_LABELS = { consultation: 'Consultation', soin: 'Soin', examen: 'Examen', ordonnance: 'Ordonnance' };
 let bilanGardeData = null;
+// 'medecin' (admin ou médecin en self-service, endpoint /repartition/bilan-garde) ou
+// 'laborantin' (self-service, endpoint /repartition/bilan-garde-laborantin) - déterminé
+// par initBilanGarde() selon le rôle connecté, jamais choisi par l'utilisateur lui-même.
+let bilanType = 'medecin';
+
+// Point d'entrée de la page, appelé par showPage('bilan-garde') - adapte l'affichage
+// au rôle connecté : l'admin garde le comportement existant (sélection libre d'un
+// médecin, part cabinet visible, bouton de versement) ; médecin et laborantin voient
+// uniquement leur propre part, sans sélecteur ni part cabinet ni bouton de versement
+// (réservé à l'admin côté API, POST /repartition/marquer-verse).
+function initBilanGarde() {
+    const role = localStorage.getItem('role');
+    const selecteur = document.getElementById('bilan-medecin-id');
+    const verserBtn = document.getElementById('bilan-btn-verser');
+    const cabinetCard = document.getElementById('bilan-card-cabinet');
+    const pageTitre = document.getElementById('bilan-page-titre');
+    const pageTitleTop = document.getElementById('page-title');
+    const labelPart = role === 'admin' ? 'Part médecin' : 'Ma part';
+    document.getElementById('bilan-label-part-beneficiaire').textContent = labelPart;
+    document.getElementById('bilan-th-part-beneficiaire').textContent = labelPart;
+    document.getElementById('bilan-th-part-beneficiaire-detail').textContent = labelPart;
+
+    if (role === 'admin') {
+        bilanType = 'medecin';
+        selecteur.style.display = '';
+        verserBtn.style.display = '';
+        cabinetCard.style.display = '';
+        pageTitre.textContent = 'Bilan de garde';
+        if (pageTitleTop) pageTitleTop.textContent = 'Bilan de garde';
+        loadMedecinsSelectBilan();
+        return;
+    }
+
+    selecteur.style.display = 'none';
+    verserBtn.style.display = 'none';
+    cabinetCard.style.display = 'none';
+    pageTitre.textContent = 'Mon bilan de garde';
+    if (pageTitleTop) pageTitleTop.textContent = 'Mon bilan de garde';
+
+    if (role === 'medecin') bilanType = 'medecin';
+    else if (role === 'laborantin') bilanType = 'laborantin';
+    else return; // rôle non autorisé - déjà bloqué en amont par MENU_ROLES/showPage
+
+    if (!document.getElementById('bilan-date-debut').value) setBilanGardePeriode('mois');
+    else loadBilanGarde();
+}
 
 async function loadMedecinsSelectBilan() {
     const select = document.getElementById('bilan-medecin-id');
@@ -3288,12 +3355,15 @@ async function loadMedecinsSelectBilan() {
         try { medecinsData = await apiFetch('/medecins').then(r => r.json()); }
         catch (e) { showToast('Erreur lors du chargement des médecins', 'error'); return; }
     }
-    const selected = select.value;
+    // Présélectionne le premier médecin si aucun n'est encore choisi, sinon la page
+    // reste vide par défaut (rien ne se charge tant qu'on n'a pas cliqué sur un médecin).
+    const selected = select.value || (medecinsData[0] ? String(medecinsData[0].id) : '');
     select.innerHTML = '<option value="">-- Sélectionner un médecin --</option>'
         + medecinsData.map(m => `<option value="${m.id}">${escapeHtml(m.nom)}</option>`).join('');
     select.value = selected;
 
     if (!document.getElementById('bilan-date-debut').value) setBilanGardePeriode('mois');
+    else loadBilanGarde();
 }
 
 function setBilanGardePeriode(periode) {
@@ -3309,25 +3379,44 @@ function setBilanGardePeriode(periode) {
 }
 
 async function loadBilanGarde() {
-    const medecinId = document.getElementById('bilan-medecin-id').value;
-    if (!medecinId) return;
+    const role = localStorage.getItem('role');
     const dateDebut = parseDateFR(document.getElementById('bilan-date-debut').value);
     const dateFin = parseDateFR(document.getElementById('bilan-date-fin').value);
     if (!dateDebut || !dateFin) return;
 
+    let url;
+    if (role === 'admin') {
+        const medecinId = document.getElementById('bilan-medecin-id').value;
+        if (!medecinId) return;
+        url = `/repartition/bilan-garde?medecin_id=${medecinId}&date_debut=${dateDebut}&date_fin=${dateFin}`;
+    } else if (role === 'medecin') {
+        url = `/repartition/bilan-garde?date_debut=${dateDebut}&date_fin=${dateFin}`;
+    } else if (role === 'laborantin') {
+        url = `/repartition/bilan-garde-laborantin?date_debut=${dateDebut}&date_fin=${dateFin}`;
+    } else {
+        return;
+    }
+
     try {
-        bilanGardeData = await apiFetch(`/repartition/bilan-garde?medecin_id=${medecinId}&date_debut=${dateDebut}&date_fin=${dateFin}`).then(r => r.json());
+        bilanGardeData = await apiFetch(url).then(r => r.json());
         renderBilanGarde(bilanGardeData);
     } catch (e) {
-        showToast('Erreur lors du chargement du bilan de garde', 'error');
+        showToast(e.message || 'Erreur lors du chargement du bilan de garde', 'error');
     }
 }
 
 function renderBilanGarde(data) {
+    const partKey = bilanType === 'laborantin' ? 'part_laborantin' : 'part_medecin';
+    const totalPart = bilanType === 'laborantin' ? data.total_laborantin : data.total_medecin;
+    const verseKey = bilanType === 'laborantin' ? 'laborantin_verse' : 'medecin_verse';
+    const verseLeKey = bilanType === 'laborantin' ? 'laborantin_verse_le' : 'medecin_verse_le';
+
     document.getElementById('bilan-total-actes').textContent = data.total_actes;
     document.getElementById('bilan-total-encaisse').textContent = `${data.total_encaisse.toLocaleString()} FCFA`;
-    document.getElementById('bilan-part-medecin').textContent = `${data.total_medecin.toLocaleString()} FCFA`;
-    document.getElementById('bilan-part-cabinet').textContent = `${data.total_cabinet.toLocaleString()} FCFA`;
+    document.getElementById('bilan-part-medecin').textContent = `${totalPart.toLocaleString()} FCFA`;
+    if (data.total_cabinet !== undefined) {
+        document.getElementById('bilan-part-cabinet').textContent = `${data.total_cabinet.toLocaleString()} FCFA`;
+    }
     document.getElementById('bilan-resume').style.display = '';
 
     const parTypeEntries = Object.entries(data.par_type);
@@ -3337,7 +3426,7 @@ function renderBilanGarde(data) {
             <td>${TYPE_ACTE_LABELS[type] || type}</td>
             <td>${info.count}</td>
             <td>${info.total.toLocaleString()} FCFA</td>
-            <td>${info.part_medecin.toLocaleString()} FCFA</td>
+            <td>${(info[partKey] || 0).toLocaleString()} FCFA</td>
         </tr>
     `).join('');
 
@@ -3350,14 +3439,16 @@ function renderBilanGarde(data) {
                 <td>${formatDateFR(l.date_acte)}</td>
                 <td>${TYPE_ACTE_LABELS[l.reference_type] || l.reference_type}</td>
                 <td>${parseFloat(l.montant_total).toLocaleString()} FCFA</td>
-                <td>${parseFloat(l.part_medecin).toLocaleString()} FCFA</td>
-                <td>${l.medecin_verse ? '✅ ' + formatDateFR(l.medecin_verse_le) : '⏳ En attente'}</td>
+                <td>${parseFloat(l[partKey] || 0).toLocaleString()} FCFA</td>
+                <td>${l[verseKey] ? '✅ ' + formatDateFR(l[verseLeKey]) : '⏳ En attente'}</td>
             </tr>
         `).join('');
     }
 
-    const resteAVerser = data.lignes.some(l => !l.medecin_verse && parseFloat(l.part_medecin) > 0);
-    document.getElementById('bilan-btn-verser').disabled = !resteAVerser;
+    if (localStorage.getItem('role') === 'admin') {
+        const resteAVerser = data.lignes.some(l => !l.medecin_verse && parseFloat(l.part_medecin) > 0);
+        document.getElementById('bilan-btn-verser').disabled = !resteAVerser;
+    }
 }
 
 async function marquerBilanVerse() {
@@ -3385,17 +3476,24 @@ async function marquerBilanVerse() {
 }
 
 function imprimerBilanGarde() {
-    if (!bilanGardeData) { showToast('Sélectionnez un médecin et une période', 'error'); return; }
+    if (!bilanGardeData) { showToast('Sélectionnez une période', 'error'); return; }
     const printWindow = window.open('', '_blank');
     if (!printWindow) { showToast('Veuillez autoriser les pop-ups pour imprimer', 'error'); return; }
     const d = bilanGardeData;
+    const partKey = bilanType === 'laborantin' ? 'part_laborantin' : 'part_medecin';
+    const totalPart = bilanType === 'laborantin' ? d.total_laborantin : d.total_medecin;
+    const verseKey = bilanType === 'laborantin' ? 'laborantin_verse' : 'medecin_verse';
+    const labelBeneficiaire = bilanType === 'laborantin' ? 'Laborantin' : 'Médecin';
+    const nomBeneficiaire = bilanType === 'laborantin'
+        ? (localStorage.getItem('nom_utilisateur') || 'Laborantin')
+        : d.medecin_nom;
     const rows = d.lignes.map(l => `<tr>
         <td>${formatDateFR(l.date_acte)}</td><td>${TYPE_ACTE_LABELS[l.reference_type] || l.reference_type}</td>
-        <td>${parseFloat(l.montant_total).toLocaleString()} FCFA</td><td>${parseFloat(l.part_medecin).toLocaleString()} FCFA</td>
-        <td>${l.medecin_verse ? 'Versé' : 'En attente'}</td>
+        <td>${parseFloat(l.montant_total).toLocaleString()} FCFA</td><td>${parseFloat(l[partKey] || 0).toLocaleString()} FCFA</td>
+        <td>${l[verseKey] ? 'Versé' : 'En attente'}</td>
     </tr>`).join('');
     printWindow.document.write(`<!DOCTYPE html>
-<html lang="fr"><head><meta charset="UTF-8"><title>Bilan de garde - ${escapeHtml(d.medecin_nom)}</title>
+<html lang="fr"><head><meta charset="UTF-8"><title>Bilan de garde - ${escapeHtml(nomBeneficiaire)}</title>
 <style>
     body { font-family: 'Segoe UI', Arial, sans-serif; color: #1E293B; padding: 30px; }
     .header { text-align: center; border-bottom: 2px solid #1565C0; padding-bottom: 12px; margin-bottom: 20px; }
@@ -3410,13 +3508,13 @@ function imprimerBilanGarde() {
 <body>
     <div class="header"><h1>🏥 Cabinet Médical BabaMouneissa</h1><p>Bilan de garde</p></div>
     <div class="info">
-        <p><strong>Médecin :</strong> ${escapeHtml(d.medecin_nom)}</p>
+        <p><strong>${labelBeneficiaire} :</strong> ${escapeHtml(nomBeneficiaire)}</p>
         <p><strong>Période :</strong> ${formatDateFR(d.date_debut)} au ${formatDateFR(d.date_fin)}</p>
     </div>
-    <table><thead><tr><th>Date</th><th>Type</th><th>Montant</th><th>Part médecin</th><th>Versé</th></tr></thead><tbody>${rows}</tbody></table>
+    <table><thead><tr><th>Date</th><th>Type</th><th>Montant</th><th>Part ${labelBeneficiaire.toLowerCase()}</th><th>Versé</th></tr></thead><tbody>${rows}</tbody></table>
     <div class="total">
         Total encaissé : ${d.total_encaisse.toLocaleString()} FCFA<br>
-        Part médecin : ${d.total_medecin.toLocaleString()} FCFA
+        Part ${labelBeneficiaire.toLowerCase()} : ${totalPart.toLocaleString()} FCFA
     </div>
 </body></html>`);
     printWindow.document.close();
