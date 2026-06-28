@@ -191,8 +191,8 @@ document.addEventListener('DOMContentLoaded', function() {
     // Menu adapté au rôle de l'utilisateur connecté
     applyRoleMenu();
 
-    // Bouton "Aide au diagnostic" IA, visible uniquement admin/médecin
-    initBoutonIA();
+    // Volet IA (page Consultations), visible uniquement admin/médecin
+    initVoletIA();
 
     // Paramètres du cabinet (nom/adresse/téléphone/logo/prix consultation), mis en
     // cache dans window._parametresCabinet pour les pages qui en ont besoin (reçus, etc.)
@@ -251,7 +251,7 @@ function showPage(page) {
 
     if (page === 'rendez-vous') loadRendezVous();
     if (page === 'patients') loadPatients();
-    if (page === 'consultations') loadConsultations();
+    if (page === 'consultations') { loadConsultations(); initVoletIA(); }
     if (page === 'stock') loadStock();
     if (page === 'ordonnances') loadOrdonnances();
     if (page === 'examens') loadExamens();
@@ -1484,39 +1484,15 @@ function ajouterMessageChat(role, contenu, options = {}) {
     return msgId;
 }
 
-function ouvrirModalIA() {
-    const modal = document.getElementById('modal-ia-chat');
-    modal.style.display = 'flex';
-    setTimeout(() => {
-        document.getElementById('ia-chat-input')?.focus();
-    }, 100);
-}
-
-function fermerModalIA() {
-    document.getElementById('modal-ia-chat').style.display = 'none';
-}
-
-document.addEventListener('click', function(e) {
-    const modal = document.getElementById('modal-ia-chat');
-    if (modal && e.target === modal) {
-        fermerModalIA();
-    }
-});
-
-document.addEventListener('keydown', function(e) {
-    if (e.key === 'Escape') fermerModalIA();
-});
-
 function reinitierChatIA() {
     iaChatHistorique = [];
     iaContextePatient = {};
     document.getElementById('ia-chat-messages').innerHTML = `
-        <div id="ia-message-bienvenue"
-            style="text-align:center;color:#64748B;font-size:14px;padding:40px 20px;background:white;border-radius:10px;border:1px solid #E2E8F0;">
+        <div id="ia-message-bienvenue" class="ia-bienvenue">
             👋 <strong>Bonjour Docteur !</strong><br><br>
-            Saisissez le motif de consultation puis cliquez sur
-            <strong style="color:var(--color-primary);">🤖 Lancer le diagnostic</strong><br>
-            ou posez directement votre question médicale ci-dessous.
+            Saisissez le motif de consultation dans le formulaire puis cliquez sur
+            <strong>🔍 Analyser le motif</strong><br><br>
+            ou posez directement votre question ci-dessous.
         </div>`;
 }
 
@@ -1536,7 +1512,6 @@ async function lancerAideDiagnostic() {
         sexe: patient?.sexe ?? null,
     };
 
-    ouvrirModalIA();
     reinitierChatIA();
 
     const premierMessage = `Motif de consultation : ${motif}`;
@@ -1582,11 +1557,14 @@ async function appellerIAChat() {
     }
 }
 
-function initBoutonIA() {
+function initVoletIA() {
     const role = localStorage.getItem('role');
-    const btn = document.getElementById('btn-aide-diagnostic');
-    if (btn && ['admin', 'medecin'].includes(role)) {
-        btn.style.display = 'inline-flex';
+    const volet = document.getElementById('volet-ia-consultations');
+    if (!volet) return;
+    if (['admin', 'medecin'].includes(role)) {
+        volet.classList.remove('ia-volet-hidden');
+    } else {
+        volet.classList.add('ia-volet-hidden');
     }
 }
 
