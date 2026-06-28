@@ -1458,7 +1458,7 @@ function formaterTexteIA(texte) {
 
 function ajouterMessageChat(role, contenu, options = {}) {
     const messagesDiv = document.getElementById('ia-chat-messages');
-    const bienvenue = messagesDiv.querySelector('.ia-chat-bienvenue');
+    const bienvenue = document.getElementById('ia-message-bienvenue');
     if (bienvenue) bienvenue.remove();
 
     const msgId = 'ia-msg-' + Date.now() + '-' + Math.random().toString(36).slice(2, 7);
@@ -1484,21 +1484,38 @@ function ajouterMessageChat(role, contenu, options = {}) {
     return msgId;
 }
 
-function ouvrirPanelIA() {
-    document.getElementById('panel-ia-diagnostic').style.display = 'flex';
+function ouvrirModalIA() {
+    const modal = document.getElementById('modal-ia-chat');
+    modal.style.display = 'flex';
+    setTimeout(() => {
+        document.getElementById('ia-chat-input')?.focus();
+    }, 100);
 }
 
-function fermerPanelIA() {
-    document.getElementById('panel-ia-diagnostic').style.display = 'none';
+function fermerModalIA() {
+    document.getElementById('modal-ia-chat').style.display = 'none';
 }
+
+document.addEventListener('click', function(e) {
+    const modal = document.getElementById('modal-ia-chat');
+    if (modal && e.target === modal) {
+        fermerModalIA();
+    }
+});
+
+document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') fermerModalIA();
+});
 
 function reinitierChatIA() {
     iaChatHistorique = [];
     iaContextePatient = {};
     document.getElementById('ia-chat-messages').innerHTML = `
-        <div class="ia-chat-bienvenue">
-            👋 Bonjour Docteur !<br><br>
-            Cliquez sur <strong>"Aide au diagnostic"</strong> pour analyser le motif de consultation,
+        <div id="ia-message-bienvenue"
+            style="text-align:center;color:#64748B;font-size:14px;padding:40px 20px;background:white;border-radius:10px;border:1px solid #E2E8F0;">
+            👋 <strong>Bonjour Docteur !</strong><br><br>
+            Saisissez le motif de consultation puis cliquez sur
+            <strong style="color:var(--color-primary);">🤖 Lancer le diagnostic</strong><br>
             ou posez directement votre question médicale ci-dessous.
         </div>`;
 }
@@ -1519,7 +1536,7 @@ async function lancerAideDiagnostic() {
         sexe: patient?.sexe ?? null,
     };
 
-    ouvrirPanelIA();
+    ouvrirModalIA();
     reinitierChatIA();
 
     const premierMessage = `Motif de consultation : ${motif}`;
