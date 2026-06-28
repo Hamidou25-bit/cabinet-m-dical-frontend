@@ -476,11 +476,32 @@ function renderPatients(data) {
     tbody.innerHTML = data.map(p => `<tr>
         <td>${p.nom}</td><td>${p.prenom}</td><td>${p.age}</td><td>${p.sexe}</td><td>${p.telephone || '-'}</td><td>${p.numero_dossier || '-'}</td><td>${formatDateFR(p.date_enregistrement)}</td>
         <td>
-            <button class="btn btn-sm" onclick="showDossierPatient(${p.id})">📁 Dossier</button>
+            ${boutonDossierPatient(p)}
             <button class="btn btn-sm" onclick="editPatient(${p.id})">Modifier</button>
             <button class="btn btn-sm btn-danger" onclick="deletePatient(${p.id})">Supprimer</button>
         </td>
     </tr>`).join('');
+}
+
+function boutonDossierPatient(p) {
+    if (p.a_dossier) {
+        return `<button class="btn btn-sm btn-success" onclick="showDossierPatient(${p.id})">📁 Voir dossier</button>`;
+    }
+    if ((p.nb_consultations || 0) >= 2) {
+        return `<button class="btn btn-sm btn-primary" onclick="creerDossierPatient(${p.id})">📁 Créer dossier</button>`;
+    }
+    return '';
+}
+
+async function creerDossierPatient(patientId) {
+    try {
+        await apiFetch('/dossiers/', { method: 'POST', body: JSON.stringify({ patient_id: patientId }) });
+    } catch(e) { showToast(e.detail || 'Erreur lors de la création du dossier', 'error'); return; }
+    showToast('Dossier créé avec succès');
+    const p = patientsData.find(x => x.id === patientId);
+    if (p) p.a_dossier = true;
+    renderPatients(getFilteredPatients());
+    renderDossiersList(patientsData);
 }
 
 function getFilteredPatients() {
@@ -543,7 +564,7 @@ function renderDossiersList(data) {
     if (!data.length) { tbody.innerHTML = '<tr><td colspan="6">Aucun patient</td></tr>'; return; }
     tbody.innerHTML = data.map(p => `<tr>
         <td>${p.nom}</td><td>${p.prenom}</td><td>${p.age}</td><td>${p.numero_dossier || '-'}</td><td>${p.telephone || '-'}</td>
-        <td><button class="btn btn-sm btn-primary" onclick="showDossierPatient(${p.id})">📁 Voir dossier</button></td>
+        <td>${boutonDossierPatient(p)}</td>
     </tr>`).join('');
 }
 
@@ -560,7 +581,7 @@ function filterDossiersList() {
 async function showDossierPatient(patientId) {
     try {
         dossierPatientData = await apiFetch(`/patients/${patientId}/dossier`).then(r => r.json());
-    } catch(e) { showToast('Erreur lors du chargement du dossier patient', 'error'); return; }
+    } catch(e) { showToast(e.detail || 'Erreur lors du chargement du dossier patient', 'error'); return; }
 
     const p = dossierPatientData.patient;
     const r = dossierPatientData.resume;
