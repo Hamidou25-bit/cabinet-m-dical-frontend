@@ -6,23 +6,24 @@
 }
 
 :root {
-    --primary: #0D9488;
+    /* Alias Phase 1 (design-system.css) — évite de réécrire les ~150 usages existants */
+    --primary: var(--color-primary);
     --primary-dark: #0F766E;
     --primary-light: #14B8A6;
-    --accent: #2563EB;
+    --accent: var(--color-secondary);
     --bg: #F1F5F9;
     --white: #FFFFFF;
     --text: #1E293B;
     --text-light: #64748B;
     --border: #E2E8F0;
-    --success: #15803D;
-    --warning: #B45309;
-    --danger: #DC2626;
+    --success: var(--color-secondary);
+    --warning: var(--color-warning);
+    --danger: var(--color-danger);
     --sidebar-width: 240px;
     --sidebar-collapsed-width: 64px;
     --sidebar-bg-start: #0B2B3C;
     --sidebar-bg-end: #134252;
-    --radius: 10px;
+    --radius: var(--radius-card);
     --radius-sm: 6px;
     --shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.06);
     --shadow-md: 0 6px 20px rgba(15, 23, 42, 0.08);
@@ -92,6 +93,20 @@ body {
     text-align: center;
 }
 
+.sidebar-logo-bm {
+    width: 36px;
+    height: 36px;
+    font-size: 14px;
+    font-weight: 800;
+    letter-spacing: 0.5px;
+    color: white;
+    background: var(--color-primary);
+    border-radius: var(--radius-card);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
 .sidebar-header-text {
     overflow: hidden;
     transition: opacity 0.2s ease, max-width 0.25s ease;
@@ -151,14 +166,14 @@ body {
 }
 
 .menu-item:hover {
-    background: rgba(255,255,255,0.08);
-    color: white;
+    background: var(--color-primary-light);
+    color: var(--color-primary-dark);
 }
 
 .menu-item.active {
-    background: #1565C0;
-    color: white;
-    border-left-color: rgba(255,255,255,0.85);
+    background: var(--color-primary-light);
+    color: var(--color-primary);
+    border-left-color: var(--color-primary);
     box-shadow: none;
 }
 
@@ -168,6 +183,15 @@ body {
     font-size: 16px;
     width: 22px;
     text-align: center;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.menu-item .icon svg {
+    width: 20px;
+    height: 20px;
+    flex-shrink: 0;
 }
 
 .menu-text {
@@ -381,6 +405,114 @@ body.sidebar-collapsed .sidebar-user {
     box-shadow: var(--shadow-md);
 }
 
+/* CLOCHE NOTIFICATIONS (décorative, Phase 1) */
+.topbar-bell {
+    position: relative;
+    width: 36px;
+    height: 36px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    color: var(--text-light);
+    cursor: default;
+    flex-shrink: 0;
+}
+
+.topbar-bell-badge {
+    position: absolute;
+    top: 2px;
+    right: 4px;
+    background: var(--color-danger);
+    color: white;
+    font-size: 9px;
+    font-weight: 700;
+    min-width: 14px;
+    height: 14px;
+    border-radius: 7px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
+}
+
+/* AVATAR + DROPDOWN TOPBAR */
+.topbar-avatar-wrapper {
+    position: relative;
+    flex-shrink: 0;
+}
+
+.topbar-avatar {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background: var(--color-primary);
+    color: white;
+    font-weight: 700;
+    font-size: 14px;
+    border: none;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: box-shadow var(--transition);
+}
+
+.topbar-avatar:hover {
+    box-shadow: 0 0 0 3px var(--color-primary-light);
+}
+
+.topbar-dropdown {
+    display: none;
+    position: absolute;
+    top: calc(100% + 10px);
+    right: 0;
+    min-width: 180px;
+    background: var(--white);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-card);
+    box-shadow: var(--shadow-lg);
+    z-index: 2000;
+    overflow: hidden;
+    padding: 6px;
+}
+
+.topbar-dropdown.show {
+    display: block;
+    animation: fadeInUp 0.15s ease;
+}
+
+.topbar-dropdown-item {
+    padding: 9px 12px;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text);
+    border-radius: var(--radius-btn);
+    cursor: pointer;
+    transition: background var(--transition);
+}
+
+.topbar-dropdown-item:hover {
+    background: var(--color-primary-light);
+}
+
+.topbar-dropdown-item.disabled {
+    color: var(--text-light);
+    cursor: default;
+}
+
+.topbar-dropdown-item.disabled:hover {
+    background: none;
+}
+
+.topbar-dropdown-item.topbar-dropdown-logout {
+    color: var(--color-danger);
+}
+
+.topbar-dropdown-item.topbar-dropdown-logout:hover {
+    background: #FEE2E2;
+}
+
 .badge {
     background: var(--danger);
     color: white;
@@ -425,6 +557,7 @@ body.sidebar-collapsed .sidebar-user {
     border: 1px solid var(--border);
     border-left: 4px solid var(--primary);
     transition: transform var(--transition), box-shadow var(--transition);
+    position: relative;
 }
 
 .card:hover {
@@ -457,6 +590,41 @@ body.sidebar-collapsed .sidebar-user {
 .card.green { border-left-color: var(--success); }
 .card.orange { border-left-color: var(--warning); }
 .card.red { border-left-color: var(--danger); }
+.card.violet { border-left-color: #7C3AED; }
+
+/* Icônes KPI (Phase 1) */
+.card-icon {
+    position: absolute;
+    top: 18px;
+    right: 18px;
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.card-icon.icon-blue { background: var(--color-primary-light); color: var(--color-primary); }
+.card-icon.icon-green { background: #D1FAE5; color: var(--color-secondary); }
+.card-icon.icon-orange { background: #FEF3C7; color: var(--color-warning); }
+.card-icon.icon-violet { background: #EDE9FE; color: #7C3AED; }
+
+/* Barre de progression (Top médicaments, Phase 1) */
+.progress-bar {
+    width: 100%;
+    height: 6px;
+    background: var(--color-border);
+    border-radius: 999px;
+    margin-top: 6px;
+    overflow: hidden;
+}
+
+.progress-bar-fill {
+    height: 100%;
+    background: var(--color-primary);
+    border-radius: 999px;
+}
 
 /* FORM PAGE (page dédiée remplaçant une modale) */
 .form-page {
@@ -906,52 +1074,81 @@ input[type="datetime-local"]:focus {
     to { transform: rotate(360deg); }
 }
 
-/* LOGIN PAGE */
+/* LOGIN PAGE — layout 2 colonnes (Phase 1) */
 .login-page {
+    display: flex;
+    min-height: 100vh;
+}
+
+.login-left {
+    flex: 0 0 40%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: var(--space-8);
+    color: white;
+    background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-primary-dark) 100%);
+    position: relative;
+    overflow: hidden;
+}
+
+.login-left svg { margin-bottom: var(--space-6); opacity: 0.95; }
+
+.login-left h1 {
+    font-size: var(--font-size-xl);
+    font-weight: 800;
+    margin-bottom: var(--space-2);
+}
+
+.login-left p {
+    font-size: var(--font-size-sm);
+    opacity: 0.85;
+}
+
+.login-right {
+    flex: 1;
     display: flex;
     align-items: center;
     justify-content: center;
-    min-height: 100vh;
-    background: linear-gradient(135deg, var(--sidebar-bg-start) 0%, var(--primary-dark) 55%, var(--primary) 100%);
-    position: relative;
-    overflow: hidden;
-    padding: 20px;
-}
-
-.login-page::before,
-.login-page::after {
-    content: '';
-    position: absolute;
-    border-radius: 50%;
-    background: rgba(255,255,255,0.06);
-}
-
-.login-page::before {
-    width: 480px;
-    height: 480px;
-    top: -160px;
-    right: -120px;
-}
-
-.login-page::after {
-    width: 320px;
-    height: 320px;
-    bottom: -120px;
-    left: -80px;
-    background: rgba(255,255,255,0.05);
+    background: var(--color-bg);
+    padding: var(--space-6);
 }
 
 .login-box {
-    background: var(--white);
-    border-radius: 16px;
+    background: var(--color-card);
+    border-radius: var(--radius-card);
     padding: 44px 38px;
     width: 380px;
     max-width: 90%;
-    box-shadow: var(--shadow-lg);
+    box-shadow: var(--shadow-card);
     text-align: center;
     position: relative;
     z-index: 1;
     animation: fadeInUp 0.4s ease;
+}
+
+.login-box .form-group input {
+    border-radius: var(--radius-input);
+}
+
+.login-box .form-group input:focus {
+    border-color: var(--color-primary);
+    box-shadow: 0 0 0 3px rgba(15, 111, 191, 0.15);
+}
+
+.login-box .btn-primary {
+    background: var(--color-primary);
+}
+
+.login-box .btn-primary:hover {
+    background: var(--color-primary-dark);
+}
+
+@media (max-width: 768px) {
+    .login-left { display: none; }
+    .login-right { flex: 1; }
 }
 
 .login-logo {

@@ -401,6 +401,7 @@ async function loadDashboard() {
 }
 
 let dashboardConsultationsChart = null;
+let dashboardPathologiesDonut = null;
 
 function renderDashboardStatistiques(stats) {
     document.getElementById('stat-revenus-mois').textContent = `${stats.revenus.mois_courant.toLocaleString()} FCFA`;
@@ -419,9 +420,28 @@ function renderDashboardStatistiques(stats) {
         ? stats.top_pathologies.map(p => `<tr><td>${p.diagnostic}</td><td>${p.nb}</td></tr>`).join('')
         : '<tr><td colspan="2">Aucune donnée</td></tr>';
 
+    // Donut "Top 5 pathologies" (Phase 1) — réutilise les données déjà fetchées ci-dessus
+    const donutCtx = document.getElementById('chart-pathologies-donut');
+    if (dashboardPathologiesDonut) dashboardPathologiesDonut.destroy();
+    if (donutCtx && stats.top_pathologies.length) {
+        const donutColors = ['#0F6FBF', '#3B8FD4', '#67AFE5', '#93CFF2', '#C2E4FA'];
+        dashboardPathologiesDonut = new Chart(donutCtx, {
+            type: 'doughnut',
+            data: {
+                labels: stats.top_pathologies.map(p => p.diagnostic),
+                datasets: [{ data: stats.top_pathologies.map(p => p.nb), backgroundColor: donutColors }]
+            },
+            options: { responsive: true, plugins: { legend: { position: 'bottom', labels: { boxWidth: 10, font: { size: 11 } } } } }
+        });
+    }
+
+    const maxQteMedicament = Math.max(0, ...stats.top_medicaments.map(m => m.quantite_totale));
     const tbodyMed = document.getElementById('table-top-medicaments');
     tbodyMed.innerHTML = stats.top_medicaments.length
-        ? stats.top_medicaments.map(m => `<tr><td>${m.designation}</td><td>${m.quantite_totale}</td></tr>`).join('')
+        ? stats.top_medicaments.map(m => {
+            const pct = maxQteMedicament > 0 ? Math.round((m.quantite_totale / maxQteMedicament) * 100) : 0;
+            return `<tr><td>${m.designation}<div class="progress-bar"><div class="progress-bar-fill" style="width:${pct}%"></div></div></td><td>${m.quantite_totale}</td></tr>`;
+        }).join('')
         : '<tr><td colspan="2">Aucune donnée</td></tr>';
 
     const ctx = document.getElementById('dashboard-consultations-chart');
@@ -4960,3 +4980,45 @@ async function initParametresCabinet() {
         window._parametresCabinet = {};
     }
 }
+
+// === Phase 1 refonte visuelle — additions (topbar : horloge temps réel + avatar/dropdown) ===
+
+// Horloge temps réel de la topbar : "jeudi 28 juin 2026 — 14:32:07", mise à jour chaque seconde
+function updateClock() {
+    const dateEl = document.getElementById('current-date');
+    if (!dateEl) return;
+    const now = new Date();
+    const datePart = now.toLocaleDateString('fr-FR', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+    const timePart = now.toLocaleTimeString('fr-FR');
+    dateEl.textContent = `${datePart} — ${timePart}`;
+}
+
+// Avatar topbar : initiales depuis localStorage, lien "Paramètres" visible admin uniquement
+function initTopbarAvatar() {
+    const userName = localStorage.getItem('nom_utilisateur') || '';
+    const role = localStorage.getItem('role') || '';
+    const avatarEl = document.getElementById('topbar-avatar');
+    if (avatarEl) avatarEl.textContent = userName ? userName.charAt(0).toUpperCase() : '?';
+    const parametresItem = document.getElementById('topbar-dropdown-parametres');
+    if (parametresItem) parametresItem.style.display = role === 'admin' ? '' : 'none';
+}
+
+function toggleTopbarDropdown(event) {
+    if (event) event.stopPropagation();
+    const dropdown = document.getElementById('topbar-dropdown');
+    if (dropdown) dropdown.classList.toggle('show');
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    initTopbarAvatar();
+    updateClock();
+    setInterval(updateClock, 1000);
+
+    document.addEventListener('click', function(e) {
+        const dropdown = document.getElementById('topbar-dropdown');
+        const wrapper = document.getElementById('topbar-avatar-wrapper');
+        if (dropdown && wrapper && !wrapper.contains(e.target)) {
+            dropdown.classList.remove('show');
+        }
+    });
+});

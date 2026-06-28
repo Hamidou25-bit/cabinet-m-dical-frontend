@@ -1,0 +1,28 @@
+/* Design System — Phase 1 refonte visuelle (additif, ne remplace pas style.css) */
+:root {
+  --color-primary: #0F6FBF;
+  --color-primary-dark: #0C5694;
+  --color-primary-light: #DBEAFE;
+  --color-secondary: #10B981;
+  --color-danger: #EF4444;
+  --color-warning: #F59E0B;
+  --color-neutral-900: #1E293B;
+  --color-bg: #F8FAFC;
+  --color-card: #FFFFFF;
+  --color-text: #1E293B;
+  --color-text-light: #64748B;
+  --color-border: #E2E8F0;
+  --font-size-xs: 12px;
+  --font-size-sm: 14px;
+  --font-size-base: 16px;
+  --font-size-lg: 20px;
+  --font-size-xl: 24px;
+  --font-size-2xl: 32px;
+  --radius-card: 8px;
+  --radius-btn: 6px;
+  --radius-input: 4px;
+  --shadow-card: 0 1px 3px rgba(0,0,0,0.08);
+  --transition: 0.2s ease-in-out;
+  --space-1: 4px; --space-2: 8px; --space-3: 12px;
+  --space-4: 16px; --space-6: 24px; --space-8: 32px;
+}
