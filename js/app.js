@@ -508,7 +508,7 @@ function boutonDossierPatient(p) {
     if (p.a_dossier) {
         return `<button class="btn btn-sm btn-success" onclick="showDossierPatient(${p.id})">📁 Voir dossier</button>`;
     }
-    if ((p.nb_consultations || 0) >= 2) {
+    if ((p.nb_consultations || 0) >= 1) {
         return `<button class="btn btn-sm btn-primary" onclick="creerDossierPatient(${p.id})">📁 Créer dossier</button>`;
     }
     return '';
@@ -3480,7 +3480,10 @@ async function loadBilanGarde() {
         bilanGardeData = await apiFetch(url).then(r => r.json());
         renderBilanGarde(bilanGardeData);
     } catch (e) {
-        showToast(e.message || 'Erreur lors du chargement du bilan de garde', 'error');
+        showToast(e.detail || e.message || 'Erreur lors du chargement du bilan de garde', 'error');
+        document.getElementById('bilan-resume').style.display = 'none';
+        document.getElementById('bilan-par-type-wrap').style.display = 'none';
+        document.getElementById('bilan-detail-body').innerHTML = '<tr><td colspan="5" class="loading">Aucune donnée disponible pour cette période</td></tr>';
     }
 }
 
