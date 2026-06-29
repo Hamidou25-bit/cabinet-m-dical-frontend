@@ -134,6 +134,7 @@ const MENU_ROLES = {
     'menu-patients':        ['admin', 'medecin', 'secretaire'],
     'menu-rendez-vous':     ['admin', 'medecin', 'secretaire'],
     'menu-consultations':   ['admin', 'medecin', 'secretaire'],
+    'menu-ia':              ['admin', 'medecin'],
     'menu-ordonnances':     ['admin', 'medecin', 'secretaire'],
     'menu-examens':         ['admin', 'medecin', 'secretaire', 'laborantin'],
     'menu-soins':           ['admin', 'medecin', 'secretaire'],
@@ -191,9 +192,6 @@ document.addEventListener('DOMContentLoaded', function() {
     // Menu adapté au rôle de l'utilisateur connecté
     applyRoleMenu();
 
-    // Volet IA (page Consultations), visible uniquement admin/médecin
-    initVoletIA();
-
     // Paramètres du cabinet (nom/adresse/téléphone/logo/prix consultation), mis en
     // cache dans window._parametresCabinet pour les pages qui en ont besoin (reçus, etc.)
     initParametresCabinet();
@@ -246,12 +244,12 @@ function showPage(page) {
         : document.querySelector(`.menu-item[onclick*="showPage('${page}')"]`);
     if (menuItem) menuItem.classList.add('active');
 
-    const titles = { dashboard: 'Tableau de bord', 'rendez-vous': 'Rendez-vous', patients: 'Patients', consultations: 'Consultations', stock: 'Stock', ordonnances: 'Ordonnances', examens: 'Examens complémentaires', soins: 'Soins', dossiers: 'Dossiers patients', personnel: 'Personnel', prescripteurs: 'Prescripteurs', 'examens-config': "Types d'examens", 'type-soins': 'Types de soins', comptabilite: 'Comptabilité', 'bilan-garde': 'Bilan de garde', audit: "Journal d'audit", parametres: 'Paramètres' };
+    const titles = { dashboard: 'Tableau de bord', 'rendez-vous': 'Rendez-vous', patients: 'Patients', consultations: 'Consultations', ia: 'IA Médicale', stock: 'Stock', ordonnances: 'Ordonnances', examens: 'Examens complémentaires', soins: 'Soins', dossiers: 'Dossiers patients', personnel: 'Personnel', prescripteurs: 'Prescripteurs', 'examens-config': "Types d'examens", 'type-soins': 'Types de soins', comptabilite: 'Comptabilité', 'bilan-garde': 'Bilan de garde', audit: "Journal d'audit", parametres: 'Paramètres' };
     if (titles[page]) document.getElementById('page-title').textContent = titles[page];
 
     if (page === 'rendez-vous') loadRendezVous();
     if (page === 'patients') loadPatients();
-    if (page === 'consultations') { loadConsultations(); initVoletIA(); }
+    if (page === 'consultations') loadConsultations();
     if (page === 'stock') loadStock();
     if (page === 'ordonnances') loadOrdonnances();
     if (page === 'examens') loadExamens();
@@ -1447,7 +1445,6 @@ async function deleteConsultation(id) {
 
 // ===== CHAT MÉDICAL IA =====
 let iaChatHistorique = [];
-let iaContextePatient = {};
 
 function formaterTexteIA(texte) {
     return escapeHtml(texte)
@@ -1486,39 +1483,11 @@ function ajouterMessageChat(role, contenu, options = {}) {
 
 function reinitierChatIA() {
     iaChatHistorique = [];
-    iaContextePatient = {};
     document.getElementById('ia-chat-messages').innerHTML = `
         <div id="ia-message-bienvenue" class="ia-bienvenue">
             👋 <strong>Bonjour Docteur !</strong><br><br>
-            Saisissez le motif de consultation dans le formulaire puis cliquez sur
-            <strong>🔍 Analyser le motif</strong><br><br>
-            ou posez directement votre question ci-dessous.
+            Posez votre question clinique ci-dessous (motif, symptômes, contexte du patient...).
         </div>`;
-}
-
-async function lancerAideDiagnostic() {
-    const motif = document.getElementById('co-motif').value.trim();
-    if (!motif) {
-        showToast('Veuillez saisir le motif de consultation avant de lancer le diagnostic', 'warning');
-        return;
-    }
-
-    const patientId = parseInt(document.getElementById('co-patient').value);
-    const patient = patientsData.find(p => p.id === patientId);
-
-    iaContextePatient = {
-        motif,
-        age: patient?.age ?? null,
-        sexe: patient?.sexe ?? null,
-    };
-
-    reinitierChatIA();
-
-    const premierMessage = `Motif de consultation : ${motif}`;
-    ajouterMessageChat('user', premierMessage);
-    iaChatHistorique.push({ role: 'user', content: premierMessage });
-
-    await appellerIAChat();
 }
 
 async function envoyerMessageIA() {
@@ -1539,12 +1508,7 @@ async function appellerIAChat() {
         const result = await apiFetch('/ia/chat', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                messages: iaChatHistorique,
-                motif: iaContextePatient.motif ?? null,
-                age: iaContextePatient.age ?? null,
-                sexe: iaContextePatient.sexe ?? null,
-            }),
+            body: JSON.stringify({ messages: iaChatHistorique }),
         }).then(r => r.json());
 
         document.getElementById(loadingId)?.remove();
@@ -1554,17 +1518,6 @@ async function appellerIAChat() {
         document.getElementById(loadingId)?.remove();
         ajouterMessageChat('assistant', '❌ Erreur lors de la connexion au service IA', { erreur: true });
         showToast('Erreur service IA', 'error');
-    }
-}
-
-function initVoletIA() {
-    const role = localStorage.getItem('role');
-    const volet = document.getElementById('volet-ia-consultations');
-    if (!volet) return;
-    if (['admin', 'medecin'].includes(role)) {
-        volet.classList.remove('ia-volet-hidden');
-    } else {
-        volet.classList.add('ia-volet-hidden');
     }
 }
 

@@ -48,6 +48,9 @@
         <div class="menu-item" id="menu-consultations" style="display:none;" onclick="showPage('consultations')" data-tooltip="Consultations">
             <span class="icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12h3.75M9 15h3.75M9 18h3.75m3-13.125c.621 0 1.125.504 1.125 1.125V18a2.25 2.25 0 0 1-2.25 2.25H6.75A2.25 2.25 0 0 1 4.5 18V6c0-.621.504-1.125 1.125-1.125H9M15 5.25a2.25 2.25 0 0 0-2.25-2.25h-1.5a2.25 2.25 0 0 0-2.25 2.25m6 0v.108c0 .295-.192.55-.475.65A4.5 4.5 0 0 1 12 6.225a4.5 4.5 0 0 1-2.275-.317.628.628 0 0 1-.475-.65V5.25m6 0h-6"/></svg></span><span class="menu-text"> Consultations</span>
         </div>
+        <div class="menu-item" id="menu-ia" style="display:none;" onclick="showPage('ia')" data-tooltip="IA Médicale">
+            <span class="icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="9"/><path stroke-linecap="round" d="M12 16v-4M12 8h.01"/></svg></span><span class="menu-text"> IA Médicale</span>
+        </div>
         <div class="menu-item" id="menu-ordonnances" style="display:none;" onclick="showPage('ordonnances')" data-tooltip="Ordonnances">
             <span class="icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z"/></svg></span><span class="menu-text"> Ordonnances</span>
         </div>
@@ -292,74 +295,66 @@
 
         <!-- CONSULTATIONS -->
         <div id="page-consultations" class="page">
-            <div class="consultations-layout">
-                <div class="consultations-main">
-                    <div class="table-container">
-                        <div class="table-header">
-                            <h3>Liste des consultations</h3>
-                            <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
-                                <input type="text" class="search-box" placeholder="Rechercher..." id="search-consultations" oninput="filterConsultations()">
-                                <input type="text" id="filter-consultations-date-debut" placeholder="JJ/MM/AAAA" title="Date - du" oninput="filterConsultations()">
-                                <input type="text" id="filter-consultations-date-fin" placeholder="JJ/MM/AAAA" title="Date - au" oninput="filterConsultations()">
-                                <button class="btn" onclick="resetFilterConsultations()">Réinitialiser</button>
-                                <button class="btn admin-only" onclick="exportConsultationsExcel()">📊 Exporter Excel</button>
-                                <button class="btn btn-primary" onclick="openNewConsultationModal()">+ Nouvelle consultation</button>
-                            </div>
-                        </div>
-                        <div class="totaux-bar admin-only" id="consultations-totaux-bar"></div>
-                        <table>
-                            <thead>
-                                <tr>
-                                    <th>Date</th>
-                                    <th>Patient</th>
-                                    <th>Prescripteur</th>
-                                    <th>Motif</th>
-                                    <th>Diagnostic</th>
-                                    <th>Montant</th>
-                                    <th>Paiement</th>
-                                    <th>Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody id="table-consultations">
-                                <tr><td colspan="8" class="loading">Chargement...</td></tr>
-                            </tbody>
-                        </table>
+            <div class="table-container">
+                <div class="table-header">
+                    <h3>Liste des consultations</h3>
+                    <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+                        <input type="text" class="search-box" placeholder="Rechercher..." id="search-consultations" oninput="filterConsultations()">
+                        <input type="text" id="filter-consultations-date-debut" placeholder="JJ/MM/AAAA" title="Date - du" oninput="filterConsultations()">
+                        <input type="text" id="filter-consultations-date-fin" placeholder="JJ/MM/AAAA" title="Date - au" oninput="filterConsultations()">
+                        <button class="btn" onclick="resetFilterConsultations()">Réinitialiser</button>
+                        <button class="btn admin-only" onclick="exportConsultationsExcel()">📊 Exporter Excel</button>
+                        <button class="btn btn-primary" onclick="openNewConsultationModal()">+ Nouvelle consultation</button>
+                    </div>
+                </div>
+                <div class="totaux-bar admin-only" id="consultations-totaux-bar"></div>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Date</th>
+                            <th>Patient</th>
+                            <th>Prescripteur</th>
+                            <th>Motif</th>
+                            <th>Diagnostic</th>
+                            <th>Montant</th>
+                            <th>Paiement</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="table-consultations">
+                        <tr><td colspan="8" class="loading">Chargement...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        <!-- IA MÉDICALE -->
+        <div id="page-ia" class="page">
+            <div class="ia-page-container">
+                <div class="ia-volet-header">
+                    <div>
+                        <div class="ia-volet-titre">🤖 Assistant Médical IA</div>
+                        <div class="ia-volet-sous-titre">Llama 3.3 • Mali/Afrique de l'Ouest</div>
+                    </div>
+                    <button onclick="reinitierChatIA()" class="ia-btn-nouveau">🔄 Nouveau</button>
+                </div>
+
+                <div class="ia-volet-disclaimer">
+                    ⚠️ Aide uniquement — Le médecin reste responsable de la décision clinique
+                </div>
+
+                <div id="ia-chat-messages" class="ia-chat-messages">
+                    <div id="ia-message-bienvenue" class="ia-bienvenue">
+                        👋 <strong>Bonjour Docteur !</strong><br><br>
+                        Posez votre question clinique ci-dessous (motif, symptômes, contexte du patient...).
                     </div>
                 </div>
 
-                <div class="consultations-ia-volet" id="volet-ia-consultations">
-                    <div class="ia-volet-header">
-                        <div>
-                            <div class="ia-volet-titre">🤖 Assistant Médical IA</div>
-                            <div class="ia-volet-sous-titre">Llama 3.3 • Mali/Afrique de l'Ouest</div>
-                        </div>
-                        <button onclick="reinitierChatIA()" class="ia-btn-nouveau">🔄 Nouveau</button>
-                    </div>
-
-                    <div class="ia-volet-disclaimer">
-                        ⚠️ Aide uniquement — Le médecin reste responsable de la décision clinique
-                    </div>
-
-                    <div class="ia-volet-lancer">
-                        <button onclick="lancerAideDiagnostic()" class="ia-btn-lancer">🔍 Analyser le motif de consultation</button>
-                    </div>
-
-                    <div id="ia-chat-messages" class="ia-chat-messages">
-                        <div id="ia-message-bienvenue" class="ia-bienvenue">
-                            👋 <strong>Bonjour Docteur !</strong><br><br>
-                            Saisissez le motif de consultation dans le formulaire puis cliquez sur
-                            <strong>🔍 Analyser le motif</strong><br><br>
-                            ou posez directement votre question ci-dessous.
-                        </div>
-                    </div>
-
-                    <div class="ia-volet-saisie">
-                        <textarea id="ia-chat-input"
-                            class="ia-textarea"
-                            placeholder="Posez une question de suivi... (Entrée pour envoyer)"
-                            onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();envoyerMessageIA();}"></textarea>
-                        <button onclick="envoyerMessageIA()" class="ia-btn-envoyer">➤</button>
-                    </div>
+                <div class="ia-volet-saisie">
+                    <textarea id="ia-chat-input"
+                        class="ia-textarea"
+                        placeholder="Posez votre question clinique... (Entrée pour envoyer)"
+                        onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();envoyerMessageIA();}"></textarea>
+                    <button onclick="envoyerMessageIA()" class="ia-btn-envoyer">➤</button>
                 </div>
             </div>
         </div>
