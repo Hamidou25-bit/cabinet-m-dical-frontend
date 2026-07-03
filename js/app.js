@@ -2859,7 +2859,7 @@ async function onMedSearch(input) {
     const wrapper = input.closest('.lo-autocomplete-wrapper');
     const dropdown = wrapper.querySelector('.lo-autocomplete-dropdown');
 
-    if (q.length < 2) {
+    if (q.length < 1) {
         dropdown.classList.remove('open');
         return;
     }
@@ -2867,7 +2867,8 @@ async function onMedSearch(input) {
     clearTimeout(medSearchTimeout);
     medSearchTimeout = setTimeout(async () => {
         try {
-            const results = await apiFetch(`/stock/disponibilite?q=${encodeURIComponent(q)}`);
+            const resp = await apiFetch(`/stock/disponibilite?q=${encodeURIComponent(q)}`);
+            const results = await resp.json();
             renderMedDropdown(input, results);
         } catch(e) {
             dropdown.classList.remove('open');
