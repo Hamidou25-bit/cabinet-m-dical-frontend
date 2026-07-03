@@ -329,32 +329,107 @@
         </div>
         <!-- IA MÉDICALE -->
         <div id="page-ia" class="page">
-            <div class="ia-page-container">
-                <div class="ia-volet-header">
-                    <div>
-                        <div class="ia-volet-titre">🤖 Assistant Médical IA</div>
-                        <div class="ia-volet-sous-titre">Llama 3.3 • Mali/Afrique de l'Ouest</div>
-                    </div>
-                    <button onclick="reinitierChatIA()" class="ia-btn-nouveau">🔄 Nouveau</button>
+            <div class="page-header" style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px;">
+                <div>
+                    <h1 class="page-title">Assistant IA Médical</h1>
+                    <p class="page-subtitle">Posez vos questions cliniques en français</p>
+                </div>
+                <button onclick="clearIaHistorique()" title="Supprimer tout l'historique"
+                    style="background:#fee2e2; color:#dc2626; border:1px solid #fca5a5;
+                    border-radius:8px; padding:8px 16px; cursor:pointer; font-size:13px;
+                    display:flex; align-items:center; gap:6px;">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15"
+                         viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                         stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/>
+                        <path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/>
+                    </svg>
+                    Effacer l'historique
+                </button>
+            </div>
+
+            <div class="ia-chat-container" style="
+                display:flex; flex-direction:column;
+                height:calc(100vh - 200px);
+                background:#fff; border-radius:12px;
+                border:1px solid #e2e8f0; overflow:hidden;
+                box-shadow:0 1px 4px rgba(0,0,0,0.06);
+            ">
+                <!-- Zone messages -->
+                <div id="ia-messages" style="
+                    flex:1; overflow-y:auto; padding:24px;
+                    display:flex; flex-direction:column; gap:14px;
+                "></div>
+
+                <!-- Indicateur vocal actif -->
+                <div id="ia-vocal-indicator" style="
+                    display:none; padding:8px 24px;
+                    background:#f0fdf4; border-top:1px solid #bbf7d0;
+                    color:#16a34a; font-size:13px; align-items:center; gap:8px;
+                ">
+                    <span id="ia-vocal-text">🎤 Écoute en cours… parlez maintenant</span>
+                    <button onclick="stopIaListen()"
+                        style="margin-left:auto; background:#dc2626; color:#fff;
+                        border:none; border-radius:6px; padding:4px 12px; cursor:pointer; font-size:12px;">
+                        Arrêter
+                    </button>
                 </div>
 
-                <div class="ia-volet-disclaimer">
-                    ⚠️ Aide uniquement — Le médecin reste responsable de la décision clinique
-                </div>
+                <!-- Zone saisie -->
+                <div style="
+                    padding:16px 24px; border-top:1px solid #e2e8f0;
+                    display:flex; gap:10px; align-items:flex-end;
+                    background:#f8fafc;
+                ">
+                    <!-- Bouton micro -->
+                    <button id="ia-mic-btn" onclick="toggleIaListen()" title="Dicter ma question"
+                        style="background:#f1f5f9; color:#475569; border:1px solid #e2e8f0;
+                        border-radius:8px; padding:10px 14px; cursor:pointer; flex-shrink:0;
+                        display:flex; align-items:center; justify-content:center;">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18"
+                             viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                             stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
+                            <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+                            <line x1="12" y1="19" x2="12" y2="23"/>
+                            <line x1="8" y1="23" x2="16" y2="23"/>
+                        </svg>
+                    </button>
 
-                <div id="ia-chat-messages" class="ia-chat-messages">
-                    <div id="ia-message-bienvenue" class="ia-bienvenue">
-                        👋 <strong>Bonjour Docteur !</strong><br><br>
-                        Posez votre question clinique ci-dessous (motif, symptômes, contexte du patient...).
-                    </div>
-                </div>
+                    <textarea id="ia-input" rows="2"
+                        placeholder="Ex : Patient de 35 ans, fièvre 39°C depuis 3 jours, Bamako… (Entrée pour envoyer, Shift+Entrée pour saut de ligne)"
+                        style="flex:1; resize:none; border:1px solid #e2e8f0; border-radius:8px;
+                        padding:10px 14px; font-size:14px; font-family:inherit; outline:none;
+                        background:#fff; color:#1e293b; line-height:1.5;"
+                        onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendIaMessage();}">
+                    </textarea>
 
-                <div class="ia-volet-saisie">
-                    <textarea id="ia-chat-input"
-                        class="ia-textarea"
-                        placeholder="Posez votre question clinique... (Entrée pour envoyer)"
-                        onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();envoyerMessageIA();}"></textarea>
-                    <button onclick="envoyerMessageIA()" class="ia-btn-envoyer">➤</button>
+                    <!-- Bouton lecture voix ON/OFF -->
+                    <button id="ia-tts-btn" onclick="toggleIaTts()" title="Activer/désactiver la lecture vocale"
+                        style="background:#f1f5f9; color:#475569; border:1px solid #e2e8f0;
+                        border-radius:8px; padding:10px 14px; cursor:pointer; flex-shrink:0;
+                        display:flex; align-items:center; justify-content:center;">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18"
+                             viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                             stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/>
+                            <path d="M19.07 4.93a10 10 0 0 1 0 14.14"/>
+                            <path d="M15.54 8.46a5 5 0 0 1 0 7.07"/>
+                        </svg>
+                    </button>
+
+                    <button onclick="sendIaMessage()" id="ia-send-btn"
+                        style="background:#0F6FBF; color:#fff; border:none; border-radius:8px;
+                        padding:10px 20px; font-size:14px; cursor:pointer; white-space:nowrap;
+                        display:flex; align-items:center; gap:8px; flex-shrink:0;">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16"
+                             viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                             stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <line x1="22" y1="2" x2="11" y2="13"/>
+                            <polygon points="22 2 15 22 11 13 2 9 22 2"/>
+                        </svg>
+                        Envoyer
+                    </button>
                 </div>
             </div>
         </div>

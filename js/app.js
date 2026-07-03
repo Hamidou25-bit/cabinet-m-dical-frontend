@@ -263,6 +263,7 @@ function showPage(page) {
     if (page === 'bilan-garde') initBilanGarde();
     if (page === 'audit') loadAuditLogs();
     if (page === 'parametres') loadParametres();
+    if (page === 'ia') initIaChat();
 }
 
 // Modal
@@ -1443,82 +1444,221 @@ async function deleteConsultation(id) {
     } catch(e) { showToast('Erreur lors de la suppression', 'error'); }
 }
 
-// ===== CHAT MÉDICAL IA =====
-let iaChatHistorique = [];
+// ============================================================
+// IA MÉDICALE — Historique + Vocal
+// ============================================================
+let iaHistory = [];
+let iaTtsEnabled = false;
+let iaRecognition = null;
+let iaListening = false;
+let iaSpeaking = false;
 
-function formaterTexteIA(texte) {
-    return escapeHtml(texte)
-        .replace(/\n/g, '<br>')
-        .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-        .replace(/💊/g, '<br>💊');
-}
+async function initIaChat() {
+    iaHistory = [];
+    const container = document.getElementById('ia-messages');
+    if (!container) return;
+    container.innerHTML = '';
 
-function ajouterMessageChat(role, contenu, options = {}) {
-    const messagesDiv = document.getElementById('ia-chat-messages');
-    const bienvenue = document.getElementById('ia-message-bienvenue');
-    if (bienvenue) bienvenue.remove();
-
-    const msgId = 'ia-msg-' + Date.now() + '-' + Math.random().toString(36).slice(2, 7);
-    const msgDiv = document.createElement('div');
-    msgDiv.id = msgId;
-    msgDiv.className = 'ia-msg ' + (role === 'user' ? 'ia-msg-user' : 'ia-msg-assistant');
-
-    const bulle = document.createElement('div');
-    if (options.loading) {
-        bulle.className = 'ia-msg-bulle ia-loading';
-        bulle.textContent = '⏳ L\'IA analyse...';
-    } else if (options.erreur) {
-        bulle.className = 'ia-msg-bulle ia-erreur';
-        bulle.textContent = contenu;
-    } else {
-        bulle.className = 'ia-msg-bulle';
-        bulle.innerHTML = formaterTexteIA(contenu);
+    try {
+        const resp = await apiFetch('/ia/historique');
+        const data = await resp.json();
+        if (data && data.length > 0) {
+            data.forEach(msg => {
+                appendIaMessage(msg.role, msg.contenu, '', true);
+                iaHistory.push({ role: msg.role, content: msg.contenu });
+            });
+            container.scrollTop = container.scrollHeight;
+        } else {
+            appendIaMessage('assistant',
+                'Bonjour ! Je suis votre assistant médical IA, spécialisé dans le contexte ' +
+                "de l'Afrique de l'Ouest. Posez-moi vos questions cliniques, je vous " +
+                'répondrai en français avec dosages et posologies détaillés.', '', true);
+        }
+    } catch(e) {
+        appendIaMessage('assistant',
+            'Bonjour ! Je suis votre assistant médical IA. Posez-moi vos questions cliniques.', '', true);
     }
 
-    msgDiv.appendChild(bulle);
-    messagesDiv.appendChild(msgDiv);
-    messagesDiv.scrollTop = messagesDiv.scrollHeight;
-    return msgId;
+    updateIaTtsBtn();
 }
 
-function reinitierChatIA() {
-    iaChatHistorique = [];
-    document.getElementById('ia-chat-messages').innerHTML = `
-        <div id="ia-message-bienvenue" class="ia-bienvenue">
-            👋 <strong>Bonjour Docteur !</strong><br><br>
-            Posez votre question clinique ci-dessous (motif, symptômes, contexte du patient...).
-        </div>`;
-}
+async function sendIaMessage() {
+    const input = document.getElementById('ia-input');
+    const msg = input.value.trim();
+    if (!msg) return;
 
-async function envoyerMessageIA() {
-    const input = document.getElementById('ia-chat-input');
-    const message = input.value.trim();
-    if (!message) return;
+    if (iaSpeaking) { window.speechSynthesis.cancel(); iaSpeaking = false; }
 
-    ajouterMessageChat('user', message);
-    iaChatHistorique.push({ role: 'user', content: message });
+    appendIaMessage('user', msg);
+    iaHistory.push({ role: 'user', content: msg });
     input.value = '';
 
-    await appellerIAChat();
-}
+    const btn = document.getElementById('ia-send-btn');
+    btn.disabled = true;
+    btn.textContent = '…';
 
-async function appellerIAChat() {
-    const loadingId = ajouterMessageChat('assistant', '', { loading: true });
+    appendIaMessage('assistant', '⏳ Analyse en cours…', 'ia-typing');
+
     try {
-        const result = await apiFetch('/ia/chat', {
+        const resp = await apiFetch('/ia/chat', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ messages: iaChatHistorique }),
-        }).then(r => r.json());
+            body: JSON.stringify({ messages: iaHistory })
+        });
+        const data = await resp.json();
 
-        document.getElementById(loadingId)?.remove();
-        ajouterMessageChat('assistant', result.response);
-        iaChatHistorique.push({ role: 'assistant', content: result.response });
-    } catch (e) {
-        document.getElementById(loadingId)?.remove();
-        ajouterMessageChat('assistant', '❌ Erreur lors de la connexion au service IA', { erreur: true });
-        showToast('Erreur service IA', 'error');
+        removeIaTyping();
+
+        if (data && data.reply) {
+            appendIaMessage('assistant', data.reply);
+            iaHistory.push({ role: 'assistant', content: data.reply });
+            if (iaTtsEnabled) speakIaReply(data.reply);
+        } else {
+            appendIaMessage('assistant', 'Erreur : réponse invalide.');
+        }
+    } catch(e) {
+        removeIaTyping();
+        appendIaMessage('assistant', "Erreur de connexion à l'IA. Veuillez réessayer.");
     }
+
+    btn.disabled = false;
+    btn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16"
+        viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+        stroke-linecap="round" stroke-linejoin="round">
+        <line x1="22" y1="2" x2="11" y2="13"/>
+        <polygon points="22 2 15 22 11 13 2 9 22 2"/></svg> Envoyer`;
+}
+
+function appendIaMessage(role, text, extraClass, skipScroll) {
+    const container = document.getElementById('ia-messages');
+    if (!container) return;
+    const div = document.createElement('div');
+    div.className = ('ia-msg ia-msg--' + role + (extraClass ? ' ' + extraClass : '')).trim();
+    const isUser = role === 'user';
+    div.style.cssText = `
+        background:${isUser ? '#0F6FBF' : '#f0f9ff'};
+        color:${isUser ? '#fff' : '#1e293b'};
+        border-radius:${isUser ? '12px 12px 4px 12px' : '12px 12px 12px 4px'};
+        padding:12px 16px; max-width:80%;
+        align-self:${isUser ? 'flex-end' : 'flex-start'};
+        line-height:1.6; white-space:pre-wrap; font-size:14px;
+        box-shadow:0 1px 3px rgba(0,0,0,0.08);
+    `;
+    div.textContent = text;
+    container.appendChild(div);
+    if (!skipScroll) container.scrollTop = container.scrollHeight;
+}
+
+function removeIaTyping() {
+    const el = document.querySelector('.ia-typing');
+    if (el) el.remove();
+}
+
+async function clearIaHistorique() {
+    if (!confirm("Supprimer tout l'historique des conversations IA ? Cette action est irréversible.")) return;
+    try {
+        await apiFetch('/ia/historique', { method: 'DELETE' });
+        iaHistory = [];
+        const container = document.getElementById('ia-messages');
+        container.innerHTML = '';
+        appendIaMessage('assistant', 'Historique supprimé. Posez votre nouvelle question clinique.');
+        showToast('Historique supprimé', 'success');
+    } catch(e) {
+        showToast("Erreur lors de la suppression de l'historique", 'error');
+    }
+}
+
+// --- Speech-to-Text ---
+function toggleIaListen() {
+    if (iaListening) { stopIaListen(); } else { startIaListen(); }
+}
+
+function startIaListen() {
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+        showToast("La reconnaissance vocale n'est pas supportée par ce navigateur.", 'error');
+        return;
+    }
+
+    iaRecognition = new SpeechRecognition();
+    iaRecognition.lang = 'fr-FR';
+    iaRecognition.continuous = false;
+    iaRecognition.interimResults = true;
+
+    const indicator = document.getElementById('ia-vocal-indicator');
+    const micBtn = document.getElementById('ia-mic-btn');
+    const input = document.getElementById('ia-input');
+
+    iaListening = true;
+    if (indicator) indicator.style.display = 'flex';
+    if (micBtn) { micBtn.style.background = '#fee2e2'; micBtn.style.color = '#dc2626'; micBtn.style.borderColor = '#fca5a5'; }
+
+    iaRecognition.onresult = (event) => {
+        let transcript = '';
+        for (let i = event.resultIndex; i < event.results.length; i++) {
+            transcript += event.results[i][0].transcript;
+        }
+        if (input) input.value = transcript;
+    };
+
+    iaRecognition.onend = () => {
+        stopIaListen();
+        if (input && input.value.trim()) sendIaMessage();
+    };
+
+    iaRecognition.onerror = (event) => {
+        stopIaListen();
+        if (event.error !== 'no-speech') showToast('Erreur microphone : ' + event.error, 'error');
+    };
+
+    iaRecognition.start();
+}
+
+function stopIaListen() {
+    iaListening = false;
+    if (iaRecognition) { iaRecognition.stop(); iaRecognition = null; }
+    const indicator = document.getElementById('ia-vocal-indicator');
+    const micBtn = document.getElementById('ia-mic-btn');
+    if (indicator) indicator.style.display = 'none';
+    if (micBtn) { micBtn.style.background = '#f1f5f9'; micBtn.style.color = '#475569'; micBtn.style.borderColor = '#e2e8f0'; }
+}
+
+// --- Text-to-Speech ---
+function toggleIaTts() {
+    iaTtsEnabled = !iaTtsEnabled;
+    if (!iaTtsEnabled && iaSpeaking) { window.speechSynthesis.cancel(); iaSpeaking = false; }
+    updateIaTtsBtn();
+    showToast(iaTtsEnabled ? 'Lecture vocale activée' : 'Lecture vocale désactivée',
+        iaTtsEnabled ? 'success' : 'info');
+}
+
+function updateIaTtsBtn() {
+    const btn = document.getElementById('ia-tts-btn');
+    if (!btn) return;
+    if (iaTtsEnabled) {
+        btn.style.background = '#dcfce7'; btn.style.color = '#16a34a'; btn.style.borderColor = '#86efac';
+        btn.title = 'Lecture vocale activée — cliquer pour désactiver';
+    } else {
+        btn.style.background = '#f1f5f9'; btn.style.color = '#475569'; btn.style.borderColor = '#e2e8f0';
+        btn.title = 'Activer la lecture vocale';
+    }
+}
+
+function speakIaReply(text) {
+    if (!window.speechSynthesis) return;
+    window.speechSynthesis.cancel();
+    const shortText = text.length > 500 ? text.substring(0, 500) + '…' : text;
+    const utterance = new SpeechSynthesisUtterance(shortText);
+    utterance.lang = 'fr-FR';
+    utterance.rate = 0.95;
+    utterance.pitch = 1;
+    const voices = window.speechSynthesis.getVoices();
+    const frVoice = voices.find(v => v.lang.startsWith('fr'));
+    if (frVoice) utterance.voice = frVoice;
+    utterance.onstart = () => { iaSpeaking = true; };
+    utterance.onend = () => { iaSpeaking = false; };
+    utterance.onerror = () => { iaSpeaking = false; };
+    window.speechSynthesis.speak(utterance);
 }
 
 // ===== RENDEZ-VOUS =====

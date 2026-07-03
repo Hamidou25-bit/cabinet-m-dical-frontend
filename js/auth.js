@@ -56,6 +56,8 @@ function logout() {
     localStorage.removeItem("token");
     localStorage.removeItem("nom_utilisateur");
     localStorage.removeItem("role");
+    try { if (typeof iaHistory !== 'undefined') iaHistory = []; } catch(e) {}
+    if (window.speechSynthesis) window.speechSynthesis.cancel();
     window.location.href = "login.html";
 }
 
