@@ -2633,125 +2633,39 @@ async function editOrdonnance(id) {
     } catch(e) { showToast('Erreur lors du chargement de l\'ordonnance', 'error'); }
 }
 
-function addLigneOrdonnance(ligne = null) {
+function addLigneOrdonnance(ligne) {
     const container = document.getElementById('lignes-ordonnance');
     const wrapper = document.createElement('div');
     wrapper.className = 'ligne-ordonnance-wrapper';
-
-    // Prix unitaire (pour édition : on déduit du montant total / quantité ou on prend la valeur brute)
-    const prixUnit = (ligne && ligne.quantite && ligne.montant)
-        ? (ligne.montant / ligne.quantite)
-        : (ligne ? (ligne.montant || 0) : 0);
-
+    const formeOptions = ['Comprimé','Sirop','Injectable','Sachet','Pommade','Suppositoire','Goutte','Autre'];
     wrapper.innerHTML = `
-      <!-- Ligne 1 : médicament + dosage + forme -->
-      <div style="display:flex; gap:10px; flex-wrap:wrap; margin-bottom:10px; align-items:flex-start;">
-
-        <!-- Champ médicament avec autocomplete -->
-        <div class="lo-autocomplete-wrapper" style="flex:2; min-width:200px;">
-          <input type="text"
-            placeholder="Médicament * (taper pour chercher)"
-            class="lo-designation form-control"
-            value="${ligne ? escapeHtml(ligne.designation || '') : ''}"
-            autocomplete="off"
-            style="width:100%;"
-            oninput="onMedSearch(this)"
-            onkeydown="onMedKeydown(event, this)"
-            onfocus="onMedSearch(this)"
-            onblur="setTimeout(()=>closeMedDropdown(this),200)">
-          <div class="lo-autocomplete-dropdown"></div>
-          <input type="hidden" class="lo-stock-id"
-            value="${ligne && ligne.stock_id ? ligne.stock_id : ''}">
+        <div class="ligne-ordonnance">
+            <div class="lo-autocomplete-wrapper" style="position:relative; flex:2;">
+                <input type="text"
+                    placeholder="Médicament * (taper pour chercher)"
+                    class="lo-designation"
+                    value="${ligne ? escapeHtml(ligne.designation || '') : ''}"
+                    autocomplete="off"
+                    oninput="onMedSearch(this)"
+                    onkeydown="onMedKeydown(event, this)"
+                    onfocus="onMedSearch(this)"
+                    onblur="setTimeout(()=>closeMedDropdown(this),200)">
+                <div class="lo-autocomplete-dropdown"></div>
+                <input type="hidden" class="lo-stock-id"
+                    value="${ligne && ligne.stock_id ? ligne.stock_id : ''}">
+            </div>
+            <input type="text" placeholder="Dosage" class="lo-dosage" value="${ligne ? escapeHtml(ligne.dosage || '') : ''}">
+            <select class="lo-forme"><option value="">Forme</option>${formeOptions.map(f => `<option value="${f}" ${ligne && ligne.forme === f ? 'selected' : ''}>${f}</option>`).join('')}</select>
+            <input type="number" placeholder="Qté" class="lo-quantite" value="${ligne ? (ligne.quantite || 1) : 1}" min="1" oninput="updateLigneOrdonnanceMontant(this)">
+            <input type="text" placeholder="Posologie" class="lo-posologie" value="${ligne ? escapeHtml(ligne.posologie || '') : ''}">
+            <input type="number" placeholder="Jours" class="lo-duree" value="${ligne && ligne.duree_jours ? ligne.duree_jours : ''}">
+            <input type="number" placeholder="Montant" class="lo-montant" value="${ligne ? (ligne.montant || 0) : 0}" min="0" oninput="updateOrdonnanceTotalDisplay()">
+            <button class="btn-remove" onclick="removeLigneOrdonnance(this)">✕</button>
         </div>
-
-        <!-- Dosage -->
-        <input type="text" placeholder="Dosage (ex: 500mg)"
-          class="lo-dosage form-control"
-          value="${ligne ? escapeHtml(ligne.dosage || '') : ''}"
-          style="flex:1; min-width:120px;">
-
-        <!-- Forme -->
-        <input type="text" placeholder="Forme (cp, sirop…)"
-          class="lo-forme form-control"
-          value="${ligne ? escapeHtml(ligne.forme || '') : ''}"
-          style="flex:1; min-width:120px;">
-
-        <!-- Bouton supprimer -->
-        <button type="button" onclick="this.closest('.ligne-ordonnance-wrapper').remove(); recalcTotal();"
-          style="background:#fee2e2; color:#dc2626; border:1px solid #fca5a5;
-          border-radius:8px; padding:8px 12px; cursor:pointer; flex-shrink:0;">✕</button>
-      </div>
-
-      <!-- Ligne 2 : posologie rapide -->
-      <div style="margin-bottom:10px;">
-        <label style="font-size:12px; color:#64748b; font-weight:500; display:block; margin-bottom:4px;">
-          Posologie
-        </label>
-        <div class="lo-posologie-btns">
-          <button type="button" class="lo-quick-btn" onclick="setPosologie(this,'1 comprimé matin')">1×/j matin</button>
-          <button type="button" class="lo-quick-btn" onclick="setPosologie(this,'1 comprimé matin et soir')">Matin+Soir</button>
-          <button type="button" class="lo-quick-btn" onclick="setPosologie(this,'1 comprimé 3 fois par jour')">3×/j</button>
-          <button type="button" class="lo-quick-btn" onclick="setPosologie(this,'2 comprimés matin et soir')">2cp Matin+Soir</button>
-          <button type="button" class="lo-quick-btn" onclick="setPosologie(this,'1/2 comprimé matin et soir')">½cp Matin+Soir</button>
-        </div>
-        <input type="text" placeholder="Ou saisir manuellement…"
-          class="lo-posologie form-control"
-          value="${ligne ? escapeHtml(ligne.posologie || '') : ''}"
-          style="margin-top:6px; width:100%;"
-          oninput="autoCalcQty(this.closest('.ligne-ordonnance-wrapper'))">
-      </div>
-
-      <!-- Ligne 3 : durée rapide -->
-      <div style="margin-bottom:10px;">
-        <label style="font-size:12px; color:#64748b; font-weight:500; display:block; margin-bottom:4px;">
-          Durée
-        </label>
-        <div class="lo-duree-btns">
-          <button type="button" class="lo-quick-btn" onclick="setDuree(this,3)">3 jours</button>
-          <button type="button" class="lo-quick-btn" onclick="setDuree(this,5)">5 jours</button>
-          <button type="button" class="lo-quick-btn" onclick="setDuree(this,7)">7 jours</button>
-          <button type="button" class="lo-quick-btn" onclick="setDuree(this,10)">10 jours</button>
-          <button type="button" class="lo-quick-btn" onclick="setDuree(this,14)">14 jours</button>
-          <button type="button" class="lo-quick-btn" onclick="setDuree(this,30)">30 jours</button>
-        </div>
-        <input type="number" placeholder="Ou nb jours…"
-          class="lo-duree form-control"
-          value="${ligne ? (ligne.duree_jours || '') : ''}"
-          min="1" style="margin-top:6px; width:120px;"
-          oninput="autoCalcQty(this.closest('.ligne-ordonnance-wrapper'))">
-      </div>
-
-      <!-- Ligne 4 : quantité + prix unit + badge stock -->
-      <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
-        <div>
-          <label style="font-size:12px; color:#64748b;">Quantité</label>
-          <input type="number" class="lo-quantite form-control"
-            value="${ligne ? (ligne.quantite || 1) : 1}"
-            min="1" style="width:80px;"
-            oninput="recalcLigneMontant(this.closest('.ligne-ordonnance-wrapper'))">
-        </div>
-        <div>
-          <label style="font-size:12px; color:#64748b;">Prix unit. (FCFA)</label>
-          <input type="number" class="lo-montant form-control"
-            value="${prixUnit}"
-            min="0" style="width:120px;"
-            oninput="recalcLigneMontant(this.closest('.ligne-ordonnance-wrapper'))">
-        </div>
-        <div style="padding-top:18px;">
-          <span class="lo-stock-badge" style="display:none;"></span>
-        </div>
-        <div style="margin-left:auto; padding-top:18px; font-weight:600; color:#0F6FBF;">
-          Total : <span class="lo-total-ligne">0</span> FCFA
-        </div>
-      </div>
+        <div class="ligne-ordonnance-info"></div>
     `;
     container.appendChild(wrapper);
-
-    if (ligne && ligne.quantite && ligne.montant) {
-        recalcLigneMontant(wrapper);
-    }
-
-    return wrapper;
+    refreshLigneOrdonnanceInfo(wrapper);
 }
 
 function removeLigneOrdonnance(button) {
@@ -2760,7 +2674,11 @@ function removeLigneOrdonnance(button) {
 }
 
 function updateOrdonnanceTotalDisplay() {
-    recalcTotal();
+    const total = Array.from(document.querySelectorAll('.ligne-ordonnance-wrapper')).reduce((sum, w) => {
+        return sum + (parseFloat(w.querySelector('.lo-montant').value) || 0);
+    }, 0);
+    const totalDiv = document.getElementById('o-montant-total');
+    if (totalDiv) totalDiv.textContent = `Total : ${total.toLocaleString()} FCFA`;
 }
 
 function addLigneSoinOrdonnance(soin) {
@@ -2884,8 +2802,7 @@ async function saveOrdonnance() {
             ligne.stock_id = parseInt(stockId);
         } else {
             ligne.stock_id = null;
-            const prixUnit = parseFloat(wrapper.querySelector('.lo-montant').value) || 0;
-            ligne.montant = quantite * prixUnit;
+            ligne.montant = parseFloat(wrapper.querySelector('.lo-montant').value) || 0;
         }
         return ligne;
     }).filter(l => l.designation.trim() !== '');
@@ -3000,23 +2917,13 @@ function selectMed(input, med) {
     input.value = med.designation;
     wrapper.querySelector('.lo-stock-id').value = med.id;
     ligne.querySelector('.lo-dosage').value = med.dosage || '';
-    ligne.querySelector('.lo-forme').value = med.forme || '';
-
-    const isInterne = ordonnanceFormReturnTab === 'interne';
-    const prix = isInterne ? (med.prix_achat || 0) : (med.prix_vente || 0);
-    ligne.querySelector('.lo-montant').value = prix;
-
-    const badge = ligne.querySelector('.lo-stock-badge');
-    const isLow = med.quantite <= med.seuil_alerte;
-    badge.textContent = isLow
-        ? `⚠️ Stock faible : ${med.quantite} restants`
-        : `✓ En stock : ${med.quantite}`;
-    badge.className = `lo-stock-badge ${isLow ? 'low' : 'ok'}`;
-    badge.style.display = 'inline-block';
+    const formeSelect = ligne.querySelector('.lo-forme');
+    if (formeSelect) {
+        formeSelect.value = ([...formeSelect.options].some(o => o.value === (med.forme || ''))) ? (med.forme || '') : '';
+    }
 
     wrapper.querySelector('.lo-autocomplete-dropdown').classList.remove('open');
-    recalcLigneMontant(ligne);
-    autoCalcQty(ligne);
+    refreshLigneOrdonnanceInfo(ligne);
 }
 
 function closeMedDropdown(input) {
@@ -3051,81 +2958,6 @@ function onMedKeydown(event, input) {
     } else if (event.key === 'Escape') {
         closeMedDropdown(input);
     }
-}
-
-// ============================================================
-// BOUTONS RAPIDES — Posologie et Durée
-// ============================================================
-
-function setPosologie(btn, valeur) {
-    const ligne = btn.closest('.ligne-ordonnance-wrapper');
-    ligne.querySelectorAll('.lo-posologie-btns .lo-quick-btn')
-        .forEach(b => b.classList.remove('selected'));
-    btn.classList.add('selected');
-    ligne.querySelector('.lo-posologie').value = valeur;
-    autoCalcQty(ligne);
-}
-
-function setDuree(btn, jours) {
-    const ligne = btn.closest('.ligne-ordonnance-wrapper');
-    ligne.querySelectorAll('.lo-duree-btns .lo-quick-btn')
-        .forEach(b => b.classList.remove('selected'));
-    btn.classList.add('selected');
-    ligne.querySelector('.lo-duree').value = jours;
-    autoCalcQty(ligne);
-}
-
-// ============================================================
-// CALCUL AUTOMATIQUE QUANTITÉ
-// ============================================================
-
-function autoCalcQty(ligne) {
-    const posologie = (ligne.querySelector('.lo-posologie').value || '').toLowerCase();
-    const duree = parseInt(ligne.querySelector('.lo-duree').value) || 0;
-    if (!duree || !posologie) return;
-
-    let prises = 1;
-    if (posologie.includes('3 fois') || posologie.includes('3×') || posologie.includes('3x')) {
-        prises = 3;
-    } else if (posologie.includes('matin et soir') || posologie.includes('2 fois') ||
-               posologie.includes('2×') || posologie.includes('2x')) {
-        prises = 2;
-    }
-
-    let cpParPrise = 1;
-    if (posologie.includes('2 comprimé') || posologie.includes('2cp')) cpParPrise = 2;
-    if (posologie.includes('1/2') || posologie.includes('½')) cpParPrise = 0.5;
-
-    const qtyCalculee = Math.ceil(prises * cpParPrise * duree);
-    if (qtyCalculee > 0) {
-        ligne.querySelector('.lo-quantite').value = qtyCalculee;
-        recalcLigneMontant(ligne);
-    }
-}
-
-// ============================================================
-// RECALCUL MONTANT LIGNE ET TOTAL
-// ============================================================
-
-function recalcLigneMontant(ligne) {
-    const qty = parseInt(ligne.querySelector('.lo-quantite').value) || 0;
-    const prix = parseFloat(ligne.querySelector('.lo-montant').value) || 0;
-    const total = qty * prix;
-    const span = ligne.querySelector('.lo-total-ligne');
-    if (span) span.textContent = total.toLocaleString();
-    recalcTotal();
-}
-
-function recalcTotal() {
-    const lignes = document.querySelectorAll('.ligne-ordonnance-wrapper');
-    let grandTotal = 0;
-    lignes.forEach(ligne => {
-        const qty = parseInt(ligne.querySelector('.lo-quantite')?.value) || 0;
-        const prix = parseFloat(ligne.querySelector('.lo-montant')?.value) || 0;
-        grandTotal += qty * prix;
-    });
-    const totalEl = document.getElementById('o-montant-total');
-    if (totalEl) totalEl.textContent = `Total : ${grandTotal.toLocaleString()} FCFA`;
 }
 
 let medecinsData = [];
