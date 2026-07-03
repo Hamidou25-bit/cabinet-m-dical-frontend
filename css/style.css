@@ -1924,3 +1924,130 @@ input[type="datetime-local"]:focus {
         height: calc(100vh - 140px);
     }
 }
+
+/* ============================================================
+   NOUVEAU FORMULAIRE LIGNES ORDONNANCE (Phase 28)
+   Override du layout grid existant sur .ligne-ordonnance-wrapper
+   ============================================================ */
+
+.ligne-ordonnance-wrapper {
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    padding: 14px;
+    margin-bottom: 12px;
+    position: relative;
+    border-bottom: none;
+}
+
+.ligne-ordonnance-wrapper:last-child {
+    margin-bottom: 0;
+}
+
+.lo-autocomplete-wrapper {
+    position: relative;
+    flex: 2;
+}
+
+.lo-autocomplete-dropdown {
+    position: absolute;
+    top: calc(100% + 2px);
+    left: 0; right: 0;
+    background: #fff;
+    border: 1px solid #cbd5e1;
+    border-radius: 8px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.12);
+    z-index: 9999;
+    max-height: 280px;
+    overflow-y: auto;
+    display: none;
+}
+
+.lo-autocomplete-dropdown.open {
+    display: block;
+}
+
+.lo-autocomplete-item {
+    padding: 10px 14px;
+    cursor: pointer;
+    border-bottom: 1px solid #f1f5f9;
+    transition: background 0.15s;
+}
+
+.lo-autocomplete-item:last-child {
+    border-bottom: none;
+}
+
+.lo-autocomplete-item:hover,
+.lo-autocomplete-item.active {
+    background: #f0f9ff;
+}
+
+.lo-autocomplete-item .med-name {
+    font-weight: 600;
+    color: #1e293b;
+    font-size: 14px;
+}
+
+.lo-autocomplete-item .med-details {
+    font-size: 12px;
+    color: #64748b;
+    margin-top: 2px;
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.lo-autocomplete-item .med-stock-ok {
+    color: #16a34a;
+    font-weight: 500;
+}
+
+.lo-autocomplete-item .med-stock-low {
+    color: #dc2626;
+    font-weight: 500;
+}
+
+.lo-posologie-btns,
+.lo-duree-btns {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 4px;
+}
+
+.lo-quick-btn {
+    background: #f1f5f9;
+    border: 1px solid #e2e8f0;
+    border-radius: 6px;
+    padding: 4px 10px;
+    font-size: 12px;
+    cursor: pointer;
+    color: #475569;
+    transition: all 0.15s;
+    white-space: nowrap;
+}
+
+.lo-quick-btn:hover {
+    background: #0F6FBF;
+    color: #fff;
+    border-color: #0F6FBF;
+}
+
+.lo-quick-btn.selected {
+    background: #0F6FBF;
+    color: #fff;
+    border-color: #0F6FBF;
+}
+
+.lo-stock-badge {
+    display: inline-block;
+    font-size: 11px;
+    padding: 2px 8px;
+    border-radius: 20px;
+    margin-left: 8px;
+    vertical-align: middle;
+}
+
+.lo-stock-badge.ok { background: #dcfce7; color: #16a34a; }
+.lo-stock-badge.low { background: #fee2e2; color: #dc2626; }
