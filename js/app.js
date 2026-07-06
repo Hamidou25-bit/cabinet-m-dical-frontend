@@ -1569,58 +1569,91 @@ async function clearIaHistorique() {
 }
 
 // --- Speech-to-Text ---
+// iaEcouteActive reste vrai tant que l'utilisateur n'a pas cliqué pour arrêter :
+// le navigateur coupe la reconnaissance après un silence prolongé ou une limite interne
+// (onend se déclenche sans qu'on l'ait demandé), donc on la relance nous-mêmes.
+let iaEcouteActive = false;
+let iaTranscriptAccumule = '';
+let iaErreurFatale = false;
+
 function toggleIaListen() {
-    if (iaListening) { stopIaListen(); } else { startIaListen(); }
+    if (iaEcouteActive) { stopIaListen(); } else { startIaListen(); }
 }
 
 function startIaListen() {
-    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (!SpeechRecognition) {
+    const SpeechRecognitionCtor = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRecognitionCtor) {
         showToast("La reconnaissance vocale n'est pas supportée par ce navigateur.", 'error');
         return;
     }
 
-    iaRecognition = new SpeechRecognition();
-    iaRecognition.lang = 'fr-FR';
-    iaRecognition.continuous = false;
-    iaRecognition.interimResults = true;
+    const input = document.getElementById('ia-input');
+    iaEcouteActive = true;
+    iaErreurFatale = false;
+    iaTranscriptAccumule = (input && input.value.trim()) ? input.value.trim() + ' ' : '';
 
     const indicator = document.getElementById('ia-vocal-indicator');
     const micBtn = document.getElementById('ia-mic-btn');
-    const input = document.getElementById('ia-input');
-
-    iaListening = true;
     if (indicator) indicator.style.display = 'flex';
-    if (micBtn) { micBtn.style.background = '#fee2e2'; micBtn.style.color = '#dc2626'; micBtn.style.borderColor = '#fca5a5'; }
+    if (micBtn) micBtn.classList.add('ia-mic-actif');
+
+    _demarrerIaRecognitionInstance(SpeechRecognitionCtor);
+}
+
+function _demarrerIaRecognitionInstance(SpeechRecognitionCtor) {
+    iaRecognition = new SpeechRecognitionCtor();
+    iaRecognition.lang = 'fr-FR';
+    iaRecognition.continuous = true;
+    iaRecognition.interimResults = true;
+    iaListening = true;
 
     iaRecognition.onresult = (event) => {
-        let transcript = '';
+        let finalChunk = '';
+        let interimChunk = '';
         for (let i = event.resultIndex; i < event.results.length; i++) {
-            transcript += event.results[i][0].transcript;
+            const morceau = event.results[i][0].transcript;
+            if (event.results[i].isFinal) finalChunk += morceau;
+            else interimChunk += morceau;
         }
-        if (input) input.value = transcript;
+        if (finalChunk) iaTranscriptAccumule += finalChunk;
+        const inputEl = document.getElementById('ia-input');
+        if (inputEl) inputEl.value = (iaTranscriptAccumule + interimChunk).trim();
     };
 
     iaRecognition.onend = () => {
-        stopIaListen();
-        if (input && input.value.trim()) sendIaMessage();
+        iaListening = false;
+        if (iaEcouteActive && !iaErreurFatale) {
+            _demarrerIaRecognitionInstance(SpeechRecognitionCtor);
+        } else {
+            _reinitialiserIaMicUI();
+        }
     };
 
     iaRecognition.onerror = (event) => {
-        stopIaListen();
-        if (event.error !== 'no-speech') showToast('Erreur microphone : ' + event.error, 'error');
+        if (event.error === 'no-speech') return;
+        iaErreurFatale = true;
+        console.error('Erreur reconnaissance vocale IA :', event.error);
+        if (event.error === 'not-allowed' || event.error === 'service-not-allowed' || event.error === 'audio-capture') {
+            showToast('Microphone indisponible : ' + event.error, 'error');
+        }
     };
 
     iaRecognition.start();
 }
 
 function stopIaListen() {
+    iaEcouteActive = false;
+    if (iaRecognition) { iaRecognition.stop(); }
+    _reinitialiserIaMicUI();
+}
+
+function _reinitialiserIaMicUI() {
     iaListening = false;
-    if (iaRecognition) { iaRecognition.stop(); iaRecognition = null; }
+    iaRecognition = null;
     const indicator = document.getElementById('ia-vocal-indicator');
     const micBtn = document.getElementById('ia-mic-btn');
     if (indicator) indicator.style.display = 'none';
-    if (micBtn) { micBtn.style.background = '#f1f5f9'; micBtn.style.color = '#475569'; micBtn.style.borderColor = '#e2e8f0'; }
+    if (micBtn) micBtn.classList.remove('ia-mic-actif');
 }
 
 // --- Text-to-Speech ---

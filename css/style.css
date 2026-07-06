@@ -1925,6 +1925,31 @@ input[type="datetime-local"]:focus {
     }
 }
 
+/* Cadre de la page IA Médicale réellement utilisée (markup avec .ia-chat-container) */
+.ia-chat-container {
+    max-width: 900px;
+    width: 100%;
+    margin: 0 auto;
+}
+
+@media (max-width: 1024px) {
+    .ia-chat-container {
+        max-width: 100%;
+    }
+}
+
+#ia-mic-btn.ia-mic-actif {
+    background: #fee2e2 !important;
+    color: #dc2626 !important;
+    border-color: #fca5a5 !important;
+    animation: iaMicPulse 1.4s ease-in-out infinite;
+}
+
+@keyframes iaMicPulse {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(220, 38, 38, 0.35); }
+    50% { box-shadow: 0 0 0 8px rgba(220, 38, 38, 0); }
+}
+
 /* ============================================================
    NOUVEAU FORMULAIRE LIGNES ORDONNANCE (Phase 28)
    Override du layout grid existant sur .ligne-ordonnance-wrapper
