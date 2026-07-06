@@ -2681,6 +2681,85 @@ function updateOrdonnanceTotalDisplay() {
     if (totalDiv) totalDiv.textContent = `Total : ${total.toLocaleString()} FCFA`;
 }
 
+// Import d'une ordonnance manuscrite par photo (OCR Groq Vision, api/ocr_ordonnance.py).
+// La route d'extraction ne fait que lire/proposer - l'enregistrement reste géré par
+// saveOrdonnance()/savePatientRapide() existants, jamais appelés automatiquement ici.
+function importerPhotoOrdonnance() {
+    document.getElementById('ocr-file-input').click();
+}
+
+function afficherPhotoOcrPanel(photoUrl) {
+    document.getElementById('ocr-photo-img').src = API_URL + photoUrl;
+    document.getElementById('ocr-photo-panel').style.display = 'block';
+}
+
+function fermerPhotoOcrPanel() {
+    document.getElementById('ocr-photo-panel').style.display = 'none';
+    document.getElementById('ocr-photo-img').src = '';
+}
+
+async function onOcrFileSelected(event) {
+    const file = event.target.files[0];
+    event.target.value = '';
+    if (!file) return;
+
+    showToast('Analyse de la photo en cours...', 'info');
+    const formData = new FormData();
+    formData.append('photo', file);
+
+    let data;
+    try {
+        const res = await apiFetch('/ocr/ordonnance', { method: 'POST', body: formData });
+        data = await res.json();
+    } catch (e) {
+        showToast(e.detail || 'Extraction impossible, saisie manuelle nécessaire', 'error');
+        return;
+    }
+
+    const extraction = data.extraction || {};
+    const medicaments = extraction.medicaments || [];
+
+    await openOrdonnanceModal('patient');
+    afficherPhotoOcrPanel(data.photo_url);
+
+    if (data.patient_existant) {
+        setPatientComboValue('o', data.patient_existant.id);
+    } else {
+        ouvrirModalPatientRapide('o');
+        const nomInput = document.getElementById('pat-nom');
+        nomInput.value = (extraction.patient_nom || '').toUpperCase();
+        if (!extraction.patient_nom) nomInput.classList.add('champ-a-verifier');
+    }
+
+    const dateIso = parseDateFR(extraction.date);
+    const dateInput = document.getElementById('o-date');
+    if (dateIso) dateInput.value = dateIso;
+    dateInput.classList.toggle('champ-a-verifier', !dateIso);
+
+    if (extraction.medecin) {
+        const medecinMatch = medecinsData.find(m => m.nom.toLowerCase().includes(extraction.medecin.toLowerCase()));
+        if (medecinMatch) document.getElementById('o-medecin').value = medecinMatch.id;
+    }
+
+    document.getElementById('lignes-ordonnance').innerHTML = '';
+    if (medicaments.length) {
+        medicaments.forEach(med => {
+            addLigneOrdonnance({ designation: med.nom || '', dosage: med.dosage || '', posologie: med.posologie || '', quantite: 1, montant: 0 });
+            const wrapper = document.getElementById('lignes-ordonnance').lastElementChild;
+            if (!med.nom) wrapper.querySelector('.lo-designation').classList.add('champ-a-verifier');
+            if (!med.dosage) wrapper.querySelector('.lo-dosage').classList.add('champ-a-verifier');
+            if (!med.posologie) wrapper.querySelector('.lo-posologie').classList.add('champ-a-verifier');
+            // Le montant n'est jamais extrait de la photo (pas un prix stock tant que non résolu) - toujours à vérifier.
+            if (!wrapper.querySelector('.lo-montant').readOnly) wrapper.querySelector('.lo-montant').classList.add('champ-a-verifier');
+        });
+    } else {
+        addLigneOrdonnance();
+    }
+    updateOrdonnanceTotalDisplay();
+
+    showToast('Photo analysée : vérifiez les champs en orange avant d\'enregistrer', 'info');
+}
+
 function addLigneSoinOrdonnance(soin) {
     const container = document.getElementById('lignes-soin-ordonnance');
     const wrapper = document.createElement('div');

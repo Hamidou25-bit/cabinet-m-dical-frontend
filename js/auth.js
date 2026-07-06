@@ -15,11 +15,16 @@ function checkAuth() {
 // Wrapper fetch qui ajoute automatiquement le token
 async function apiFetch(path, options = {}) {
     const token = localStorage.getItem("token");
-    options.headers = {
+    const headers = {
         ...(options.headers || {}),
         "Authorization": "Bearer " + token,
-        "Content-Type": "application/json"
     };
+    // Un FormData (upload de fichier) doit garder son Content-Type
+    // multipart/boundary auto-généré par le navigateur - ne jamais le forcer en JSON.
+    if (!(options.body instanceof FormData)) {
+        headers["Content-Type"] = "application/json";
+    }
+    options.headers = headers;
     let response;
     try {
         response = await fetch(API_URL + path, options);

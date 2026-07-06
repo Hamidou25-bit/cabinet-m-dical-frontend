@@ -453,6 +453,7 @@
                             <button class="btn" onclick="loadOrdonnancesTab('patient')">Filtrer</button>
                             <button class="btn" onclick="resetFilterOrdonnances('patient')">Réinitialiser</button>
                             <button class="btn admin-only" onclick="exportOrdonnancesExcel('patient')">📊 Exporter Excel</button>
+                            <button class="btn" onclick="importerPhotoOrdonnance()">📷 Importer depuis photo</button>
                             <button class="btn btn-primary" onclick="openOrdonnanceModal('patient')">+ Nouvelle ordonnance</button>
                         </div>
                     </div>
@@ -2218,6 +2219,15 @@
 </div>
 
 <div id="toast-container"></div>
+
+<!-- IMPORT ORDONNANCE PAR PHOTO (OCR Groq Vision) -->
+<input type="file" id="ocr-file-input" accept="image/*" capture="environment" style="display:none" onchange="onOcrFileSelected(event)">
+<div id="ocr-photo-panel" class="ocr-photo-panel" style="display:none;">
+    <button class="btn-remove" onclick="fermerPhotoOcrPanel()">✕</button>
+    <div class="ocr-photo-panel-title">📷 Photo importée</div>
+    <img id="ocr-photo-img" src="" alt="Photo de l'ordonnance">
+    <div class="ocr-photo-panel-hint">Vérifiez les champs en orange avant d'enregistrer.</div>
+</div>
 
 <script src="https://cdn.sheetjs.com/xlsx-0.20.2/package/dist/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>

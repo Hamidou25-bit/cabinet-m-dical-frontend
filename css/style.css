@@ -2007,3 +2007,56 @@ input[type="datetime-local"]:focus {
     color: #dc2626;
     font-weight: 500;
 }
+
+/* IMPORT ORDONNANCE PAR PHOTO (OCR) */
+.champ-a-verifier {
+    border: 2px solid #f59e0b !important;
+    background: #fffbeb;
+}
+
+.ocr-photo-panel {
+    position: fixed;
+    top: 90px;
+    right: 20px;
+    width: 260px;
+    background: #fff;
+    border: 1px solid #cbd5e1;
+    border-radius: 10px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.18);
+    padding: 14px;
+    z-index: 1050;
+}
+
+.ocr-photo-panel .btn-remove {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+}
+
+.ocr-photo-panel-title {
+    font-weight: 600;
+    margin-bottom: 8px;
+    font-size: 14px;
+}
+
+.ocr-photo-panel img {
+    width: 100%;
+    max-height: 320px;
+    object-fit: contain;
+    border-radius: 6px;
+    border: 1px solid #e2e8f0;
+}
+
+.ocr-photo-panel-hint {
+    margin-top: 8px;
+    font-size: 12px;
+    color: #92400e;
+}
+
+@media (max-width: 900px) {
+    .ocr-photo-panel {
+        position: static;
+        width: auto;
+        margin-bottom: 15px;
+    }
+}
