@@ -2902,7 +2902,7 @@ function addLigneOrdonnance(ligne) {
             <input type="number" placeholder="Qté" class="lo-quantite" value="${ligne ? (ligne.quantite || 1) : 1}" min="1" oninput="updateLigneOrdonnanceMontant(this)">
             <input type="text" placeholder="Posologie" class="lo-posologie" value="${ligne ? escapeHtml(ligne.posologie || '') : ''}">
             <input type="number" placeholder="Jours" class="lo-duree" value="${ligne && ligne.duree_jours ? ligne.duree_jours : ''}">
-            <input type="number" placeholder="Montant" class="lo-montant" value="${ligne ? (ligne.montant || 0) : 0}" min="0" oninput="updateOrdonnanceTotalDisplay()">
+            <input type="number" placeholder="Montant" class="lo-montant" value="${ligne ? (ligne.montant || 0) : 0}" min="0" ${ligne && ligne.montant ? 'data-modified="yes"' : ''} oninput="onMontantOrdonnanceInput(this)">
             <button class="btn-remove" onclick="removeLigneOrdonnance(this)">✕</button>
         </div>
         <div class="ligne-ordonnance-info"></div>
@@ -2992,8 +2992,9 @@ async function onOcrFileSelected(event) {
             if (!med.nom) wrapper.querySelector('.lo-designation').classList.add('champ-a-verifier');
             if (!med.dosage) wrapper.querySelector('.lo-dosage').classList.add('champ-a-verifier');
             if (!med.posologie) wrapper.querySelector('.lo-posologie').classList.add('champ-a-verifier');
-            // Le montant n'est jamais extrait de la photo (pas un prix stock tant que non résolu) - toujours à vérifier.
-            if (!wrapper.querySelector('.lo-montant').readOnly) wrapper.querySelector('.lo-montant').classList.add('champ-a-verifier');
+            // Le montant n'est jamais extrait de la photo - à vérifier sauf si la ligne
+            // a été résolue vers un article du stock (montant pré-rempli depuis PrixVente).
+            if (!wrapper.querySelector('.lo-stock-id').value) wrapper.querySelector('.lo-montant').classList.add('champ-a-verifier');
         });
     } else {
         addLigneOrdonnance();
@@ -3031,9 +3032,12 @@ function onTypeSoinOrdonnanceChange(select) {
 }
 
 // Detecte si la designation saisie correspond a un article du stock :
-// si oui, lie la ligne a cet article (stock_id) et calcule le montant
-// (quantite x PrixVente) en lecture seule ; sinon, le montant est saisi
-// manuellement (medicament externe, non stocke).
+// si oui, lie la ligne a cet article (stock_id) et pre-remplit le montant
+// (quantite x PrixVente, ou PrixAchat en usage interne). En usage interne le
+// montant reste en lecture seule ; pour patient/tiers il est editable par le
+// prescripteur (pastille "prix modifie" si le prix unitaire saisi differe du
+// PrixVente actuel du stock). Sinon, montant saisi manuellement (medicament
+// externe, non stocke).
 function refreshLigneOrdonnanceInfo(wrapper) {
     const designation = wrapper.querySelector('.lo-designation').value.trim();
     const stockIdField = wrapper.querySelector('.lo-stock-id');
@@ -3054,9 +3058,25 @@ function refreshLigneOrdonnanceInfo(wrapper) {
         const isInterne = ordonnanceFormReturnTab === 'interne';
         const prix = isInterne ? (match.PrixAchat || 0) : (match.PrixVente || 0);
         const labelPrix = isInterne ? "Prix d'achat" : "Prix de vente";
-        infoDiv.innerHTML = `<span class="status status-ok">Médicament en stock</span> ${labelPrix} : <strong>${prix.toLocaleString()} FCFA</strong>`;
-        montantInput.value = quantite * prix;
-        montantInput.readOnly = true;
+        let infoHtml = `<span class="status status-ok">Médicament en stock</span> ${labelPrix} : <strong>${prix.toLocaleString()} FCFA</strong>`;
+        if (isInterne) {
+            montantInput.value = quantite * prix;
+            montantInput.readOnly = true;
+        } else {
+            montantInput.readOnly = false;
+            const montantDefaut = quantite * prix;
+            if (!montantInput.dataset.modified) {
+                montantInput.value = montantDefaut;
+            } else if ((parseFloat(montantInput.value) || 0) === montantDefaut) {
+                delete montantInput.dataset.modified;
+            }
+            const montantSaisi = parseFloat(montantInput.value) || 0;
+            if (quantite > 0 && montantSaisi !== montantDefaut) {
+                const prixUnitaire = montantSaisi / quantite;
+                infoHtml += ` <span class="prix-modifie-badge">✏️ prix modifié : ${prixUnitaire.toLocaleString(undefined, { maximumFractionDigits: 2 })} FCFA/unité</span>`;
+            }
+        }
+        infoDiv.innerHTML = infoHtml;
     } else if (designation) {
         stockIdField.value = '';
         infoDiv.innerHTML = `<span class="status status-warning">Médicament externe (non stocké)</span> saisissez le montant manuellement`;
@@ -3090,6 +3110,15 @@ function updateLigneOrdonnanceMontant(input) {
     refreshLigneOrdonnanceInfo(input.closest('.ligne-ordonnance-wrapper'));
 }
 
+// Saisie manuelle du montant d'une ligne : marque la ligne comme modifiee
+// (bloque le pre-remplissage auto) puis rafraichit la pastille "prix modifie"
+// et le total. Le refresh retire lui-meme le marqueur si la valeur saisie
+// revient au prix par defaut du stock.
+function onMontantOrdonnanceInput(input) {
+    input.dataset.modified = 'yes';
+    refreshLigneOrdonnanceInfo(input.closest('.ligne-ordonnance-wrapper'));
+}
+
 async function saveOrdonnance() {
     const typeBeneficiaire = ordonnanceFormReturnTab;
 
@@ -3120,12 +3149,10 @@ async function saveOrdonnance() {
             duree_jours: parseInt(wrapper.querySelector('.lo-duree').value) || null,
         };
         const stockId = wrapper.querySelector('.lo-stock-id').value;
-        if (stockId) {
-            ligne.stock_id = parseInt(stockId);
-        } else {
-            ligne.stock_id = null;
-            ligne.montant = parseFloat(wrapper.querySelector('.lo-montant').value) || 0;
-        }
+        ligne.stock_id = stockId ? parseInt(stockId) : null;
+        // Montant toujours envoye (prix par defaut ou ajuste par le prescripteur) —
+        // le backend le recalcule lui-meme depuis PrixAchat pour l'usage interne.
+        ligne.montant = parseFloat(wrapper.querySelector('.lo-montant').value) || 0;
         return ligne;
     }).filter(l => l.designation.trim() !== '');
 

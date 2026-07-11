@@ -1049,6 +1049,18 @@ input[type="datetime-local"]:focus {
 .status-danger { background: #FEE2E2; color: var(--danger); }
 .status-info { background: #DBEAFE; color: var(--accent); }
 
+/* Pastille "prix modifié" (ligne d'ordonnance dont le prix saisi diffère du PrixVente du stock) */
+.prix-modifie-badge {
+    padding: 4px 10px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.3px;
+    background: #FEF3C7;
+    color: var(--warning);
+    border: 1px dashed var(--warning);
+}
+
 /* LOADING */
 .loading {
     text-align: center;
