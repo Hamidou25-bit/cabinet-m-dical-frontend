@@ -311,6 +311,24 @@ function validateRequiredFields(fields) {
     return true;
 }
 
+// Anti double-soumission : désactive le bouton Enregistrer pendant toute la
+// durée de l'appel API (un bouton disabled ne déclenche plus de clic), avec
+// libellé "Enregistrement..." pour donner un retour visuel sur connexion lente.
+// Sans cette garde, un double-clic ou un re-clic d'impatience (réponse qui
+// tarde) envoie plusieurs POST identiques → enregistrements dupliqués en base
+// (constaté en production le 11/07/2026 sur consultations et ordonnances).
+function setBoutonEnvoi(btn, enCours) {
+    if (!btn) return;
+    btn.disabled = enCours;
+    if (enCours) {
+        btn.dataset.labelInitial = btn.textContent;
+        btn.textContent = 'Enregistrement...';
+    } else if (btn.dataset.labelInitial) {
+        btn.textContent = btn.dataset.labelInitial;
+        delete btn.dataset.labelInitial;
+    }
+}
+
 // Validation générique des lignes d'un tableau dynamique (ordonnance, achat...)
 // - lineSelector : sélecteur CSS des lignes (ex: '.ligne-achat')
 // - designationSelector : sélecteur du champ "désignation" de chaque ligne
@@ -1404,7 +1422,8 @@ function onConsultationPrixChange() {
     document.getElementById('co-montant-total').value = document.getElementById('co-prix-unitaire').value;
 }
 
-async function saveConsultation() {
+async function saveConsultation(btn) {
+    if (btn && btn.disabled) return;
     if (!validateRequiredFields([
         { id: 'co-patient', label: 'Patient', highlightId: 'co-patient-search' },
         { id: 'co-date', label: 'Date' },
@@ -1424,6 +1443,7 @@ async function saveConsultation() {
         observation: document.getElementById('co-observation').value,
         mode_paiement: document.getElementById('co-mode-paiement').value,
     };
+    setBoutonEnvoi(btn, true);
     try {
         if (id) {
             await apiFetch(`/consultations/${id}`, { method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(data) });
@@ -1434,6 +1454,7 @@ async function saveConsultation() {
         loadConsultations();
         showToast('Consultation enregistrée !', 'success');
     } catch(e) { showToast('Erreur lors de l\'enregistrement : ' + e.message, 'error'); }
+    finally { setBoutonEnvoi(btn, false); }
 }
 
 async function deleteConsultation(id) {
@@ -3119,7 +3140,8 @@ function onMontantOrdonnanceInput(input) {
     refreshLigneOrdonnanceInfo(input.closest('.ligne-ordonnance-wrapper'));
 }
 
-async function saveOrdonnance() {
+async function saveOrdonnance(btn) {
+    if (btn && btn.disabled) return;
     const typeBeneficiaire = ordonnanceFormReturnTab;
 
     const requiredFields = [{ id: 'o-date', label: 'Date' }];
@@ -3177,6 +3199,7 @@ async function saveOrdonnance() {
         soins: soins
     };
 
+    setBoutonEnvoi(btn, true);
     try {
         if (id) {
             await apiFetch(`/ordonnances/${id}`, { method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(data) });
@@ -3187,6 +3210,7 @@ async function saveOrdonnance() {
         showOrdonnancesTab(typeBeneficiaire);
         showToast('Ordonnance enregistrée !', 'success');
     } catch(e) { showToast('Erreur lors de l\'enregistrement : ' + e.message, 'error'); }
+    finally { setBoutonEnvoi(btn, false); }
 }
 
 async function deleteOrdonnance(id, type) {
