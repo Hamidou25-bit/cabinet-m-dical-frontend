@@ -1224,7 +1224,7 @@ input[type="datetime-local"]:focus {
 /* LIGNES ORDONNANCE */
 .ligne-ordonnance {
     display: grid;
-    grid-template-columns: 2fr 1fr 1fr 0.7fr 1.5fr 0.7fr 1fr auto;
+    grid-template-columns: 2fr 1fr 1fr 0.7fr 1.5fr 0.7fr 1fr 1fr auto;
     gap: 8px;
     margin-bottom: 4px;
     align-items: center;

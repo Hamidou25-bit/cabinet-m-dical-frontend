@@ -2612,7 +2612,7 @@ async function exportOrdonnancesExcel(type) {
                     'Forme': l.forme || '',
                     'Dosage': l.dosage || '',
                     'Quantité': l.quantite || 0,
-                    'Prix unitaire': l.quantite ? (l.montant || 0) / l.quantite : 0,
+                    'Prix unitaire': l.prix_unitaire ?? (l.quantite ? (l.montant || 0) / l.quantite : 0),
                     'Montant': l.montant || 0
                 });
             });
@@ -2902,6 +2902,12 @@ function addLigneOrdonnance(ligne) {
     const wrapper = document.createElement('div');
     wrapper.className = 'ligne-ordonnance-wrapper';
     const formeOptions = ['Comprimé','Sirop','Injectable','Sachet','Pommade','Suppositoire','Goutte','Autre'];
+    // Prix unitaire de la ligne : colonne prix_unitaire si présente, sinon dérivé du
+    // montant figé (lignes enregistrées avant la migration du 11/07/2026, ou objets
+    // construits ailleurs - OCR, etc.).
+    const prixUnitaire = ligne
+        ? (ligne.prix_unitaire ?? (ligne.quantite ? (ligne.montant || 0) / ligne.quantite : 0))
+        : 0;
     wrapper.innerHTML = `
         <div class="ligne-ordonnance">
             <div class="lo-autocomplete-wrapper" style="position:relative; flex:2;">
@@ -2923,7 +2929,8 @@ function addLigneOrdonnance(ligne) {
             <input type="number" placeholder="Qté" class="lo-quantite" value="${ligne ? (ligne.quantite || 1) : 1}" min="1" oninput="updateLigneOrdonnanceMontant(this)">
             <input type="text" placeholder="Posologie" class="lo-posologie" value="${ligne ? escapeHtml(ligne.posologie || '') : ''}">
             <input type="number" placeholder="Jours" class="lo-duree" value="${ligne && ligne.duree_jours ? ligne.duree_jours : ''}">
-            <input type="number" placeholder="Montant" class="lo-montant" value="${ligne ? (ligne.montant || 0) : 0}" min="0" ${ligne && ligne.montant ? 'data-modified="yes"' : ''} oninput="onMontantOrdonnanceInput(this)">
+            <input type="number" placeholder="Prix unit." class="lo-prix-unitaire" value="${prixUnitaire}" min="0" ${ligne && prixUnitaire ? 'data-modified="yes"' : ''} oninput="onPrixUnitaireOrdonnanceInput(this)">
+            <input type="number" placeholder="Montant" class="lo-montant" value="${ligne ? (ligne.montant || 0) : 0}" readonly title="Montant = prix unitaire × quantité (calculé automatiquement)">
             <button class="btn-remove" onclick="removeLigneOrdonnance(this)">✕</button>
         </div>
         <div class="ligne-ordonnance-info"></div>
@@ -3008,14 +3015,14 @@ async function onOcrFileSelected(event) {
     document.getElementById('lignes-ordonnance').innerHTML = '';
     if (medicaments.length) {
         medicaments.forEach(med => {
-            addLigneOrdonnance({ designation: med.nom || '', dosage: med.dosage || '', posologie: med.posologie || '', quantite: 1, montant: 0 });
+            addLigneOrdonnance({ designation: med.nom || '', dosage: med.dosage || '', posologie: med.posologie || '', quantite: 1, prix_unitaire: 0 });
             const wrapper = document.getElementById('lignes-ordonnance').lastElementChild;
             if (!med.nom) wrapper.querySelector('.lo-designation').classList.add('champ-a-verifier');
             if (!med.dosage) wrapper.querySelector('.lo-dosage').classList.add('champ-a-verifier');
             if (!med.posologie) wrapper.querySelector('.lo-posologie').classList.add('champ-a-verifier');
-            // Le montant n'est jamais extrait de la photo - à vérifier sauf si la ligne
-            // a été résolue vers un article du stock (montant pré-rempli depuis PrixVente).
-            if (!wrapper.querySelector('.lo-stock-id').value) wrapper.querySelector('.lo-montant').classList.add('champ-a-verifier');
+            // Le prix n'est jamais extrait de la photo - à vérifier sauf si la ligne
+            // a été résolue vers un article du stock (prix pré-rempli depuis PrixVente).
+            if (!wrapper.querySelector('.lo-stock-id').value) wrapper.querySelector('.lo-prix-unitaire').classList.add('champ-a-verifier');
         });
     } else {
         addLigneOrdonnance();
@@ -3053,16 +3060,18 @@ function onTypeSoinOrdonnanceChange(select) {
 }
 
 // Detecte si la designation saisie correspond a un article du stock :
-// si oui, lie la ligne a cet article (stock_id) et pre-remplit le montant
-// (quantite x PrixVente, ou PrixAchat en usage interne). En usage interne le
-// montant reste en lecture seule ; pour patient/tiers il est editable par le
-// prescripteur (pastille "prix modifie" si le prix unitaire saisi differe du
-// PrixVente actuel du stock). Sinon, montant saisi manuellement (medicament
-// externe, non stocke).
+// si oui, lie la ligne a cet article (stock_id) et pre-remplit le prix unitaire
+// (PrixVente, ou PrixAchat en usage interne). En usage interne le prix unitaire
+// reste en lecture seule ; pour patient/tiers il est editable par le prescripteur
+// (pastille "prix modifie" si le prix unitaire saisi differe du PrixVente actuel
+// du stock - snapshot propre a la ligne, stock.PrixVente n'est jamais reecrit).
+// Sinon, prix unitaire saisi manuellement (medicament externe, non stocke).
+// Le montant de la ligne est toujours recalcule ici : prix unitaire x quantite.
 function refreshLigneOrdonnanceInfo(wrapper) {
     const designation = wrapper.querySelector('.lo-designation').value.trim();
     const stockIdField = wrapper.querySelector('.lo-stock-id');
     const infoDiv = wrapper.querySelector('.ligne-ordonnance-info');
+    const prixInput = wrapper.querySelector('.lo-prix-unitaire');
     const montantInput = wrapper.querySelector('.lo-montant');
     const quantite = parseFloat(wrapper.querySelector('.lo-quantite').value) || 0;
 
@@ -3077,36 +3086,35 @@ function refreshLigneOrdonnanceInfo(wrapper) {
     if (designation && match) {
         stockIdField.value = match.idStock;
         const isInterne = ordonnanceFormReturnTab === 'interne';
-        const prix = isInterne ? (match.PrixAchat || 0) : (match.PrixVente || 0);
+        const prixDefaut = isInterne ? (match.PrixAchat || 0) : (match.PrixVente || 0);
         const labelPrix = isInterne ? "Prix d'achat" : "Prix de vente";
-        let infoHtml = `<span class="status status-ok">Médicament en stock</span> ${labelPrix} : <strong>${prix.toLocaleString()} FCFA</strong>`;
+        let infoHtml = `<span class="status status-ok">Médicament en stock</span> ${labelPrix} : <strong>${prixDefaut.toLocaleString()} FCFA</strong>`;
         if (isInterne) {
-            montantInput.value = quantite * prix;
-            montantInput.readOnly = true;
+            prixInput.value = prixDefaut;
+            prixInput.readOnly = true;
         } else {
-            montantInput.readOnly = false;
-            const montantDefaut = quantite * prix;
-            if (!montantInput.dataset.modified) {
-                montantInput.value = montantDefaut;
-            } else if ((parseFloat(montantInput.value) || 0) === montantDefaut) {
-                delete montantInput.dataset.modified;
+            prixInput.readOnly = false;
+            if (!prixInput.dataset.modified) {
+                prixInput.value = prixDefaut;
+            } else if ((parseFloat(prixInput.value) || 0) === prixDefaut) {
+                delete prixInput.dataset.modified;
             }
-            const montantSaisi = parseFloat(montantInput.value) || 0;
-            if (quantite > 0 && montantSaisi !== montantDefaut) {
-                const prixUnitaire = montantSaisi / quantite;
-                infoHtml += ` <span class="prix-modifie-badge">✏️ prix modifié : ${prixUnitaire.toLocaleString(undefined, { maximumFractionDigits: 2 })} FCFA/unité</span>`;
+            const prixSaisi = parseFloat(prixInput.value) || 0;
+            if (prixSaisi !== prixDefaut) {
+                infoHtml += ` <span class="prix-modifie-badge">✏️ prix modifié : ${prixSaisi.toLocaleString(undefined, { maximumFractionDigits: 2 })} FCFA/unité</span>`;
             }
         }
         infoDiv.innerHTML = infoHtml;
     } else if (designation) {
         stockIdField.value = '';
-        infoDiv.innerHTML = `<span class="status status-warning">Médicament externe (non stocké)</span> saisissez le montant manuellement`;
-        montantInput.readOnly = false;
+        infoDiv.innerHTML = `<span class="status status-warning">Médicament externe (non stocké)</span> saisissez le prix unitaire manuellement`;
+        prixInput.readOnly = false;
     } else {
         stockIdField.value = '';
         infoDiv.innerHTML = '';
-        montantInput.readOnly = false;
+        prixInput.readOnly = false;
     }
+    montantInput.value = Math.round((parseFloat(prixInput.value) || 0) * quantite * 100) / 100;
     updateOrdonnanceTotalDisplay();
 }
 
@@ -3131,11 +3139,11 @@ function updateLigneOrdonnanceMontant(input) {
     refreshLigneOrdonnanceInfo(input.closest('.ligne-ordonnance-wrapper'));
 }
 
-// Saisie manuelle du montant d'une ligne : marque la ligne comme modifiee
-// (bloque le pre-remplissage auto) puis rafraichit la pastille "prix modifie"
-// et le total. Le refresh retire lui-meme le marqueur si la valeur saisie
-// revient au prix par defaut du stock.
-function onMontantOrdonnanceInput(input) {
+// Saisie manuelle du prix unitaire d'une ligne : marque la ligne comme modifiee
+// (bloque le pre-remplissage auto) puis rafraichit la pastille "prix modifie",
+// le montant recalcule (prix unitaire x quantite) et le total. Le refresh retire
+// lui-meme le marqueur si la valeur saisie revient au prix par defaut du stock.
+function onPrixUnitaireOrdonnanceInput(input) {
     input.dataset.modified = 'yes';
     refreshLigneOrdonnanceInfo(input.closest('.ligne-ordonnance-wrapper'));
 }
@@ -3172,9 +3180,10 @@ async function saveOrdonnance(btn) {
         };
         const stockId = wrapper.querySelector('.lo-stock-id').value;
         ligne.stock_id = stockId ? parseInt(stockId) : null;
-        // Montant toujours envoye (prix par defaut ou ajuste par le prescripteur) —
-        // le backend le recalcule lui-meme depuis PrixAchat pour l'usage interne.
-        ligne.montant = parseFloat(wrapper.querySelector('.lo-montant').value) || 0;
+        // Prix unitaire toujours envoye (prix par defaut ou ajuste par le prescripteur).
+        // Le montant n'est pas envoye : le backend le recalcule systematiquement
+        // (prix_unitaire x quantite, et PrixAchat impose pour l'usage interne).
+        ligne.prix_unitaire = parseFloat(wrapper.querySelector('.lo-prix-unitaire').value) || 0;
         return ligne;
     }).filter(l => l.designation.trim() !== '');
 
@@ -3290,6 +3299,9 @@ function selectMed(input, med) {
 
     input.value = med.designation;
     wrapper.querySelector('.lo-stock-id').value = med.id;
+    // Nouveau medicament choisi : on repart du prix par defaut de cet article
+    // (un prix modifie sur l'ancien medicament n'a pas de sens pour le nouveau).
+    delete ligne.querySelector('.lo-prix-unitaire').dataset.modified;
     ligne.querySelector('.lo-dosage').value = med.dosage || '';
     const formeSelect = ligne.querySelector('.lo-forme');
     if (formeSelect) {
