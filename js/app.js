@@ -5228,7 +5228,7 @@ function getFilteredSoinsTab(tab) {
         const nom = tab === 'enregistre'
             ? `${s.patient_nom || ''} ${s.patient_prenom || ''}`.toLowerCase()
             : (s.nom_patient_externe || '').toLowerCase();
-        return nom.includes(q) || (s.type_soin_nom || '').toLowerCase().includes(q);
+        return nom.includes(q) || (s.type_soin_nom || '').toLowerCase().includes(q) || (s.medecin_nom || '').toLowerCase().includes(q);
     });
 }
 
@@ -5253,7 +5253,7 @@ function renderSoinsTab(tab) {
     const tbody = document.getElementById('table-soins-' + tab);
     const data = getFilteredSoinsTab(tab);
     updateSoinsTotaux(tab, data);
-    if (!data.length) { tbody.innerHTML = '<tr><td colspan="6">Aucun soin</td></tr>'; return; }
+    if (!data.length) { tbody.innerHTML = '<tr><td colspan="7">Aucun soin</td></tr>'; return; }
     tbody.innerHTML = data.map(s => {
         const patient = tab === 'enregistre'
             ? `${s.patient_nom || ''} ${s.patient_prenom || ''}`.trim() || '-'
@@ -5262,6 +5262,7 @@ function renderSoinsTab(tab) {
             <td>${formatDateFR(s.date_soin)}</td>
             <td>${escapeHtml(patient)}</td>
             <td>${escapeHtml(s.type_soin_nom || '-')}</td>
+            <td>${escapeHtml(s.medecin_nom || '-')}</td>
             <td>${(s.prix_applique || 0).toLocaleString()} FCFA</td>
             <td>${escapeHtml(s.notes || '-')}</td>
             <td>
@@ -5298,6 +5299,7 @@ function exportSoinsExcel(tab) {
             ? `${s.patient_nom || ''} ${s.patient_prenom || ''}`.trim()
             : (s.nom_patient_externe || ''),
         'Type de soin': s.type_soin_nom || '',
+        'Réalisé par': s.medecin_nom || '',
         'Prix appliqué': s.prix_applique || 0,
         'Notes': s.notes || '',
     }));
@@ -5336,8 +5338,11 @@ async function openNewSoinModal(tab) {
     document.getElementById('modal-soin-title').textContent = 'Nouveau Soin';
     document.getElementById('sn-id').value = '';
 
-    await Promise.all([ensureTypeSoinsLoaded(), patientsData.length ? null : loadPatients()].filter(Boolean));
+    await Promise.all([ensureTypeSoinsLoaded(), ensureMedecinsLoaded(), patientsData.length ? null : loadPatients()].filter(Boolean));
     populateTypeSoinSelect('sn-type-soin', '');
+    const medecinSelect = document.getElementById('sn-medecin');
+    medecinSelect.innerHTML = '<option value="">-- Aucun --</option>' + medecinsData.map(m => `<option value="${m.id}">${escapeHtml(m.nom)}</option>`).join('');
+    medecinSelect.value = '';
     document.getElementById('sn-prix').value = '';
     document.getElementById('sn-prix').dataset.modified = '';
     document.getElementById('sn-date').value = formatDateFR(new Date().toISOString().split('T')[0]);
@@ -5362,8 +5367,11 @@ async function editSoin(id, tab) {
     document.getElementById('modal-soin-title').textContent = 'Modifier Soin';
     document.getElementById('sn-id').value = soin.id;
 
-    await Promise.all([ensureTypeSoinsLoaded(), patientsData.length ? null : loadPatients()].filter(Boolean));
+    await Promise.all([ensureTypeSoinsLoaded(), ensureMedecinsLoaded(), patientsData.length ? null : loadPatients()].filter(Boolean));
     populateTypeSoinSelect('sn-type-soin', soin.type_soin_id);
+    const medecinSelect = document.getElementById('sn-medecin');
+    medecinSelect.innerHTML = '<option value="">-- Aucun --</option>' + medecinsData.map(m => `<option value="${m.id}">${escapeHtml(m.nom)}</option>`).join('');
+    medecinSelect.value = soin.medecin_id || '';
     document.getElementById('sn-prix').value = soin.prix_applique || 0;
     document.getElementById('sn-prix').dataset.modified = 'yes';
     document.getElementById('sn-date').value = formatDateFR(soin.date_soin);
@@ -5397,6 +5405,7 @@ async function saveSoin() {
         prix_applique: parseFloat(document.getElementById('sn-prix').value) || 0,
         date_soin: parseDateFR(document.getElementById('sn-date').value) || document.getElementById('sn-date').value,
         notes: document.getElementById('sn-notes').value || null,
+        medecin_id: document.getElementById('sn-medecin').value ? parseInt(document.getElementById('sn-medecin').value) : null,
         patient_id: isEnregistre ? (parseInt(document.getElementById('sn-patient').value) || null) : null,
         nom_patient_externe: isEnregistre ? null : (document.getElementById('sn-nom-externe').value || null),
     };
@@ -5448,6 +5457,7 @@ function printSoin(id, tab) {
 <tr><td>Date</td><td>${escapeHtml(formatDateFR(s.date_soin))}</td></tr>
 <tr><td>Patient</td><td>${escapeHtml(patient)}</td></tr>
 <tr><td>Type de soin</td><td>${escapeHtml(s.type_soin_nom || '-')}</td></tr>
+<tr><td>Réalisé par</td><td>${escapeHtml(s.medecin_nom || '-')}</td></tr>
 <tr><td>Prix appliqué</td><td>${(s.prix_applique || 0).toLocaleString()} FCFA</td></tr>
 <tr><td>Notes / Observations</td><td>${escapeHtml(s.notes || '-')}</td></tr>
 </table>
