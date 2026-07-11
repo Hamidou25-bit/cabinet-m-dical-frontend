@@ -2073,6 +2073,84 @@ function exportStockExcel() {
     telechargerEtOuvrir(wb, `stock_${new Date().toISOString().split('T')[0]}.xlsx`);
 }
 
+// --- Recalcul des prix de vente à partir des marges (aperçu obligatoire avant application) ---
+
+async function ouvrirRecalculPrix() {
+    try {
+        const apercu = await apiFetch('/stock/recalculer-prix/apercu').then(r => r.json());
+        renderRecalculApercu(apercu);
+        openModal('modal-recalcul-prix');
+    } catch (e) {
+        showToast("Erreur lors du chargement de l'aperçu : " + e.message, 'error');
+    }
+}
+
+function renderRecalculApercu(apercu) {
+    const articles = apercu.articles || [];
+    const ignores = apercu.articles_ignores || [];
+    const nb = apercu.nb_articles_a_modifier || 0;
+
+    document.getElementById('recalcul-resume').innerHTML =
+        `<strong style="font-size:16px;">${nb} article(s) concerné(s)</strong> — le prix de vente sera recalculé à partir du prix d'achat et de la marge (catégorie ou personnalisée), arrondi au multiple de 5 FCFA. Aucun prix n'est modifié tant que vous n'avez pas confirmé.`;
+
+    const btnConfirmer = document.getElementById('btn-confirmer-recalcul');
+    btnConfirmer.style.display = nb > 0 ? '' : 'none';
+
+    const ligneHtml = (a) => {
+        const delta = (a.nouveau_prix_vente || 0) - (a.ancien_prix_vente || 0);
+        const deltaColor = delta > 0 ? '#16A34A' : '#DC2626';
+        const deltaStr = (delta > 0 ? '+' : '') + delta.toLocaleString();
+        const margeSrc = a.marge_source === 'personnalisee' ? ' (personnalisée)' : '';
+        return `<tr>
+            <td>${escapeHtml(a.designation || '')}</td>
+            <td>${STOCK_CATEGORIE_LABELS[a.categorie] || a.categorie || ''}</td>
+            <td>${(a.ancien_prix_vente ?? 0).toLocaleString()} FCFA</td>
+            <td>${(a.nouveau_prix_vente ?? 0).toLocaleString()} FCFA</td>
+            <td style="color:${deltaColor}; font-weight:600;">${deltaStr} FCFA</td>
+            <td>${a.marge_appliquee}%${margeSrc}</td>
+        </tr>`;
+    };
+    const tableHtml = (rows) => `<table style="width:100%;">
+        <thead><tr><th>Désignation</th><th>Catégorie</th><th>Ancien prix</th><th>Nouveau prix</th><th>Delta</th><th>Marge appliquée</th></tr></thead>
+        <tbody>${rows.join('')}</tbody>
+    </table>`;
+
+    const baisses = articles.filter(a => (a.nouveau_prix_vente || 0) < (a.ancien_prix_vente || 0));
+    const hausses = articles.filter(a => (a.nouveau_prix_vente || 0) >= (a.ancien_prix_vente || 0));
+
+    let html = '';
+    if (!articles.length) {
+        html += `<p style="padding:10px 0;">Aucun prix à modifier : tous les prix de vente correspondent déjà aux marges configurées.</p>`;
+    }
+    if (baisses.length) {
+        html += `<h4 style="margin:10px 0 6px; color:#DC2626;">▼ Baisses de prix (${baisses.length})</h4>`;
+        html += tableHtml(baisses.map(ligneHtml));
+    }
+    if (hausses.length) {
+        html += `<h4 style="margin:14px 0 6px; color:#16A34A;">▲ Hausses de prix (${hausses.length})</h4>`;
+        html += tableHtml(hausses.map(ligneHtml));
+    }
+    if (ignores.length) {
+        html += `<h4 style="margin:14px 0 6px; color:#64748B;">Articles ignorés (${ignores.length})</h4>
+            <p style="font-size:13px; color:#64748B; margin:0 0 6px;">Prix d'achat nul ou manquant — leur prix de vente ne sera pas touché.</p>
+            <ul style="font-size:13px; color:#64748B; margin:0; padding-left:20px;">
+                ${ignores.map(i => `<li>${escapeHtml(i.designation || '')} (${STOCK_CATEGORIE_LABELS[i.categorie] || i.categorie || ''})</li>`).join('')}
+            </ul>`;
+    }
+    document.getElementById('recalcul-contenu').innerHTML = html;
+}
+
+async function confirmerRecalculPrix() {
+    try {
+        const res = await apiFetch('/stock/recalculer-prix/appliquer', { method: 'POST' }).then(r => r.json());
+        closeModal('modal-recalcul-prix');
+        showToast(`${res.nb_articles_modifies} article(s) mis à jour`, 'success');
+        loadStock();
+    } catch (e) {
+        showToast("Erreur lors de l'application du recalcul : " + e.message, 'error');
+    }
+}
+
 // Onglets Comptabilité
 function showComptabiliteTab(tab) {
     document.getElementById('comptabilite-tab-fournisseurs').style.display = tab === 'fournisseurs' ? '' : 'none';
@@ -2236,6 +2314,9 @@ function openNewStockModal() {
     document.getElementById('st-dosage').value = '';
     document.getElementById('st-forme').value = '';
     document.getElementById('st-peremption').value = '';
+    const margeInputNew = document.getElementById('st-marge-perso');
+    margeInputNew.value = '';
+    delete margeInputNew.dataset.touched;
     onStockCategorieChange();
     openModal('modal-stock-edit');
 }
@@ -2259,6 +2340,9 @@ function editStockArticle(id) {
     document.getElementById('st-dosage').value = article.Dosage || '';
     document.getElementById('st-forme').value = article.Forme || '';
     document.getElementById('st-peremption').value = article.DatePeremption || '';
+    const margeInput = document.getElementById('st-marge-perso');
+    margeInput.value = (article.marge_personnalisee ?? '') === '' ? '' : article.marge_personnalisee;
+    delete margeInput.dataset.touched;
     onStockCategorieChange();
     openModal('modal-stock-edit');
 }
@@ -2286,11 +2370,32 @@ async function saveStockArticle() {
         Forme: document.getElementById('st-forme').value,
         DatePeremption: document.getElementById('st-peremption').value,
     };
+
+    // marge_personnalisee : la clé n'est envoyée QUE si l'admin a touché le champ
+    // (le PUT backend ne modifie la colonne que si la clé est présente dans le
+    // payload — null explicite = revenir à la marge de la catégorie).
+    const margeInput = document.getElementById('st-marge-perso');
+    if (margeInput.dataset.touched === 'yes') {
+        const margeStr = margeInput.value.trim();
+        if (margeStr === '') {
+            article.marge_personnalisee = null;
+        } else {
+            const marge = parseFloat(margeStr);
+            if (isNaN(marge) || marge < 0) { showToast('Marge personnalisée invalide (nombre ≥ 0 attendu)', 'error'); return; }
+            article.marge_personnalisee = marge;
+        }
+    }
+
     try {
         if (id) {
             await apiFetch(`/stock/${id}`, { method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(article) });
         } else {
-            await apiFetch('/stock/', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(article) });
+            const res = await apiFetch('/stock/', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(article) }).then(r => r.json());
+            // POST /stock/ ne gère pas marge_personnalisee : si une marge a été
+            // saisie à la création, on la pose via le PUT (qui, lui, la gère).
+            if (article.marge_personnalisee != null && res.id) {
+                await apiFetch(`/stock/${res.id}`, { method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(article) });
+            }
         }
         closeModal('modal-stock-edit');
         loadStock();
@@ -5638,6 +5743,45 @@ async function loadParametres() {
     }
     onTauxPersoTypeChange();
     loadTauxPersonnalisesAdmin();
+    loadMargesCategorie();
+}
+
+// Marges par catégorie de stock (utilisées par le recalcul des prix de vente)
+async function loadMargesCategorie() {
+    try {
+        const marges = await apiFetch('/parametres/marges').then(r => r.json());
+        marges.forEach(m => {
+            const input = document.getElementById('param-marge-' + m.categorie);
+            if (input) input.value = m.marge_pourcentage;
+        });
+    } catch (e) {
+        showToast('Erreur lors du chargement des marges', 'error');
+    }
+}
+
+async function enregistrerMarges() {
+    const categories = ['medicament', 'consommable', 'equipement'];
+    const valeurs = {};
+    for (const cat of categories) {
+        const marge = parseFloat(document.getElementById('param-marge-' + cat).value);
+        if (isNaN(marge) || marge < 0) {
+            showToast(`Marge invalide pour ${STOCK_CATEGORIE_LABELS[cat] || cat} (nombre ≥ 0 attendu)`, 'error');
+            return;
+        }
+        valeurs[cat] = marge;
+    }
+    try {
+        for (const cat of categories) {
+            await apiFetch(`/parametres/marges/${cat}`, {
+                method: 'PUT',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ marge_pourcentage: valeurs[cat] }),
+            });
+        }
+        showToast('Marges enregistrées avec succès', 'success');
+    } catch (e) {
+        showToast("Erreur lors de l'enregistrement des marges : " + e.message, 'error');
+    }
 }
 
 async function enregistrerParametres() {
