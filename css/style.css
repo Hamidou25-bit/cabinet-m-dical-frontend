@@ -1334,11 +1334,43 @@ input[type="datetime-local"]:focus {
 /* LIGNES ACHAT */
 .ligne-achat {
     display: grid;
-    grid-template-columns: 2fr 1fr 1fr 1fr auto;
+    grid-template-columns: 2fr 1fr 1fr 1fr 1fr auto;
     gap: 8px;
     margin-bottom: 8px;
     align-items: center;
 }
+
+/* En-têtes de colonnes au-dessus des lignes d'achat (mêmes colonnes que .ligne-achat) */
+.ligne-achat-entetes {
+    display: grid;
+    grid-template-columns: 2fr 1fr 1fr 1fr 1fr auto;
+    gap: 8px;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-light);
+    margin-bottom: 4px;
+    padding-left: 2px;
+}
+
+.ligne-achat-entetes span:last-child { width: 28px; }
+
+.ligne-achat select {
+    padding: 8px 6px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    font-size: 12px;
+    outline: none;
+    background: #F8FAFC;
+}
+
+.ligne-achat-apercu {
+    font-size: 11px;
+    color: var(--primary);
+    margin-top: 4px;
+    padding-left: 2px;
+}
+
+.ligne-achat-apercu:empty { display: none; }
 
 .ligne-achat input {
     padding: 8px 10px;
@@ -1399,7 +1431,7 @@ input[type="datetime-local"]:focus {
 
 .ligne-achat-nouvel {
     display: grid;
-    grid-template-columns: 1fr 1fr 1fr 1fr 1fr;
+    grid-template-columns: repeat(4, 1fr);
     gap: 8px;
     margin-top: 6px;
 }
@@ -1619,6 +1651,8 @@ input[type="datetime-local"]:focus {
         grid-template-columns: 1fr 1fr;
         gap: 6px;
     }
+    .ligne-achat-entetes { display: none; }
+    .ligne-achat-nouvel { grid-template-columns: 1fr 1fr; }
     .ligne-examen {
         grid-template-columns: 1fr 1fr;
         gap: 6px;

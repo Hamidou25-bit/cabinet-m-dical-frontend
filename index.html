@@ -910,10 +910,11 @@
         <div id="page-stock" class="page">
             <div id="alertes-stock"></div>
 
-            <!-- Onglets Médicaments / Matériel médical -->
+            <!-- Onglets Médicaments / Consommables / Équipement -->
             <div style="display:flex; gap:10px; margin-bottom:15px;">
                 <button class="btn btn-primary" id="tab-stock-medicament" onclick="showStockTab('medicament')">Médicaments</button>
-                <button class="btn" id="tab-stock-materiel" onclick="showStockTab('materiel')">Matériel médical</button>
+                <button class="btn" id="tab-stock-consommable" onclick="showStockTab('consommable')">Consommables</button>
+                <button class="btn" id="tab-stock-equipement" onclick="showStockTab('equipement')">Équipement</button>
             </div>
 
             <div class="table-container">
@@ -922,6 +923,7 @@
                     <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
                         <input type="text" class="search-box" placeholder="Rechercher..." id="search-stock" oninput="filterStock()">
                         <button class="btn" onclick="exportStockExcel()">📊 Exporter Excel</button>
+                        <button class="btn btn-primary" onclick="openNewStockModal()">+ Nouvel article</button>
                     </div>
                 </div>
                 <table>
@@ -1565,10 +1567,10 @@
         </div>
     </div>
 </div>
-<!-- MODAL MODIFIER ARTICLE STOCK -->
+<!-- MODAL ARTICLE STOCK (créer / modifier) -->
 <div class="modal-overlay" id="modal-stock-edit">
     <div class="modal modal-lg">
-        <h3>Modifier Article</h3>
+        <h3 id="modal-stock-title">Modifier Article</h3>
         <input type="hidden" id="st-id">
         <input type="hidden" id="st-date-entree">
         <div class="form-row">
@@ -1584,9 +1586,10 @@
         <div class="form-row">
             <div class="form-group">
                 <label>Catégorie<span class="required-mark">*</span></label>
-                <select id="st-categorie">
+                <select id="st-categorie" onchange="onStockCategorieChange()">
                     <option value="medicament">Médicament</option>
-                    <option value="materiel">Matériel médical</option>
+                    <option value="consommable">Consommable</option>
+                    <option value="equipement">Équipement</option>
                 </select>
             </div>
             <div class="form-group">
@@ -1598,10 +1601,16 @@
         </div>
         <div class="form-row">
             <div class="form-group">
-                <label>Quantité<span class="required-mark">*</span></label>
+                <label>Quantité (en unités)<span class="required-mark">*</span></label>
                 <input type="number" id="st-quantite">
             </div>
             <div class="form-group">
+                <label>Unités par boîte <span style="color:var(--text-light);font-weight:400;">(1 = à l'unité)</span></label>
+                <input type="number" id="st-unites-boite" min="1" value="1">
+            </div>
+        </div>
+        <div class="form-row">
+            <div class="form-group" id="st-seuil-group">
                 <label>Seuil alerte</label>
                 <input type="number" id="st-seuil">
             </div>
@@ -1645,6 +1654,38 @@
         <div class="modal-actions">
             <button class="btn" onclick="closeModal('modal-stock-edit')">Annuler</button>
             <button class="btn btn-primary" onclick="saveStockArticle()">Enregistrer</button>
+        </div>
+    </div>
+</div>
+
+<!-- MODAL RÉAPPROVISIONNEMENT STOCK -->
+<div class="modal-overlay" id="modal-reappro">
+    <div class="modal">
+        <h3>Réapprovisionner</h3>
+        <input type="hidden" id="re-stock-id">
+        <div class="form-group">
+            <label>Article</label>
+            <div id="re-article-nom" style="font-weight:600; padding:6px 0;"></div>
+        </div>
+        <div class="form-group" id="re-mode-group">
+            <label>Saisie</label>
+            <div style="display:flex; gap:18px; padding:4px 0;">
+                <label style="font-weight:400; display:flex; align-items:center; gap:6px;">
+                    <input type="radio" name="re-mode" value="unites" checked onchange="updateReapproApercu()"> En unités
+                </label>
+                <label style="font-weight:400; display:flex; align-items:center; gap:6px;">
+                    <input type="radio" name="re-mode" value="boites" onchange="updateReapproApercu()"> En boîtes
+                </label>
+            </div>
+        </div>
+        <div class="form-group">
+            <label id="re-quantite-label">Quantité à ajouter<span class="required-mark">*</span></label>
+            <input type="number" id="re-quantite" min="1" value="1" oninput="updateReapproApercu()">
+        </div>
+        <div id="re-apercu" style="background:#E3F2FD; border-radius:6px; padding:10px 12px; font-size:13px; margin-bottom:12px;"></div>
+        <div class="modal-actions">
+            <button class="btn" onclick="closeModal('modal-reappro')">Annuler</button>
+            <button class="btn btn-primary" onclick="saveReappro()">Valider</button>
         </div>
     </div>
 </div>
@@ -2128,6 +2169,10 @@
 
         <h3 style="margin-top: 15px; font-size: 14px;">Articles</h3>
         <datalist id="stock-designations"></datalist>
+        <datalist id="stock-designations-achats"></datalist>
+        <div class="ligne-achat-entetes">
+            <span>Désignation</span><span>Saisie</span><span>Quantité</span><span>Prix (selon saisie)</span><span>Montant</span><span></span>
+        </div>
         <div id="lignes-achat"></div>
         <button class="btn btn-sm" onclick="addLigneAchat()">+ Ajouter un article</button>
         <div style="text-align:right; margin-top:10px; font-weight:600;">

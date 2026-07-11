@@ -1960,11 +1960,25 @@ function genererEtImprimerCertificat() {
 
 // Stock
 let currentStockTab = 'medicament';
-const STOCK_TAB_LABELS = { medicament: 'Stock médicaments', materiel: 'Stock matériel médical' };
+const STOCK_TAB_LABELS = { medicament: 'Stock médicaments', consommable: 'Stock consommables', equipement: 'Équipement' };
+const STOCK_CATEGORIE_LABELS = { medicament: 'Médicament', consommable: 'Consommable', equipement: 'Équipement' };
+
+// Affichage d'une quantité en unités avec équivalent boîtes ("40 unités (8 boîtes)")
+function formatQuantiteUnites(quantite, unitesParBoite) {
+    const q = quantite || 0;
+    const upb = unitesParBoite || 1;
+    if (upb <= 1 || q <= 0) return `${q} unité${q > 1 ? 's' : ''}`;
+    const boites = Math.floor(q / upb);
+    const reste = q % upb;
+    if (boites === 0) return `${q} unité${q > 1 ? 's' : ''}`;
+    let detail = `${boites} boîte${boites > 1 ? 's' : ''}`;
+    if (reste > 0) detail += ` + ${reste} unité${reste > 1 ? 's' : ''}`;
+    return `${q} unités (${detail})`;
+}
 
 function showStockTab(tab) {
     currentStockTab = tab;
-    ['medicament', 'materiel'].forEach(t => {
+    ['medicament', 'consommable', 'equipement'].forEach(t => {
         document.getElementById('tab-stock-' + t).className = t === tab ? 'btn btn-primary' : 'btn';
     });
     document.getElementById('stock-tab-titre').textContent = STOCK_TAB_LABELS[tab];
@@ -2001,17 +2015,23 @@ function renderStock(data) {
     const dans30Jours = new Date();
     dans30Jours.setDate(dans30Jours.getDate() + 30);
     tbody.innerHTML = data.map(s => {
-        const statut = s.Quantite < 0 ? '<span class="status status-danger">Anomalie</span>' : s.Quantite <= 0 ? '<span class="status status-danger">Rupture</span>' : s.Quantite <= s.SeuilAlerte ? '<span class="status status-warning">Alerte</span>' : '<span class="status status-ok">Normal</span>';
+        // Les articles Équipement n'ont pas de logique de seuil d'alerte : ni statut "Alerte", ni ligne colorée
+        const isEquipement = s.categorie === 'equipement';
+        const statut = s.Quantite < 0 ? '<span class="status status-danger">Anomalie</span>'
+            : s.Quantite <= 0 ? '<span class="status status-danger">Rupture</span>'
+            : (!isEquipement && s.Quantite <= s.SeuilAlerte) ? '<span class="status status-warning">Alerte</span>'
+            : '<span class="status status-ok">Normal</span>';
         let peremption = '-';
         if (s.DatePeremption) {
             const datePeremption = new Date(s.DatePeremption);
             const classe = datePeremption <= new Date() ? 'status-danger' : datePeremption <= dans30Jours ? 'status-warning' : 'status-ok';
             peremption = `<span class="status ${classe}">${formatDateFR(s.DatePeremption)}</span>`;
         }
-        const rowClass = s.Quantite <= 0 ? 'row-danger' : s.Quantite <= s.SeuilAlerte ? 'row-alert' : '';
+        const rowClass = s.Quantite <= 0 ? 'row-danger' : (!isEquipement && s.Quantite <= s.SeuilAlerte) ? 'row-alert' : '';
         return `<tr class="${rowClass}">
-            <td>${s.Designation||''}</td><td>${s.Type||''}</td><td>${s.Dosage||'-'}</td><td>${s.Forme||'-'}</td><td>${s.Quantite||0}</td><td>${s.SeuilAlerte||0}</td><td>${(s.PrixVente||0).toLocaleString()} FCFA</td><td>${peremption}</td><td>${statut}</td>
+            <td>${s.Designation||''}</td><td>${s.Type||''}</td><td>${s.Dosage||'-'}</td><td>${s.Forme||'-'}</td><td>${formatQuantiteUnites(s.Quantite, s.unites_par_boite)}</td><td>${isEquipement ? '—' : (s.SeuilAlerte||0)}</td><td>${(s.PrixVente||0).toLocaleString()} FCFA</td><td>${peremption}</td><td>${statut}</td>
             <td>
+                <button class="btn btn-sm" onclick="openReapproModal(${s.idStock})">Réappro</button>
                 <button class="btn btn-sm" onclick="editStockArticle(${s.idStock})">Modifier</button>
                 <button class="btn btn-sm btn-danger" onclick="deleteStockArticle(${s.idStock})">Supprimer</button>
             </td>
@@ -2033,18 +2053,19 @@ function exportStockExcel() {
     if (!data.length) { showToast('Aucun article à exporter', 'warning'); return; }
     const rows = data.map(s => ({
         'Désignation': s.Designation || '',
-        'Catégorie': s.categorie === 'materiel' ? 'Matériel médical' : 'Médicament',
+        'Catégorie': STOCK_CATEGORIE_LABELS[s.categorie] || s.categorie || '',
         'Type': s.Type || '',
         'Dosage': s.Dosage || '',
         'Forme': s.Forme || '',
-        'Quantité': s.Quantite || 0,
-        'Seuil alerte': s.SeuilAlerte || 0,
+        'Quantité (unités)': s.Quantite || 0,
+        'Unités par boîte': s.unites_par_boite || 1,
+        'Seuil alerte': s.categorie === 'equipement' ? '' : (s.SeuilAlerte || 0),
         'Prix vente': s.PrixVente || 0,
         'Prix achat': s.PrixAchat || 0,
         'Fournisseur': s.Fournisseur || '',
         'Date entrée': formatDateFR(s.DateEntree),
         'Péremption': formatDateFR(s.DatePeremption),
-        'Statut': s.Quantite < 0 ? 'Anomalie' : s.Quantite <= 0 ? 'Rupture' : s.Quantite <= s.SeuilAlerte ? 'Alerte' : 'Normal'
+        'Statut': s.Quantite < 0 ? 'Anomalie' : s.Quantite <= 0 ? 'Rupture' : (s.categorie !== 'equipement' && s.Quantite <= s.SeuilAlerte) ? 'Alerte' : 'Normal'
     }));
     const ws = XLSX.utils.json_to_sheet(rows);
     const wb = XLSX.utils.book_new();
@@ -2192,10 +2213,38 @@ function populateFournisseurSelect(selected, selectId = 'st-fournisseur', valueF
     select.value = selected || '';
 }
 
+// Le seuil d'alerte n'a pas de sens pour l'équipement : champ masqué dans le formulaire
+function onStockCategorieChange() {
+    const isEquipement = document.getElementById('st-categorie').value === 'equipement';
+    document.getElementById('st-seuil-group').style.display = isEquipement ? 'none' : '';
+}
+
+// Créer un article directement depuis la page Stock (indépendant du parcours Achats)
+function openNewStockModal() {
+    document.getElementById('modal-stock-title').textContent = 'Nouvel article';
+    document.getElementById('st-id').value = '';
+    document.getElementById('st-date-entree').value = new Date().toISOString().split('T')[0];
+    document.getElementById('st-designation').value = '';
+    document.getElementById('st-type').value = '';
+    document.getElementById('st-categorie').value = currentStockTab;
+    populateFournisseurSelect('');
+    document.getElementById('st-quantite').value = 0;
+    document.getElementById('st-unites-boite').value = 1;
+    document.getElementById('st-seuil').value = 0;
+    document.getElementById('st-prix-vente').value = 0;
+    document.getElementById('st-prix-achat').value = 0;
+    document.getElementById('st-dosage').value = '';
+    document.getElementById('st-forme').value = '';
+    document.getElementById('st-peremption').value = '';
+    onStockCategorieChange();
+    openModal('modal-stock-edit');
+}
+
 // Modifier un article
 function editStockArticle(id) {
     const article = stockAdminData.find(s => s.idStock === id);
     if (!article) return;
+    document.getElementById('modal-stock-title').textContent = 'Modifier Article';
     document.getElementById('st-id').value = article.idStock;
     document.getElementById('st-date-entree').value = article.DateEntree || '';
     document.getElementById('st-designation').value = article.Designation || '';
@@ -2203,12 +2252,14 @@ function editStockArticle(id) {
     document.getElementById('st-categorie').value = article.categorie || 'medicament';
     populateFournisseurSelect(article.Fournisseur || '');
     document.getElementById('st-quantite').value = article.Quantite || 0;
+    document.getElementById('st-unites-boite').value = article.unites_par_boite || 1;
     document.getElementById('st-seuil').value = article.SeuilAlerte || 0;
     document.getElementById('st-prix-vente').value = article.PrixVente || 0;
     document.getElementById('st-prix-achat').value = article.PrixAchat || 0;
     document.getElementById('st-dosage').value = article.Dosage || '';
     document.getElementById('st-forme').value = article.Forme || '';
     document.getElementById('st-peremption').value = article.DatePeremption || '';
+    onStockCategorieChange();
     openModal('modal-stock-edit');
 }
 
@@ -2224,6 +2275,7 @@ async function saveStockArticle() {
         DateEntree: document.getElementById('st-date-entree').value,
         Type: document.getElementById('st-type').value,
         categorie: document.getElementById('st-categorie').value,
+        unites_par_boite: parseInt(document.getElementById('st-unites-boite').value) || 1,
         Designation: document.getElementById('st-designation').value,
         Fournisseur: document.getElementById('st-fournisseur').value,
         Quantite: parseInt(document.getElementById('st-quantite').value) || 0,
@@ -2235,11 +2287,64 @@ async function saveStockArticle() {
         DatePeremption: document.getElementById('st-peremption').value,
     };
     try {
-        await apiFetch(`/stock/${id}`, { method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(article) });
+        if (id) {
+            await apiFetch(`/stock/${id}`, { method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(article) });
+        } else {
+            await apiFetch('/stock/', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(article) });
+        }
         closeModal('modal-stock-edit');
         loadStock();
-        showToast('Article mis à jour !', 'success');
-    } catch(e) { showToast('Erreur lors de la mise à jour : ' + e.message, 'error'); }
+        showToast(id ? 'Article mis à jour !' : 'Article créé !', 'success');
+    } catch(e) { showToast('Erreur lors de l\'enregistrement : ' + e.message, 'error'); }
+}
+
+// Réapprovisionnement (en unités ou en boîtes — la conversion est faite côté backend)
+function openReapproModal(id) {
+    const article = stockAdminData.find(s => s.idStock === id);
+    if (!article) return;
+    document.getElementById('re-stock-id').value = article.idStock;
+    const upb = article.unites_par_boite || 1;
+    document.getElementById('re-article-nom').textContent = `${article.Designation || ''}` + (upb > 1 ? ` — boîte de ${upb} unités` : '');
+    // Article vendu à l'unité (unites_par_boite = 1) : le choix boîtes/unités n'apporte rien
+    document.getElementById('re-mode-group').style.display = upb > 1 ? '' : 'none';
+    document.querySelector('input[name="re-mode"][value="unites"]').checked = true;
+    document.getElementById('re-quantite').value = 1;
+    updateReapproApercu();
+    openModal('modal-reappro');
+}
+
+function getReapproArticle() {
+    const id = document.getElementById('re-stock-id').value;
+    return stockAdminData.find(s => String(s.idStock) === String(id));
+}
+
+function updateReapproApercu() {
+    const article = getReapproArticle();
+    if (!article) return;
+    const mode = document.querySelector('input[name="re-mode"]:checked').value;
+    const upb = article.unites_par_boite || 1;
+    const q = parseInt(document.getElementById('re-quantite').value) || 0;
+    document.getElementById('re-quantite-label').innerHTML = (mode === 'boites' ? 'Nombre de boîtes' : 'Quantité à ajouter (unités)') + '<span class="required-mark">*</span>';
+    const ajout = mode === 'boites' ? q * upb : q;
+    let apercu = mode === 'boites'
+        ? `${q} boîte${q > 1 ? 's' : ''} × ${upb} unités/boîte = <strong>${ajout} unités ajoutées</strong>`
+        : `<strong>${ajout} unité${ajout > 1 ? 's' : ''} ajoutée${ajout > 1 ? 's' : ''}</strong>`;
+    apercu += `<br>Stock après validation : ${(article.Quantite || 0) + ajout} unités`;
+    document.getElementById('re-apercu').innerHTML = apercu;
+}
+
+async function saveReappro() {
+    const id = document.getElementById('re-stock-id').value;
+    const mode = document.querySelector('input[name="re-mode"]:checked').value;
+    const q = parseInt(document.getElementById('re-quantite').value) || 0;
+    if (q <= 0) { showToast('Saisissez une quantité supérieure à 0', 'warning'); return; }
+    const body = mode === 'boites' ? { nombre_boites: q } : { quantite_unites: q };
+    try {
+        const res = await apiFetch(`/stock/${id}/reapprovisionner`, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body) }).then(r => r.json());
+        closeModal('modal-reappro');
+        loadStock();
+        showToast(`${res.unites_ajoutees} unités ajoutées — nouveau stock : ${res.nouvelle_quantite}`, 'success');
+    } catch(e) { showToast('Erreur lors du réapprovisionnement : ' + e.message, 'error'); }
 }
 
 async function deleteStockArticle(id) {
@@ -4616,7 +4721,8 @@ function exportAchatsExcel() {
                 'Fournisseur': a.fournisseur_nom || '',
                 'Article': l.designation || '',
                 'Type': l.type_article || '',
-                'Quantité': l.quantite || 0,
+                'Quantité (unités)': l.quantite || 0,
+                'Nb boîtes': l.nombre_boites || '',
                 'Prix unitaire': l.prix_unitaire || 0,
                 'Montant': l.montant || 0
             });
@@ -4629,11 +4735,27 @@ function exportAchatsExcel() {
     telechargerEtOuvrir(wb, `achats_${new Date().toISOString().split('T')[0]}.xlsx`);
 }
 
+// Cache stock dédié au modal Achats : liste complète (/stock, toutes catégories, avec
+// unites_par_boite) — distinct de stockData (autocomplete Ordonnances, médicaments seuls,
+// sans unites_par_boite). Rechargé à chaque ouverture du modal : évite le doublon
+// d'article après le premier enregistrement d'un achat, et l'ancienne collision de
+// cache où editAchat écrasait stockData avec la liste complète.
+let achatsStockData = [];
+
+async function loadAchatsStock() {
+    const data = await apiFetch('/stock').then(r => r.json());
+    achatsStockData = Array.isArray(data) ? data : [];
+    const datalist = document.getElementById('stock-designations-achats');
+    datalist.innerHTML = achatsStockData.map(s => {
+        const details = [s.Dosage, s.Forme].filter(Boolean).join(' - ');
+        return `<option value="${s.Designation}">${s.Designation}${details ? ' (' + details + ')' : ''}</option>`;
+    }).join('');
+}
+
 async function openNewAchatModal() {
     document.getElementById('modal-achat-title').textContent = 'Nouvel Achat';
     document.getElementById('ac-id').value = '';
-    await Promise.all([ensureFournisseursLoaded(), ensureStockLoaded()]);
-    populateStockDesignationsDatalist();
+    await Promise.all([ensureFournisseursLoaded(), loadAchatsStock()]);
     populateFournisseurSelect('', 'ac-fournisseur', 'id');
     document.getElementById('ac-date').value = new Date().toISOString().split('T')[0];
     document.getElementById('ac-statut-paiement').value = 'Non payé';
@@ -4648,15 +4770,11 @@ async function editAchat(id) {
     document.getElementById('modal-achat-title').textContent = 'Modifier Achat';
     document.getElementById('ac-id').value = id;
     try {
-        // Force-reload du stock pour inclure les articles créés lors du premier enregistrement de cet achat.
-        // ensureStockLoaded() utilise le cache et raterait les nouveaux articles, causant un doublon à la modification.
-        const [, stockRaw, achat] = await Promise.all([
+        const [, , achat] = await Promise.all([
             ensureFournisseursLoaded(),
-            apiFetch('/stock').then(r => r.json()),
+            loadAchatsStock(),
             apiFetch(`/achats/${id}`).then(r => r.json())
         ]);
-        stockData = Array.isArray(stockRaw) ? stockRaw : [];
-        populateStockDesignationsDatalist();
         populateFournisseurSelect(achat.fournisseur_id || '', 'ac-fournisseur', 'id');
         document.getElementById('ac-date').value = achat.date_achat || '';
         document.getElementById('ac-statut-paiement').value = achat.statut_paiement || 'Non payé';
@@ -4678,17 +4796,36 @@ function addLigneAchat(ligne) {
     const container = document.getElementById('lignes-achat');
     const wrapper = document.createElement('div');
     wrapper.className = 'ligne-achat-wrapper';
+    // Réédition d'un achat : si la ligne avait été saisie en boîtes (nombre_boites en base),
+    // on la réaffiche en boîtes avec le prix par boîte (montant / nombre_boites), sans
+    // forcer l'utilisateur à recalculer en unités.
+    const enBoites = !!(ligne && ligne.nombre_boites);
+    const qteAffichee = enBoites ? ligne.nombre_boites : (ligne ? (ligne.quantite || 1) : 1);
+    const prixAffiche = enBoites
+        ? Math.round(((ligne.montant || 0) / ligne.nombre_boites) * 100) / 100
+        : (ligne ? (ligne.prix_unitaire || 0) : 0);
     wrapper.innerHTML = `
         <div class="ligne-achat">
-            <input type="text" placeholder="Désignation *" class="la-designation" list="stock-designations" value="${ligne ? (ligne.designation || '') : ''}" oninput="onLigneAchatDesignationInput(this)">
-            <input type="number" placeholder="Qté *" class="la-quantite" value="${ligne ? (ligne.quantite || 1) : 1}" min="1" oninput="updateLigneAchatMontant(this)">
-            <input type="number" placeholder="Prix unitaire *" class="la-prix-unitaire" value="${ligne ? (ligne.prix_unitaire || 0) : 0}" min="0" oninput="updateLigneAchatMontant(this)">
+            <input type="text" placeholder="Désignation *" class="la-designation" list="stock-designations-achats" value="${ligne ? (ligne.designation || '') : ''}" oninput="onLigneAchatDesignationInput(this)">
+            <select class="la-mode" onchange="onLigneAchatModeChange(this)">
+                <option value="unites"${enBoites ? '' : ' selected'}>En unités</option>
+                <option value="boites"${enBoites ? ' selected' : ''}>En boîtes</option>
+            </select>
+            <input type="number" placeholder="Qté (unités) *" class="la-quantite" value="${qteAffichee}" min="1" oninput="updateLigneAchatMontant(this)">
+            <input type="number" placeholder="Prix par unité *" class="la-prix-unitaire" value="${prixAffiche}" min="0" oninput="updateLigneAchatMontant(this)">
             <input type="number" placeholder="Montant" class="la-montant" value="${ligne ? (ligne.montant || 0) : 0}" readonly>
             <button class="btn-remove" onclick="this.closest('.ligne-achat-wrapper').remove(); updateAchatTotal();">✕</button>
         </div>
         <input type="hidden" class="la-stock-id" value="${ligne && ligne.stock_id ? ligne.stock_id : ''}">
         <div class="ligne-achat-info"></div>
+        <div class="ligne-achat-apercu"></div>
         <div class="ligne-achat-nouvel" style="display:none;">
+            <select class="la-categorie" title="Catégorie du nouvel article">
+                <option value="medicament">Médicament</option>
+                <option value="consommable">Consommable</option>
+                <option value="equipement">Équipement</option>
+            </select>
+            <input type="number" placeholder="Unités/boîte" title="Unités par boîte (1 = à l'unité)" class="la-unites-boite" min="1" value="1" oninput="updateLigneAchatApercu(this.closest('.ligne-achat-wrapper'))">
             <input type="number" placeholder="Prix de vente" class="la-prix-vente" min="0">
             <input type="number" placeholder="Seuil alerte" class="la-seuil-alerte" min="0">
             <input type="text" placeholder="Dosage (ex: 500mg)" class="la-dosage">
@@ -4707,8 +4844,46 @@ function addLigneAchat(ligne) {
         </div>
     `;
     container.appendChild(wrapper);
+    onLigneAchatModeChange(wrapper.querySelector('.la-mode'));
     refreshLigneAchatInfo(wrapper);
     updateAchatTotal();
+}
+
+// Unités par boîte applicables à une ligne : celles de l'article lié (stock_id),
+// sinon la valeur saisie pour le nouvel article.
+function getLigneAchatUpb(wrapper) {
+    const stockId = wrapper.querySelector('.la-stock-id').value;
+    if (stockId) {
+        const match = achatsStockData.find(s => String(s.idStock) === String(stockId));
+        return (match && match.unites_par_boite) || 1;
+    }
+    return parseInt(wrapper.querySelector('.la-unites-boite').value) || 1;
+}
+
+function onLigneAchatModeChange(select) {
+    const wrapper = select.closest('.ligne-achat-wrapper');
+    const enBoites = select.value === 'boites';
+    wrapper.querySelector('.la-quantite').placeholder = enBoites ? 'Nb boîtes *' : 'Qté (unités) *';
+    const prixInput = wrapper.querySelector('.la-prix-unitaire');
+    prixInput.placeholder = enBoites ? 'Prix par boîte *' : 'Prix par unité *';
+    prixInput.title = enBoites ? 'Prix d\'achat d\'une boîte' : 'Prix d\'achat d\'une unité';
+    updateLigneAchatApercu(wrapper);
+}
+
+// Aperçu de conversion sous la ligne, uniquement en saisie par boîtes :
+// "8 boîtes × 12 unités/boîte = 96 unités"
+function updateLigneAchatApercu(wrapper) {
+    const apercuDiv = wrapper.querySelector('.ligne-achat-apercu');
+    const enBoites = wrapper.querySelector('.la-mode').value === 'boites';
+    if (!enBoites) { apercuDiv.innerHTML = ''; return; }
+    const upb = getLigneAchatUpb(wrapper);
+    const q = parseInt(wrapper.querySelector('.la-quantite').value) || 0;
+    const prix = parseFloat(wrapper.querySelector('.la-prix-unitaire').value) || 0;
+    let html = `📦 ${q} boîte${q > 1 ? 's' : ''} × ${upb} unité${upb > 1 ? 's' : ''}/boîte = <strong>${q * upb} unités</strong>`;
+    if (prix > 0 && upb > 1) {
+        html += ` · prix par unité : ${(Math.round((prix / upb) * 100) / 100).toLocaleString()} FCFA`;
+    }
+    apercuDiv.innerHTML = html;
 }
 
 // Detecte si la designation saisie correspond a un article existant du stock :
@@ -4722,21 +4897,26 @@ function refreshLigneAchatInfo(wrapper) {
 
     let match = null;
     if (stockIdField.value) {
-        match = stockData.find(s => String(s.idStock) === String(stockIdField.value));
+        match = achatsStockData.find(s => String(s.idStock) === String(stockIdField.value));
     }
     if (!match && designation) {
-        match = stockData.find(s => (s.Designation || '').trim().toLowerCase() === designation.toLowerCase());
+        match = achatsStockData.find(s => (s.Designation || '').trim().toLowerCase() === designation.toLowerCase());
     }
 
     if (designation && match) {
         stockIdField.value = match.idStock;
-        const details = [match.Dosage, match.Forme].filter(Boolean).join(' - ');
-        infoDiv.innerHTML = `<span class="status status-ok">Article existant</span> En stock : <strong>${match.Quantite}</strong>` + (details ? ` · ${details}` : '');
+        const details = [STOCK_CATEGORIE_LABELS[match.categorie] || '', match.Dosage, match.Forme].filter(Boolean).join(' - ');
+        const upb = match.unites_par_boite || 1;
+        infoDiv.innerHTML = `<span class="status status-ok">Article existant</span> En stock : <strong>${formatQuantiteUnites(match.Quantite, upb)}</strong>`
+            + (details ? ` · ${details}` : '')
+            + (upb > 1 ? ` · boîte de ${upb} unités` : '');
         nouvelDiv.style.display = 'none';
 
         const prixInput = wrapper.querySelector('.la-prix-unitaire');
         if ((parseFloat(prixInput.value) || 0) === 0 && match.PrixAchat) {
-            prixInput.value = match.PrixAchat;
+            // PrixAchat en base est un prix par unité : converti si la ligne est saisie en boîtes
+            const enBoites = wrapper.querySelector('.la-mode').value === 'boites';
+            prixInput.value = enBoites ? match.PrixAchat * upb : match.PrixAchat;
             updateLigneAchatMontant(prixInput);
         }
     } else if (designation) {
@@ -4748,6 +4928,7 @@ function refreshLigneAchatInfo(wrapper) {
         infoDiv.innerHTML = '';
         nouvelDiv.style.display = 'none';
     }
+    updateLigneAchatApercu(wrapper);
 }
 
 function onLigneAchatDesignationInput(input) {
@@ -4760,8 +4941,11 @@ function updateLigneAchatMontant(input) {
     const div = input.parentElement;
     const quantite = parseFloat(div.querySelector('.la-quantite').value) || 0;
     const prixUnitaire = parseFloat(div.querySelector('.la-prix-unitaire').value) || 0;
+    // Le montant de la ligne est identique dans les deux modes : la quantité et le prix
+    // saisis portent sur la même unité (boîte ou unité)
     div.querySelector('.la-montant').value = quantite * prixUnitaire;
     updateAchatTotal();
+    updateLigneAchatApercu(input.closest('.ligne-achat-wrapper'));
 }
 
 function updateAchatTotal() {
@@ -4780,15 +4964,28 @@ async function saveAchat() {
 
     const id = document.getElementById('ac-id').value;
     const lignes = Array.from(document.querySelectorAll('.ligne-achat-wrapper')).map(wrapper => {
-        const ligne = {
-            designation: wrapper.querySelector('.la-designation').value,
-            quantite: parseFloat(wrapper.querySelector('.la-quantite').value) || 1,
-            prix_unitaire: parseFloat(wrapper.querySelector('.la-prix-unitaire').value) || 0,
-        };
+        const enBoites = wrapper.querySelector('.la-mode').value === 'boites';
+        const quantiteSaisie = parseFloat(wrapper.querySelector('.la-quantite').value) || 1;
+        const prixSaisi = parseFloat(wrapper.querySelector('.la-prix-unitaire').value) || 0;
+        const upb = getLigneAchatUpb(wrapper);
+        const ligne = { designation: wrapper.querySelector('.la-designation').value };
+        if (enBoites) {
+            // Le backend attend exactement un des deux champs quantite/nombre_boites,
+            // et fait lui-même la conversion boîtes -> unités.
+            ligne.nombre_boites = Math.max(1, Math.round(quantiteSaisie));
+            // prix_unitaire est TOUJOURS un prix par unité côté backend : le prix
+            // saisi par boîte est divisé par unites_par_boite avant l'envoi.
+            ligne.prix_unitaire = upb > 1 ? prixSaisi / upb : prixSaisi;
+        } else {
+            ligne.quantite = quantiteSaisie;
+            ligne.prix_unitaire = prixSaisi;
+        }
         const stockId = wrapper.querySelector('.la-stock-id').value;
         if (stockId) {
             ligne.stock_id = parseInt(stockId);
         } else {
+            ligne.categorie = wrapper.querySelector('.la-categorie').value;
+            ligne.unites_par_boite = parseInt(wrapper.querySelector('.la-unites-boite').value) || 1;
             const prixVente = wrapper.querySelector('.la-prix-vente').value;
             const seuilAlerte = wrapper.querySelector('.la-seuil-alerte').value;
             const dosage = wrapper.querySelector('.la-dosage').value;
