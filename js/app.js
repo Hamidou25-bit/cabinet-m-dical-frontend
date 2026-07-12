@@ -140,6 +140,7 @@ const MENU_ROLES = {
     'menu-soins':           ['admin', 'medecin', 'secretaire'],
     'menu-dossiers':        ['admin', 'medecin', 'secretaire', 'laborantin'],
     'menu-stock':           ['admin'],
+    'menu-utilisation-medicale': ['admin', 'medecin', 'secretaire', 'laborantin'],
     'menu-personnel':       ['admin'],
     'menu-prescripteurs':   ['admin'],
     'menu-examens-config':  ['admin'],
@@ -244,13 +245,14 @@ function showPage(page) {
         : document.querySelector(`.menu-item[onclick*="showPage('${page}')"]`);
     if (menuItem) menuItem.classList.add('active');
 
-    const titles = { dashboard: 'Tableau de bord', 'rendez-vous': 'Rendez-vous', patients: 'Patients', consultations: 'Consultations', ia: 'IA Médicale', stock: 'Stock', ordonnances: 'Ordonnances', examens: 'Examens complémentaires', soins: 'Soins', dossiers: 'Dossiers patients', personnel: 'Personnel', prescripteurs: 'Prescripteurs', 'examens-config': "Types d'examens", 'type-soins': 'Types de soins', comptabilite: 'Comptabilité', 'bilan-garde': 'Bilan de garde', audit: "Journal d'audit", parametres: 'Paramètres' };
+    const titles = { dashboard: 'Tableau de bord', 'rendez-vous': 'Rendez-vous', patients: 'Patients', consultations: 'Consultations', ia: 'IA Médicale', stock: 'Stock', 'utilisation-medicale': 'Utilisation Médicale', ordonnances: 'Ordonnances', examens: 'Examens complémentaires', soins: 'Soins', dossiers: 'Dossiers patients', personnel: 'Personnel', prescripteurs: 'Prescripteurs', 'examens-config': "Types d'examens", 'type-soins': 'Types de soins', comptabilite: 'Comptabilité', 'bilan-garde': 'Bilan de garde', audit: "Journal d'audit", parametres: 'Paramètres' };
     if (titles[page]) document.getElementById('page-title').textContent = titles[page];
 
     if (page === 'rendez-vous') loadRendezVous();
     if (page === 'patients') loadPatients();
     if (page === 'consultations') loadConsultations();
     if (page === 'stock') loadStock();
+    if (page === 'utilisation-medicale') loadUtilisationMedicale();
     if (page === 'ordonnances') loadOrdonnances();
     if (page === 'examens') loadExamens();
     if (page === 'soins') loadSoins();
@@ -1981,8 +1983,10 @@ function genererEtImprimerCertificat() {
 
 // Stock
 let currentStockTab = 'medicament';
-const STOCK_TAB_LABELS = { medicament: 'Stock médicaments', consommable: 'Stock consommables', equipement: 'Équipement' };
-const STOCK_CATEGORIE_LABELS = { medicament: 'Médicament', consommable: 'Consommable', equipement: 'Équipement' };
+const STOCK_TAB_LABELS = { medicament: 'Stock médicaments', consommable_laboratoire: 'Consommables laboratoire', consommable_medical: 'Consommables médicaux', equipement: 'Équipement' };
+const STOCK_CATEGORIE_LABELS = { medicament: 'Médicament', consommable_laboratoire: 'Consommable laboratoire', consommable_medical: 'Consommable médical', equipement: 'Équipement' };
+// Catégories concernées par les sorties internes tracées (mouvements_consommable)
+const CATEGORIES_CONSOMMABLES = ['consommable_laboratoire', 'consommable_medical'];
 
 // Affichage d'une quantité en unités avec équivalent boîtes ("40 unités (8 boîtes)")
 function formatQuantiteUnites(quantite, unitesParBoite) {
@@ -1999,7 +2003,7 @@ function formatQuantiteUnites(quantite, unitesParBoite) {
 
 function showStockTab(tab) {
     currentStockTab = tab;
-    ['medicament', 'consommable', 'equipement'].forEach(t => {
+    ['medicament', 'consommable_laboratoire', 'consommable_medical', 'equipement'].forEach(t => {
         document.getElementById('tab-stock-' + t).className = t === tab ? 'btn btn-primary' : 'btn';
     });
     document.getElementById('stock-tab-titre').textContent = STOCK_TAB_LABELS[tab];
@@ -2054,6 +2058,8 @@ function renderStock(data) {
             <td>
                 <button class="btn btn-sm" onclick="openReapproModal(${s.idStock})">Réappro</button>
                 <button class="btn btn-sm" onclick="editStockArticle(${s.idStock})">Modifier</button>
+                <button class="btn btn-sm" onclick="dupliquerStockArticle(${s.idStock})" title="Créer un nouvel article pré-rempli à partir de celui-ci (ex: version usage interne d'un article vendu)">Dupliquer</button>
+                ${CATEGORIES_CONSOMMABLES.includes(s.categorie) ? `<button class="btn btn-sm" onclick="openMouvementsModal(${s.idStock})">Historique</button>` : ''}
                 <button class="btn btn-sm btn-danger" onclick="deleteStockArticle(${s.idStock})">Supprimer</button>
             </td>
         </tr>`;
@@ -2366,6 +2372,208 @@ function editStockArticle(id) {
     delete margeInput.dataset.touched;
     onStockCategorieChange();
     openModal('modal-stock-edit');
+}
+
+// Dupliquer un article : ouvre le modal de création pré-rempli depuis un article
+// existant (quantité à 0, à saisir consciemment). Cas d'usage : créer la version
+// "usage interne" (consommable_medical) d'un article déjà vendu au patient.
+function dupliquerStockArticle(id) {
+    const article = stockAdminData.find(s => s.idStock === id);
+    if (!article) return;
+    document.getElementById('modal-stock-title').textContent = 'Dupliquer l\'article';
+    document.getElementById('st-id').value = '';
+    document.getElementById('st-date-entree').value = new Date().toISOString().split('T')[0];
+    document.getElementById('st-designation').value = (article.Designation || '') + ' (copie)';
+    document.getElementById('st-type').value = article.Type || '';
+    document.getElementById('st-categorie').value = article.categorie || 'medicament';
+    populateFournisseurSelect(article.Fournisseur || '');
+    document.getElementById('st-quantite').value = 0;
+    document.getElementById('st-unites-boite').value = article.unites_par_boite || 1;
+    document.getElementById('st-seuil').value = article.SeuilAlerte || 0;
+    document.getElementById('st-prix-vente').value = article.PrixVente || 0;
+    document.getElementById('st-prix-achat').value = article.PrixAchat || 0;
+    document.getElementById('st-dosage').value = article.Dosage || '';
+    document.getElementById('st-forme').value = article.Forme || '';
+    document.getElementById('st-peremption').value = article.DatePeremption || '';
+    const margeInput = document.getElementById('st-marge-perso');
+    margeInput.value = '';
+    delete margeInput.dataset.touched;
+    onStockCategorieChange();
+    openModal('modal-stock-edit');
+}
+
+// Historique des mouvements de consommable d'un article (GET /stock/{id}/mouvements)
+const MOUVEMENTS_PAGE_SIZE = 20;
+let mouvementsModalState = { stockId: null, offset: 0 };
+
+async function openMouvementsModal(stockId, offset = 0) {
+    mouvementsModalState = { stockId, offset };
+    try {
+        const res = await apiFetch(`/stock/${stockId}/mouvements?limit=${MOUVEMENTS_PAGE_SIZE}&offset=${offset}`).then(r => r.json());
+        document.getElementById('mv-article-nom').textContent = res.article.Designation || '';
+        const tbody = document.getElementById('table-mouvements');
+        if (!res.mouvements.length) {
+            tbody.innerHTML = '<tr><td colspan="6">Aucun mouvement enregistré</td></tr>';
+        } else {
+            tbody.innerHTML = res.mouvements.map(m => {
+                const type = m.type_sortie === 'examen_patient' ? 'Examen patient' : 'Usage interne';
+                const patient = m.patient_id ? `${m.patient_nom || ''} ${m.patient_prenom || ''}`.trim() : '-';
+                const utilisateur = m.utilisateur_nom || m.utilisateur_login || '-';
+                return `<tr>
+                    <td>${formatDateFR(m.date_mouvement)}</td>
+                    <td>${m.quantite}</td>
+                    <td>${type}</td>
+                    <td>${escapeHtml(patient)}${m.examen_id ? ` (examen #${m.examen_id})` : ''}</td>
+                    <td>${escapeHtml(utilisateur)}</td>
+                    <td>${escapeHtml(m.motif || '-')}</td>
+                </tr>`;
+            }).join('');
+        }
+        const page = Math.floor(offset / MOUVEMENTS_PAGE_SIZE) + 1;
+        const pages = Math.max(1, Math.ceil(res.total / MOUVEMENTS_PAGE_SIZE));
+        document.getElementById('mv-pagination-info').textContent = `${res.total} mouvement(s) — page ${page}/${pages}`;
+        document.getElementById('mv-prev').disabled = offset <= 0;
+        document.getElementById('mv-next').disabled = offset + MOUVEMENTS_PAGE_SIZE >= res.total;
+        openModal('modal-mouvements');
+    } catch (e) { showToast('Erreur lors du chargement de l\'historique : ' + e.message, 'error'); }
+}
+
+function mouvementsPage(direction) {
+    const next = Math.max(0, mouvementsModalState.offset + direction * MOUVEMENTS_PAGE_SIZE);
+    openMouvementsModal(mouvementsModalState.stockId, next);
+}
+
+// ===== UTILISATION MÉDICALE (prélèvement de consommables médicaux, tous rôles) =====
+// Données chargées via GET /stock/consommables (accessible à tous les rôles connectés,
+// contrairement à GET /stock qui est admin-only) — jamais de médicaments ici.
+let utilisationMedicaleData = [];
+
+async function loadUtilisationMedicale() {
+    try {
+        utilisationMedicaleData = await apiFetch('/stock/consommables?categorie=consommable_medical').then(r => r.json());
+        filterUtilisationMedicale();
+    } catch (e) { document.getElementById('table-utilisation-medicale').innerHTML = '<tr><td colspan="5">Erreur</td></tr>'; }
+}
+
+function filterUtilisationMedicale() {
+    const q = (document.getElementById('search-utilisation-medicale').value || '').toLowerCase();
+    renderUtilisationMedicale(utilisationMedicaleData.filter(s => (s.Designation || '').toLowerCase().includes(q)));
+}
+
+function renderUtilisationMedicale(data) {
+    const tbody = document.getElementById('table-utilisation-medicale');
+    if (!data.length) { tbody.innerHTML = '<tr><td colspan="5">Aucun consommable médical en stock</td></tr>'; return; }
+    tbody.innerHTML = data.map(s => {
+        const epuise = (s.Quantite || 0) <= 0;
+        const rowClass = epuise ? 'row-danger' : (s.Quantite <= s.SeuilAlerte ? 'row-alert' : '');
+        return `<tr class="${rowClass}">
+            <td>${escapeHtml(s.Designation || '')}</td>
+            <td>${escapeHtml(s.Dosage || '-')}</td>
+            <td>${escapeHtml(s.Forme || '-')}</td>
+            <td>${s.Quantite || 0}</td>
+            <td><button class="btn btn-sm btn-primary" onclick="openPrelevementModal(${s.idStock})"${epuise ? ' disabled' : ''}>Prélever</button></td>
+        </tr>`;
+    }).join('');
+}
+
+function openPrelevementModal(stockId) {
+    const article = utilisationMedicaleData.find(s => s.idStock === stockId);
+    if (!article) return;
+    document.getElementById('pl-stock-id').value = stockId;
+    document.getElementById('pl-article-nom').textContent = article.Designation || '';
+    document.getElementById('pl-quantite').value = 1;
+    document.getElementById('pl-motif').value = '';
+    updatePrelevementApercu();
+    openModal('modal-prelevement');
+}
+
+function updatePrelevementApercu() {
+    const article = utilisationMedicaleData.find(s => String(s.idStock) === document.getElementById('pl-stock-id').value);
+    if (!article) return;
+    const q = parseInt(document.getElementById('pl-quantite').value) || 0;
+    const reste = (article.Quantite || 0) - q;
+    document.getElementById('pl-apercu').innerHTML =
+        `Stock actuel : ${article.Quantite || 0} unité(s) — après prélèvement : <strong>${reste}</strong>`
+        + (reste < 0 ? ' <span style="color:#DC2626;">(stock insuffisant)</span>' : '');
+}
+
+async function savePrelevement() {
+    const stockId = document.getElementById('pl-stock-id').value;
+    const quantite = parseInt(document.getElementById('pl-quantite').value) || 0;
+    if (quantite <= 0) { showToast('Saisissez une quantité supérieure à 0', 'warning'); return; }
+    const btn = document.getElementById('btn-confirmer-prelevement');
+    btn.disabled = true; // anti double-clic (cf. incident doublons du 11/07)
+    try {
+        const res = await apiFetch(`/stock/${stockId}/consommer`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                quantite,
+                type_sortie: 'usage_interne',
+                motif: document.getElementById('pl-motif').value.trim() || null,
+            }),
+        }).then(r => r.json());
+        closeModal('modal-prelevement');
+        showToast(`Prélèvement enregistré — reste ${res.nouvelle_quantite} unité(s)`, 'success');
+        loadUtilisationMedicale();
+    } catch (e) { showToast('Erreur lors du prélèvement : ' + e.message, 'error'); }
+    finally { btn.disabled = false; }
+}
+
+// ===== CONSOMMABLES LABORATOIRE (page Examens : liés à un examen ou usage interne) =====
+let consommablesLaboData = [];
+
+async function ensureConsommablesLaboLoaded(force = false) {
+    if (consommablesLaboData.length && !force) return;
+    consommablesLaboData = await apiFetch('/stock/consommables?categorie=consommable_laboratoire').then(r => r.json());
+}
+
+function consommablesLaboOptions() {
+    return '<option value="">-- Consommable --</option>'
+        + consommablesLaboData.map(s => `<option value="${s.idStock}">${escapeHtml(s.Designation || '')} (${s.Quantite || 0} dispo)</option>`).join('');
+}
+
+function populateUsageInterneLaboSelect() {
+    const select = document.getElementById('ul-article');
+    if (select) select.innerHTML = consommablesLaboOptions();
+}
+
+// Ligne de consommable dans le modal Examen (création uniquement)
+function addLigneConsommableExamen() {
+    const container = document.getElementById('examen-consommables-container');
+    const wrapper = document.createElement('div');
+    wrapper.className = 'ligne-consommable-examen';
+    wrapper.style.cssText = 'display:flex; gap:8px; margin-bottom:6px; align-items:center;';
+    wrapper.innerHTML = `
+        <select class="ce-article" style="flex:2;">${consommablesLaboOptions()}</select>
+        <input type="number" class="ce-quantite" style="flex:0 0 110px;" min="1" value="1" title="Quantité">
+        <button type="button" class="btn-remove" onclick="this.parentElement.remove()">✕</button>
+    `;
+    container.appendChild(wrapper);
+}
+
+// Sortie de consommable labo sans patient (mini-formulaire sous la liste des examens)
+async function preleverUsageInterneLabo() {
+    const stockId = document.getElementById('ul-article').value;
+    const quantite = parseInt(document.getElementById('ul-quantite').value) || 0;
+    if (!stockId) { showToast('Choisissez un article', 'warning'); return; }
+    if (quantite <= 0) { showToast('Saisissez une quantité supérieure à 0', 'warning'); return; }
+    try {
+        const res = await apiFetch(`/stock/${stockId}/consommer`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                quantite,
+                type_sortie: 'usage_interne',
+                motif: document.getElementById('ul-motif').value.trim() || null,
+            }),
+        }).then(r => r.json());
+        showToast(`Prélèvement enregistré — reste ${res.nouvelle_quantite} unité(s)`, 'success');
+        document.getElementById('ul-quantite').value = 1;
+        document.getElementById('ul-motif').value = '';
+        await ensureConsommablesLaboLoaded(true);
+        populateUsageInterneLaboSelect();
+    } catch (e) { showToast('Erreur lors du prélèvement : ' + e.message, 'error'); }
 }
 
 async function saveStockArticle() {
@@ -3369,6 +3577,12 @@ async function loadExamens() {
         examensData = await apiFetch('/examens-complementaires').then(r => r.json());
         filterExamens();
     } catch(e) { document.getElementById('table-examens').innerHTML = '<tr><td colspan="9">Erreur</td></tr>'; }
+    // Alimente le mini-formulaire "Usage interne" (rechargé à chaque visite : les
+    // quantités disponibles changent au fil des prélèvements)
+    try {
+        await ensureConsommablesLaboLoaded(true);
+        populateUsageInterneLaboSelect();
+    } catch (e) { /* non bloquant : la liste des examens reste utilisable */ }
 }
 
 function renderExamens(data) {
@@ -3596,7 +3810,7 @@ async function openExamenModal() {
     onExamenTypePatientChange(isExterne ? 'externe' : 'enregistre');
     document.getElementById('e-nom-externe').value = '';
 
-    const tasks = [loadExamenRefs()];
+    const tasks = [loadExamenRefs(), ensureConsommablesLaboLoaded(true)];
     if (!patientsData.length) tasks.push(loadPatients());
     await Promise.all(tasks);
     resetPatientCombo('e');
@@ -3608,6 +3822,11 @@ async function openExamenModal() {
     addLigneExamen();
     document.getElementById('btn-add-ligne-examen').style.display = '';
     updateExamenTotalDisplay();
+
+    // Consommables labo : uniquement à la création (en modification, les mouvements
+    // de stock ont déjà été appliqués — pas de re-consommation)
+    document.getElementById('examen-consommables-container').innerHTML = '';
+    document.getElementById('examen-consommables-group').style.display = '';
 
     openModal('modal-examen');
 }
@@ -3646,6 +3865,11 @@ async function editExamen(id) {
     document.getElementById('e-date').value = examen.date_examen || '';
     document.getElementById('e-medecin').value = examen.medecin_id || '';
     document.getElementById('e-renseignement').value = examen.renseignement_clinique || '';
+
+    // Pas de section consommables en modification (les mouvements de stock ont déjà
+    // été appliqués à la création — pas de re-consommation)
+    document.getElementById('examen-consommables-container').innerHTML = '';
+    document.getElementById('examen-consommables-group').style.display = 'none';
 
     openModal('modal-examen');
 }
@@ -3703,6 +3927,7 @@ async function saveExamen() {
             };
             await apiFetch(`/examens-complementaires/${id}`, { method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(data) });
         } else {
+            let premierExamenId = null;
             for (const ligne of lignes) {
                 const data = {
                     patient_id: patientId,
@@ -3713,7 +3938,41 @@ async function saveExamen() {
                     medecin_id: medecinId,
                     renseignement_clinique: renseignement
                 };
-                await apiFetch('/examens-complementaires/', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(data) });
+                const res = await apiFetch('/examens-complementaires/', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(data) }).then(r => r.json());
+                if (premierExamenId === null && res.id) premierExamenId = res.id;
+            }
+
+            // Consommables labo utilisés : sortie de stock tracée, liée au premier
+            // examen créé (une saisie multi-types produit un enregistrement par type).
+            // Les erreurs (ex: stock insuffisant) n'annulent pas les examens déjà
+            // créés — elles sont signalées et le consommable reste à prélever à la main.
+            const consommables = Array.from(document.querySelectorAll('#examen-consommables-container .ligne-consommable-examen'))
+                .map(l => ({
+                    stock_id: parseInt(l.querySelector('.ce-article').value) || null,
+                    quantite: parseInt(l.querySelector('.ce-quantite').value) || 0,
+                }))
+                .filter(c => c.stock_id && c.quantite > 0);
+            for (const c of consommables) {
+                try {
+                    await apiFetch(`/stock/${c.stock_id}/consommer`, {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({
+                            quantite: c.quantite,
+                            type_sortie: 'examen_patient',
+                            patient_id: patientId,
+                            examen_id: premierExamenId,
+                        }),
+                    });
+                } catch (errConso) {
+                    showToast('Examen créé, mais sortie de consommable non appliquée : ' + errConso.message, 'warning');
+                }
+            }
+            if (consommables.length) {
+                try {
+                    await ensureConsommablesLaboLoaded(true);
+                    populateUsageInterneLaboSelect();
+                } catch (e) { /* non bloquant */ }
             }
         }
         closeModal('modal-examen');
@@ -4990,7 +5249,8 @@ function addLigneAchat(ligne) {
         <div class="ligne-achat-nouvel" style="display:none;">
             <select class="la-categorie" title="Catégorie du nouvel article">
                 <option value="medicament">Médicament</option>
-                <option value="consommable">Consommable</option>
+                <option value="consommable_laboratoire">Consommable laboratoire</option>
+                <option value="consommable_medical">Consommable médical</option>
                 <option value="equipement">Équipement</option>
             </select>
             <input type="number" placeholder="Unités/boîte" title="Unités par boîte (1 = à l'unité)" class="la-unites-boite" min="1" value="1" oninput="updateLigneAchatApercu(this.closest('.ligne-achat-wrapper'))">
@@ -5833,7 +6093,7 @@ async function loadMargesCategorie() {
 }
 
 async function enregistrerMarges() {
-    const categories = ['medicament', 'consommable', 'equipement'];
+    const categories = ['medicament', 'consommable_laboratoire', 'consommable_medical', 'equipement'];
     const valeurs = {};
     for (const cat of categories) {
         const marge = parseFloat(document.getElementById('param-marge-' + cat).value);
