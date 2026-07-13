@@ -1987,6 +1987,41 @@ let currentStockTab = 'medicament';
 const STOCK_TAB_LABELS = { medicament: 'Stock médicaments', consommable_laboratoire: 'Services Laboratoire', consommable_medical: 'Consommables médicaux', equipement: 'Équipement' };
 const STOCK_CATEGORIE_LABELS = { medicament: 'Médicament', consommable_laboratoire: 'Consommable laboratoire', consommable_medical: 'Consommable médical', equipement: 'Équipement' };
 const STATUT_EQUIPEMENT_LABELS = { bon_etat: 'Bon état', en_utilisation: "En cours d'utilisation", a_remplacer: 'À remplacer' };
+
+// Statuts d'équipement supplémentaires définis par l'admin (parametres_cabinet,
+// clé 'statuts_equipement_personnalises', libellés séparés par |) — s'ajoutent
+// aux 3 statuts de base de STATUT_EQUIPEMENT_LABELS. La valeur stockée en base
+// pour un statut personnalisé est son libellé tel quel.
+let statutsEquipementPersonnalises = [];
+
+async function loadStatutsEquipementPersonnalises() {
+    try {
+        const params = await apiFetch('/parametres/').then(r => r.json());
+        const valeur = (params.statuts_equipement_personnalises || {}).valeur || '';
+        statutsEquipementPersonnalises = valeur.split('|').map(s => s.trim()).filter(Boolean);
+    } catch (e) { statutsEquipementPersonnalises = []; }
+}
+
+// Liste complète [valeur, libellé] des statuts sélectionnables. `selected` (statut
+// actuel d'un article) est réinjecté s'il ne figure plus dans la liste (statut
+// personnalisé supprimé depuis) pour rester affichable.
+function getStatutsEquipementEntries(selected) {
+    const entries = Object.entries(STATUT_EQUIPEMENT_LABELS)
+        .concat(statutsEquipementPersonnalises.map(s => [s, s]));
+    if (selected && !entries.some(([val]) => val === selected)) entries.push([selected, selected]);
+    return entries;
+}
+
+function libelleStatutEquipement(statut) {
+    return STATUT_EQUIPEMENT_LABELS[statut] || statut || 'Bon état';
+}
+
+function populateStatutEquipementSelect(selected) {
+    const select = document.getElementById('st-statut-equipement');
+    select.innerHTML = getStatutsEquipementEntries(selected)
+        .map(([val, label]) => `<option value="${escapeHtml(val)}">${escapeHtml(label)}</option>`).join('');
+    select.value = selected || 'bon_etat';
+}
 // Catégories concernées par les sorties internes tracées (mouvements_consommable)
 const CATEGORIES_CONSOMMABLES = ['consommable_laboratoire', 'consommable_medical'];
 
@@ -2011,7 +2046,67 @@ function showStockTab(tab) {
     document.getElementById('stock-tab-titre').textContent = STOCK_TAB_LABELS[tab];
     // Le recalcul des prix exclut l'équipement (jamais vendu) : bouton sans objet sur cet onglet
     document.getElementById('btn-recalcul-prix').style.display = tab === 'equipement' ? 'none' : '';
+    // La gestion des états d'équipement n'a de sens que sur l'onglet Équipement
+    document.getElementById('btn-gerer-statuts-equipement').style.display = tab === 'equipement' ? '' : 'none';
     filterStock();
+}
+
+// ----- Gestion des états d'équipement personnalisés (modal "Gérer les états") -----
+
+function openStatutsEquipementModal() {
+    renderStatutsEquipement();
+    document.getElementById('se-nouveau').value = '';
+    openModal('modal-statuts-equipement');
+}
+
+function renderStatutsEquipement() {
+    const tbody = document.getElementById('table-statuts-equipement');
+    tbody.innerHTML = Object.values(STATUT_EQUIPEMENT_LABELS)
+        .map(label => `<tr><td>${escapeHtml(label)}</td><td><span style="color:#94A3B8; font-size:12px;">état de base</span></td></tr>`)
+        .concat(statutsEquipementPersonnalises.map((s, i) =>
+            `<tr><td>${escapeHtml(s)}</td><td><button class="btn btn-sm btn-danger" onclick="deleteStatutEquipement(${i})">Supprimer</button></td></tr>`))
+        .join('');
+}
+
+async function saveStatutsEquipementPersonnalises() {
+    await apiFetch('/parametres/', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ statuts_equipement_personnalises: statutsEquipementPersonnalises.join('|') }),
+    });
+}
+
+async function addStatutEquipement() {
+    const input = document.getElementById('se-nouveau');
+    const libelle = input.value.trim();
+    if (!libelle) { showToast('Saisissez un libellé d\'état', 'warning'); return; }
+    if (libelle.includes('|')) { showToast('Le caractère | n\'est pas autorisé', 'warning'); return; }
+    const existants = Object.values(STATUT_EQUIPEMENT_LABELS).concat(statutsEquipementPersonnalises).map(s => s.toLowerCase());
+    if (existants.includes(libelle.toLowerCase())) { showToast('Cet état existe déjà', 'warning'); return; }
+    statutsEquipementPersonnalises.push(libelle);
+    try {
+        await saveStatutsEquipementPersonnalises();
+        input.value = '';
+        renderStatutsEquipement();
+        filterStock(); // met à jour les selects d'état de la liste Équipement
+        showToast('État ajouté', 'success');
+    } catch (e) {
+        statutsEquipementPersonnalises.pop();
+        showToast('Erreur lors de l\'ajout : ' + e.message, 'error');
+    }
+}
+
+async function deleteStatutEquipement(index) {
+    const retire = statutsEquipementPersonnalises.splice(index, 1)[0];
+    try {
+        await saveStatutsEquipementPersonnalises();
+        renderStatutsEquipement();
+        filterStock();
+        showToast('État supprimé (les équipements qui le portent le conservent)', 'success');
+    } catch (e) {
+        statutsEquipementPersonnalises.splice(index, 0, retire);
+        showToast('Erreur lors de la suppression : ' + e.message, 'error');
+    }
 }
 
 // Catégorie d'examen "Laboratoire" (type_examen.id = 1) : depuis le retrait de la
@@ -2031,7 +2126,8 @@ async function loadStock() {
             apiFetch('/stock/alertes').then(r => r.json()),
             apiFetch('/stock/alertes-peremption').then(r => r.json()),
             apiFetch('/stock/equipements-a-remplacer').then(r => r.json()),
-            ensureFournisseursLoaded()
+            ensureFournisseursLoaded(),
+            loadStatutsEquipementPersonnalises()
         ]);
         stockAdminData = data;
         const alertDiv = document.getElementById('alertes-stock');
@@ -2061,16 +2157,18 @@ function renderStock(data) {
     const dans30Jours = new Date();
     dans30Jours.setDate(dans30Jours.getDate() + 30);
     tbody.innerHTML = data.map(s => {
+        // Équipement : ni Réappro (pas de réapprovisionnement, rachat via un nouvel achat)
+        // ni Dupliquer (pas de variante vente/usage interne) — seulement Modifier/Supprimer.
         const actions = `
-                <button class="btn btn-sm" onclick="openReapproModal(${s.idStock})">Réappro</button>
+                ${isEquipementTab ? '' : `<button class="btn btn-sm" onclick="openReapproModal(${s.idStock})">Réappro</button>`}
                 <button class="btn btn-sm" onclick="editStockArticle(${s.idStock})">Modifier</button>
-                <button class="btn btn-sm" onclick="dupliquerStockArticle(${s.idStock})" title="Créer un nouvel article pré-rempli à partir de celui-ci (ex: version usage interne d'un article vendu)">Dupliquer</button>
+                ${isEquipementTab ? '' : `<button class="btn btn-sm" onclick="dupliquerStockArticle(${s.idStock})" title="Créer un nouvel article pré-rempli à partir de celui-ci (ex: version usage interne d'un article vendu)">Dupliquer</button>`}
                 ${CATEGORIES_CONSOMMABLES.includes(s.categorie) ? `<button class="btn btn-sm" onclick="openMouvementsModal(${s.idStock})">Historique</button>` : ''}
                 <button class="btn btn-sm btn-danger" onclick="deleteStockArticle(${s.idStock})">Supprimer</button>`;
         if (isEquipementTab) {
             const statutActuel = s.statut_equipement || 'bon_etat';
-            const options = Object.entries(STATUT_EQUIPEMENT_LABELS)
-                .map(([val, label]) => `<option value="${val}"${val === statutActuel ? ' selected' : ''}>${label}</option>`).join('');
+            const options = getStatutsEquipementEntries(statutActuel)
+                .map(([val, label]) => `<option value="${escapeHtml(val)}"${val === statutActuel ? ' selected' : ''}>${escapeHtml(label)}</option>`).join('');
             return `<tr class="${statutActuel === 'a_remplacer' ? 'row-danger' : ''}">
                 <td>${s.Designation||''}</td><td>${s.Type||''}</td><td>${formatQuantiteUnites(s.Quantite, s.unites_par_boite)}</td>
                 <td>${s.DateEntree ? formatDateFR(s.DateEntree) : '-'}</td>
@@ -2146,7 +2244,7 @@ function exportStockExcel() {
         'Date entrée': formatDateFR(s.DateEntree),
         'Péremption': formatDateFR(s.DatePeremption),
         'Statut': s.categorie === 'equipement'
-            ? (STATUT_EQUIPEMENT_LABELS[s.statut_equipement] || 'Bon état')
+            ? libelleStatutEquipement(s.statut_equipement)
             : s.Quantite < 0 ? 'Anomalie' : s.Quantite <= 0 ? 'Rupture' : s.Quantite <= s.SeuilAlerte ? 'Alerte' : 'Normal'
     }));
     const ws = XLSX.utils.json_to_sheet(rows);
@@ -2425,7 +2523,7 @@ function openNewStockModal() {
     document.getElementById('st-forme').value = '';
     document.getElementById('st-peremption').value = '';
     document.getElementById('st-date-achat').value = new Date().toISOString().split('T')[0];
-    document.getElementById('st-statut-equipement').value = 'bon_etat';
+    populateStatutEquipementSelect('bon_etat');
     document.getElementById('st-quantite-examen').value = 1;
     populateStockExamenSelect(null);
     const margeInputNew = document.getElementById('st-marge-perso');
@@ -2455,7 +2553,7 @@ function editStockArticle(id) {
     document.getElementById('st-forme').value = article.Forme || '';
     document.getElementById('st-peremption').value = article.DatePeremption || '';
     document.getElementById('st-date-achat').value = (article.DateEntree || '').split('T')[0];
-    document.getElementById('st-statut-equipement').value = article.statut_equipement || 'bon_etat';
+    populateStatutEquipementSelect(article.statut_equipement || 'bon_etat');
     document.getElementById('st-quantite-examen').value = article.quantite_examen || 1;
     populateStockExamenSelect(article.sous_type_examen_id || null);
     const margeInput = document.getElementById('st-marge-perso');
@@ -2487,7 +2585,7 @@ function dupliquerStockArticle(id) {
     document.getElementById('st-forme').value = article.Forme || '';
     document.getElementById('st-peremption').value = article.DatePeremption || '';
     document.getElementById('st-date-achat').value = new Date().toISOString().split('T')[0];
-    document.getElementById('st-statut-equipement').value = 'bon_etat';
+    populateStatutEquipementSelect('bon_etat');
     document.getElementById('st-quantite-examen').value = article.quantite_examen || 1;
     populateStockExamenSelect(article.sous_type_examen_id || null);
     const margeInput = document.getElementById('st-marge-perso');
@@ -2623,103 +2721,116 @@ async function ensureConsommablesLaboLoaded(force = false) {
     consommablesLaboData = await apiFetch('/stock/consommables?categorie=consommable_laboratoire').then(r => r.json());
 }
 
-function consommablesLaboOptions() {
-    return '<option value="">-- Consommable --</option>'
-        + consommablesLaboData.map(s => `<option value="${s.idStock}">${escapeHtml(s.Designation || '')} (${s.Quantite || 0} dispo)</option>`).join('');
-}
-
-function populateUsageInterneLaboSelect() {
-    const select = document.getElementById('ul-article');
-    if (select) select.innerHTML = consommablesLaboOptions();
-}
-
-// Modal Consommables de la page Examens : prélèvement usage interne + historique des
-// mouvements labo. Les sorties liées à un examen patient sont désormais automatiques
-// (backend, à la création de l'examen) — plus de saisie manuelle dans le modal Examen.
-async function openConsommablesLaboModal() {
-    showConsoLaboTab('prelever');
-    document.getElementById('ul-quantite').value = 1;
-    document.getElementById('ul-motif').value = '';
-    openModal('modal-consommables-labo');
-    try {
-        await ensureConsommablesLaboLoaded(true);
-        populateUsageInterneLaboSelect();
-    } catch (e) { showToast('Erreur de chargement des consommables : ' + e.message, 'error'); }
-}
-
-function showConsoLaboTab(tab) {
+// ===== HISTORIQUE UTILISATION MÉDICALE (onglet Historique : mouvements
+// consommable_medical / usage_interne uniquement, avec modification/suppression) =====
+function showUtilisationMedicaleTab(tab) {
     ['prelever', 'historique'].forEach(t => {
-        document.getElementById('tab-conso-labo-' + t).className = t === tab ? 'btn btn-primary' : 'btn';
-        document.getElementById('conso-labo-tab-' + t).style.display = t === tab ? '' : 'none';
+        document.getElementById('tab-um-' + t).className = t === tab ? 'btn btn-primary' : 'btn';
+        document.getElementById('um-tab-' + t).style.display = t === tab ? '' : 'none';
     });
-    if (tab === 'historique') loadConsoLaboHistorique();
+    if (tab === 'historique') loadUtilisationMedicaleHistorique();
 }
 
-let consoLaboHistoriqueData = [];
+let umHistoriqueData = [];
+let umDeleteConfirmId = null; // id du mouvement en attente de confirmation de suppression
 
-async function loadConsoLaboHistorique() {
-    const tbody = document.getElementById('table-conso-labo-historique');
-    tbody.innerHTML = '<tr><td colspan="7" class="loading">Chargement...</td></tr>';
-    consoLaboHistoriqueData = [];
+async function loadUtilisationMedicaleHistorique() {
+    const tbody = document.getElementById('table-um-historique');
+    tbody.innerHTML = '<tr><td colspan="6" class="loading">Chargement...</td></tr>';
+    umHistoriqueData = [];
+    umDeleteConfirmId = null;
     try {
-        const res = await apiFetch('/stock/mouvements?categorie=consommable_laboratoire&limit=100').then(r => r.json());
-        consoLaboHistoriqueData = res.mouvements;
-        if (!res.mouvements.length) { tbody.innerHTML = '<tr><td colspan="7">Aucun mouvement</td></tr>'; return; }
-        tbody.innerHTML = res.mouvements.map(m => {
-            const type = m.type_sortie === 'examen_patient' ? 'Examen patient' : 'Usage interne';
-            const patient = m.patient_id ? `${m.patient_nom || ''} ${m.patient_prenom || ''}`.trim() : '-';
-            return `<tr>
-                <td>${formatDateFR(m.date_mouvement)}</td>
-                <td>${escapeHtml(m.designation || '')}</td>
-                <td>${m.quantite}</td>
-                <td>${type}</td>
-                <td>${escapeHtml(patient)}</td>
-                <td>${escapeHtml(m.utilisateur_nom || m.utilisateur_login || '-')}</td>
-                <td>${escapeHtml(m.motif || '-')}</td>
-            </tr>`;
-        }).join('');
-    } catch (e) { tbody.innerHTML = '<tr><td colspan="7">Erreur</td></tr>'; }
+        const res = await apiFetch('/stock/mouvements?categorie=consommable_medical&limit=100').then(r => r.json());
+        // Sécurité d'affichage : ne garder que les prélèvements d'usage interne
+        // (jamais de mouvements labo ni liés à un examen sur cette page)
+        umHistoriqueData = res.mouvements.filter(m => m.type_sortie === 'usage_interne');
+        renderUtilisationMedicaleHistorique();
+    } catch (e) { tbody.innerHTML = '<tr><td colspan="6">Erreur</td></tr>'; }
 }
 
-function exportConsoLaboHistoriqueExcel() {
-    if (!consoLaboHistoriqueData.length) { showToast('Aucun mouvement à exporter', 'warning'); return; }
-    const rows = consoLaboHistoriqueData.map(m => ({
+function renderUtilisationMedicaleHistorique() {
+    const tbody = document.getElementById('table-um-historique');
+    if (!umHistoriqueData.length) { tbody.innerHTML = '<tr><td colspan="6">Aucun prélèvement</td></tr>'; return; }
+    tbody.innerHTML = umHistoriqueData.map(m => `<tr>
+        <td>${formatDateFR(m.date_mouvement)}</td>
+        <td>${escapeHtml(m.designation || '')}</td>
+        <td>${m.quantite}</td>
+        <td>${escapeHtml(m.utilisateur_nom || m.utilisateur_login || '-')}</td>
+        <td>${escapeHtml(m.motif || '-')}</td>
+        <td>
+            <button class="btn btn-sm" onclick="openEditMouvementModal(${m.id})">Modifier</button>
+            <button class="btn btn-sm ${umDeleteConfirmId === m.id ? 'btn-danger' : ''}" onclick="deleteMouvementUM(${m.id})">${umDeleteConfirmId === m.id ? 'Confirmer ?' : 'Supprimer'}</button>
+        </td>
+    </tr>`).join('');
+}
+
+function exportUtilisationMedicaleHistoriqueExcel() {
+    if (!umHistoriqueData.length) { showToast('Aucun prélèvement à exporter', 'warning'); return; }
+    const rows = umHistoriqueData.map(m => ({
         'Date': formatDateFR(m.date_mouvement),
         'Article': m.designation || '',
         'Quantité': m.quantite,
-        'Type': m.type_sortie === 'examen_patient' ? 'Examen patient' : 'Usage interne',
-        'Patient': m.patient_id ? `${m.patient_nom || ''} ${m.patient_prenom || ''}`.trim() : '-',
         'Par': m.utilisateur_nom || m.utilisateur_login || '-',
         'Motif': m.motif || '-',
     }));
     const ws = XLSX.utils.json_to_sheet(rows);
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Historique labo');
-    telechargerEtOuvrir(wb, `consommables_labo_${new Date().toISOString().split('T')[0]}.xlsx`);
+    XLSX.utils.book_append_sheet(wb, ws, 'Utilisation médicale');
+    telechargerEtOuvrir(wb, `utilisation_medicale_${new Date().toISOString().split('T')[0]}.xlsx`);
 }
 
-// Sortie de consommable labo sans patient (onglet Prélever du modal Consommables)
-async function preleverUsageInterneLabo() {
-    const stockId = document.getElementById('ul-article').value;
-    const quantite = parseInt(document.getElementById('ul-quantite').value) || 0;
-    if (!stockId) { showToast('Choisissez un article', 'warning'); return; }
+function openEditMouvementModal(id) {
+    const m = umHistoriqueData.find(x => x.id === id);
+    if (!m) return;
+    document.getElementById('em-id').value = id;
+    document.getElementById('em-article-nom').textContent = m.designation || '';
+    document.getElementById('em-quantite').value = m.quantite;
+    document.getElementById('em-motif').value = m.motif || '';
+    openModal('modal-edit-mouvement');
+}
+
+async function saveEditMouvement() {
+    const id = document.getElementById('em-id').value;
+    const quantite = parseInt(document.getElementById('em-quantite').value) || 0;
     if (quantite <= 0) { showToast('Saisissez une quantité supérieure à 0', 'warning'); return; }
+    const btn = document.getElementById('btn-save-mouvement');
+    btn.disabled = true; // anti double-clic (cf. incident doublons du 11/07)
     try {
-        const res = await apiFetch(`/stock/${stockId}/consommer`, {
-            method: 'POST',
+        await apiFetch(`/stock/mouvements/${id}`, {
+            method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 quantite,
-                type_sortie: 'usage_interne',
-                motif: document.getElementById('ul-motif').value.trim() || null,
+                motif: document.getElementById('em-motif').value.trim() || null,
             }),
-        }).then(r => r.json());
-        showToast(`Prélèvement enregistré — reste ${res.nouvelle_quantite} unité(s)`, 'success');
-        document.getElementById('ul-quantite').value = 1;
-        document.getElementById('ul-motif').value = '';
-        await ensureConsommablesLaboLoaded(true);
-        populateUsageInterneLaboSelect();
-    } catch (e) { showToast('Erreur lors du prélèvement : ' + e.message, 'error'); }
+        });
+        closeModal('modal-edit-mouvement');
+        showToast('Prélèvement modifié — stock réajusté', 'success');
+        loadUtilisationMedicaleHistorique();
+        loadUtilisationMedicale(); // rafraîchit les quantités de l'onglet Prélever
+    } catch (e) { showToast('Erreur lors de la modification : ' + e.message, 'error'); }
+    finally { btn.disabled = false; }
+}
+
+// Suppression en deux clics (pas de confirm() natif) : le 1er clic passe le bouton
+// en "Confirmer ?" avec un toast d'avertissement, le 2e supprime réellement.
+async function deleteMouvementUM(id) {
+    if (umDeleteConfirmId !== id) {
+        umDeleteConfirmId = id;
+        renderUtilisationMedicaleHistorique();
+        showToast('Cliquez à nouveau sur "Confirmer ?" pour supprimer — la quantité sera restituée au stock', 'warning');
+        return;
+    }
+    umDeleteConfirmId = null;
+    try {
+        await apiFetch(`/stock/mouvements/${id}`, { method: 'DELETE' });
+        showToast('Prélèvement supprimé — quantité restituée au stock', 'success');
+        loadUtilisationMedicaleHistorique();
+        loadUtilisationMedicale();
+    } catch (e) {
+        showToast('Erreur lors de la suppression : ' + e.message, 'error');
+        renderUtilisationMedicaleHistorique();
+    }
 }
 
 async function saveStockArticle() {
@@ -5414,9 +5525,10 @@ function addLigneAchat(ligne) {
         <div class="ligne-achat-info"></div>
         <div class="ligne-achat-apercu"></div>
         <div class="ligne-achat-nouvel" style="display:none;">
-            <select class="la-categorie" title="Catégorie du nouvel article" onchange="onLigneAchatCategorieChange(this)">
+            <select class="la-categorie" title="Catégorie du nouvel article (obligatoire)" onchange="onLigneAchatCategorieChange(this)">
+                <option value="" selected>-- Catégorie * --</option>
                 <option value="medicament">Médicament</option>
-                <option value="consommable_laboratoire">Consommable laboratoire</option>
+                <option value="consommable_laboratoire">Services Labo</option>
                 <option value="consommable_medical">Consommable médical</option>
                 <option value="equipement">Équipement</option>
             </select>
@@ -5568,6 +5680,18 @@ async function saveAchat() {
     ])) return;
 
     if (!validateLignes('.ligne-achat', '.la-designation', ['.la-quantite', '.la-prix-unitaire'], 'Ajoutez au moins un article')) return;
+
+    // Catégorie obligatoire (choix manuel, pas de défaut) sur chaque ligne créant un nouvel article
+    const ligneSansCategorie = Array.from(document.querySelectorAll('.ligne-achat-wrapper')).find(wrapper =>
+        wrapper.querySelector('.la-designation').value.trim() !== ''
+        && !wrapper.querySelector('.la-stock-id').value
+        && !wrapper.querySelector('.la-categorie').value
+    );
+    if (ligneSansCategorie) {
+        showToast(`Choisissez une catégorie pour le nouvel article "${ligneSansCategorie.querySelector('.la-designation').value.trim()}"`, 'error');
+        ligneSansCategorie.querySelector('.la-categorie').focus();
+        return;
+    }
 
     const id = document.getElementById('ac-id').value;
     const lignes = Array.from(document.querySelectorAll('.ligne-achat-wrapper')).map(wrapper => {

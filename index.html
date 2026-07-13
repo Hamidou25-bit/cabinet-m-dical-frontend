@@ -630,7 +630,6 @@
                         <input type="text" id="filter-examens-date-debut" placeholder="JJ/MM/AAAA" title="Date - du" oninput="filterExamens()">
                         <input type="text" id="filter-examens-date-fin" placeholder="JJ/MM/AAAA" title="Date - au" oninput="filterExamens()">
                         <button class="btn" onclick="resetFilterExamens()">Réinitialiser</button>
-                        <button class="btn" onclick="openConsommablesLaboModal()">🧪 Consommables</button>
                         <button class="btn admin-only" onclick="exportExamensExcel()">📊 Exporter Excel</button>
                         <button class="btn btn-primary" id="btn-nouvel-examen" onclick="openExamenModal()">+ Nouvel examen</button>
                     </div>
@@ -956,6 +955,7 @@
                         <input type="text" class="search-box" placeholder="Rechercher..." id="search-stock" oninput="filterStock()">
                         <button class="btn" onclick="exportStockExcel()">📊 Exporter Excel</button>
                         <button class="btn" id="btn-recalcul-prix" onclick="ouvrirRecalculPrix()">💰 Recalculer les prix</button>
+                        <button class="btn" id="btn-gerer-statuts-equipement" style="display:none;" onclick="openStatutsEquipementModal()">⚙️ Gérer les états</button>
                         <button class="btn btn-primary" onclick="openNewStockModal()">+ Nouvel article</button>
                     </div>
                 </div>
@@ -985,28 +985,50 @@
 
         <!-- UTILISATION MÉDICALE (prélèvements de consommables médicaux, tous rôles) -->
         <div id="page-utilisation-medicale" class="page">
-            <div class="table-container">
-                <div class="table-header">
-                    <h3>Consommables médicaux — Prélèvement interne</h3>
-                    <input type="text" class="search-box" placeholder="Rechercher..." id="search-utilisation-medicale" oninput="filterUtilisationMedicale()">
+            <div style="display:flex; gap:10px; margin-bottom:15px;">
+                <button class="btn btn-primary" id="tab-um-prelever" onclick="showUtilisationMedicaleTab('prelever')">Prélever</button>
+                <button class="btn" id="tab-um-historique" onclick="showUtilisationMedicaleTab('historique')">Historique</button>
+            </div>
+            <div id="um-tab-prelever">
+                <div class="table-container">
+                    <div class="table-header">
+                        <h3>Consommables médicaux — Prélèvement interne</h3>
+                        <input type="text" class="search-box" placeholder="Rechercher..." id="search-utilisation-medicale" oninput="filterUtilisationMedicale()">
+                    </div>
+                    <div style="padding: 10px 20px 0;">
+                        <p style="color:#64748B; font-size:13px; margin:0;">Articles à usage interne du cabinet (gants, masques, coton...). Le prélèvement déduit la quantité du stock et est tracé (utilisateur, date, note). Ces articles ne sont jamais vendus via ordonnance.</p>
+                    </div>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Désignation</th>
+                                <th>Dosage</th>
+                                <th>Forme</th>
+                                <th>Quantité disponible</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="table-utilisation-medicale">
+                            <tr><td colspan="5" class="loading">Chargement...</td></tr>
+                        </tbody>
+                    </table>
                 </div>
-                <div style="padding: 10px 20px 0;">
-                    <p style="color:#64748B; font-size:13px; margin:0;">Articles à usage interne du cabinet (gants, masques, coton...). Le prélèvement déduit la quantité du stock et est tracé (utilisateur, date, note). Ces articles ne sont jamais vendus via ordonnance.</p>
+            </div>
+            <div id="um-tab-historique" style="display:none;">
+                <div class="table-container">
+                    <div class="table-header">
+                        <h3>Historique des prélèvements</h3>
+                        <button class="btn" onclick="exportUtilisationMedicaleHistoriqueExcel()">📊 Exporter Excel</button>
+                    </div>
+                    <table>
+                        <thead>
+                            <tr><th>Date</th><th>Article</th><th>Qté</th><th>Par</th><th>Motif</th><th>Actions</th></tr>
+                        </thead>
+                        <tbody id="table-um-historique">
+                            <tr><td colspan="6" class="loading">Chargement...</td></tr>
+                        </tbody>
+                    </table>
                 </div>
-                <table>
-                    <thead>
-                        <tr>
-                            <th>Désignation</th>
-                            <th>Dosage</th>
-                            <th>Forme</th>
-                            <th>Quantité disponible</th>
-                            <th>Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody id="table-utilisation-medicale">
-                        <tr><td colspan="5" class="loading">Chargement...</td></tr>
-                    </tbody>
-                </table>
             </div>
         </div>
 
@@ -1565,55 +1587,6 @@
         </div>
     </div>
 </div>
-<!-- MODAL CONSOMMABLES LABORATOIRE (page Examens : prélèvement usage interne + historique) -->
-<div class="modal-overlay" id="modal-consommables-labo">
-    <div class="modal" style="width:920px; max-width:95%;">
-        <h3>Consommables laboratoire</h3>
-        <div style="display:flex; gap:10px; margin-bottom:15px;">
-            <button class="btn btn-primary" id="tab-conso-labo-prelever" onclick="showConsoLaboTab('prelever')">Prélever (usage interne)</button>
-            <button class="btn" id="tab-conso-labo-historique" onclick="showConsoLaboTab('historique')">Historique</button>
-        </div>
-        <div id="conso-labo-tab-prelever">
-            <p style="color:#64748B; font-size:13px; margin-top:0;">Sortie de stock non liée à un patient (contrôle qualité, casse, péremption...). Déduit du stock et tracé dans l'historique. Les sorties liées à un examen sont automatiques à la création de l'examen.</p>
-            <div class="form-row">
-                <div class="form-group">
-                    <label>Article<span class="required-mark">*</span></label>
-                    <select id="ul-article"><option value="">-- Choisir un consommable --</option></select>
-                </div>
-                <div class="form-group">
-                    <label>Quantité<span class="required-mark">*</span></label>
-                    <input type="number" id="ul-quantite" min="1" value="1">
-                </div>
-            </div>
-            <div class="form-group">
-                <label>Motif (optionnel)</label>
-                <input type="text" id="ul-motif" placeholder="Ex: contrôle qualité">
-            </div>
-            <div class="modal-actions">
-                <button class="btn" onclick="closeModal('modal-consommables-labo')">Fermer</button>
-                <button class="btn btn-primary" onclick="preleverUsageInterneLabo()">Prélever</button>
-            </div>
-        </div>
-        <div id="conso-labo-tab-historique" style="display:none;">
-            <div style="display:flex; justify-content:flex-end; margin-bottom:10px;">
-                <button class="btn" onclick="exportConsoLaboHistoriqueExcel()">📊 Exporter Excel</button>
-            </div>
-            <div style="max-height:60vh; overflow-y:auto;">
-                <table>
-                    <thead>
-                        <tr><th>Date</th><th>Article</th><th>Qté</th><th>Type</th><th>Patient</th><th>Par</th><th>Motif</th></tr>
-                    </thead>
-                    <tbody id="table-conso-labo-historique">
-                        <tr><td colspan="7" class="loading">Chargement...</td></tr>
-                    </tbody>
-                </table>
-            </div>
-            <div class="modal-actions">
-                <button class="btn" onclick="closeModal('modal-consommables-labo')">Fermer</button>
-            </div>
-        </div>
-    </div>
-</div>
 <!-- MODAL CONSULTATION -->
 <div class="modal-overlay" id="modal-consultation">
     <div class="modal modal-lg">
@@ -1854,6 +1827,31 @@
         <div class="modal-actions">
             <button class="btn" onclick="closeModal('modal-prelevement')">Annuler</button>
             <button class="btn btn-primary" id="btn-confirmer-prelevement" onclick="savePrelevement()">Prélever</button>
+        </div>
+    </div>
+</div>
+
+<!-- MODAL MODIFICATION D'UN PRÉLÈVEMENT (onglet Historique de la page Utilisation Médicale) -->
+<div class="modal-overlay" id="modal-edit-mouvement">
+    <div class="modal">
+        <h3>Modifier le prélèvement</h3>
+        <input type="hidden" id="em-id">
+        <div class="form-group">
+            <label>Article</label>
+            <div id="em-article-nom" style="font-weight:600; padding:6px 0;"></div>
+        </div>
+        <div class="form-group">
+            <label>Quantité<span class="required-mark">*</span></label>
+            <input type="number" id="em-quantite" min="1" value="1">
+        </div>
+        <div class="form-group">
+            <label>Motif (optionnel)</label>
+            <input type="text" id="em-motif">
+        </div>
+        <p style="color:#64748B; font-size:13px;">Le stock est réajusté automatiquement de la différence de quantité.</p>
+        <div class="modal-actions">
+            <button class="btn" onclick="closeModal('modal-edit-mouvement')">Annuler</button>
+            <button class="btn btn-primary" id="btn-save-mouvement" onclick="saveEditMouvement()">Enregistrer</button>
         </div>
     </div>
 </div>
@@ -2350,6 +2348,32 @@
         <div class="modal-actions">
             <button class="btn" onclick="closeModal('modal-type-depense')">Fermer</button>
             <button class="btn btn-primary" onclick="addTypeDepenseAdmin()">+ Ajouter</button>
+        </div>
+    </div>
+</div>
+
+<!-- MODAL GESTION DES ÉTATS D'ÉQUIPEMENT (page Stock, onglet Équipement) -->
+<div class="modal-overlay" id="modal-statuts-equipement">
+    <div class="modal">
+        <h3>Gérer les états d'équipement</h3>
+        <p style="color:#64748B; font-size:13px; margin:0 0 10px;">Les 3 états de base (Bon état, En cours d'utilisation, À remplacer) ne peuvent pas être supprimés. Les états ajoutés ici deviennent disponibles sur l'onglet Équipement.</p>
+        <table>
+            <thead>
+                <tr><th>État</th><th>Actions</th></tr>
+            </thead>
+            <tbody id="table-statuts-equipement">
+                <tr><td colspan="2" class="loading">Chargement...</td></tr>
+            </tbody>
+        </table>
+        <div class="form-row" style="margin-top:10px;">
+            <div class="form-group">
+                <label>Nouvel état</label>
+                <input type="text" id="se-nouveau" placeholder="Ex: En panne, En réparation...">
+            </div>
+        </div>
+        <div class="modal-actions">
+            <button class="btn" onclick="closeModal('modal-statuts-equipement')">Fermer</button>
+            <button class="btn btn-primary" onclick="addStatutEquipement()">+ Ajouter</button>
         </div>
     </div>
 </div>
