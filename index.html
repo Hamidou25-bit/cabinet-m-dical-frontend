@@ -630,6 +630,7 @@
                         <input type="text" id="filter-examens-date-debut" placeholder="JJ/MM/AAAA" title="Date - du" oninput="filterExamens()">
                         <input type="text" id="filter-examens-date-fin" placeholder="JJ/MM/AAAA" title="Date - au" oninput="filterExamens()">
                         <button class="btn" onclick="resetFilterExamens()">Réinitialiser</button>
+                        <button class="btn" onclick="openConsommablesLaboModal()">🧪 Consommables</button>
                         <button class="btn admin-only" onclick="exportExamensExcel()">📊 Exporter Excel</button>
                         <button class="btn btn-primary" id="btn-nouvel-examen" onclick="openExamenModal()">+ Nouvel examen</button>
                     </div>
@@ -655,30 +656,6 @@
                 </table>
             </div>
 
-            <!-- Usage interne de consommables laboratoire (sortie sans patient) -->
-            <div class="table-container" style="margin-top:20px;">
-                <div class="table-header">
-                    <h3>Consommables laboratoire — Usage interne</h3>
-                </div>
-                <div style="padding: 15px 20px;">
-                    <p style="color:#64748B; font-size:13px; margin-top:0;">Sortie de stock non liée à un patient (contrôle qualité, casse, péremption...). Déduit du stock et tracé dans l'historique de l'article.</p>
-                    <div class="form-row">
-                        <div class="form-group">
-                            <label>Article<span class="required-mark">*</span></label>
-                            <select id="ul-article"><option value="">-- Choisir un consommable --</option></select>
-                        </div>
-                        <div class="form-group">
-                            <label>Quantité<span class="required-mark">*</span></label>
-                            <input type="number" id="ul-quantite" min="1" value="1">
-                        </div>
-                        <div class="form-group">
-                            <label>Motif (optionnel)</label>
-                            <input type="text" id="ul-motif" placeholder="Ex: contrôle qualité">
-                        </div>
-                    </div>
-                    <button class="btn btn-primary" onclick="preleverUsageInterneLabo()">Prélever</button>
-                </div>
-            </div>
         </div>
 
         <!-- SOINS -->
@@ -967,7 +944,7 @@
             <!-- Onglets Médicaments / Consommables labo / Consommables médicaux / Équipement -->
             <div style="display:flex; gap:10px; margin-bottom:15px; flex-wrap:wrap;">
                 <button class="btn btn-primary" id="tab-stock-medicament" onclick="showStockTab('medicament')">Médicaments</button>
-                <button class="btn" id="tab-stock-consommable_laboratoire" onclick="showStockTab('consommable_laboratoire')">Consommables laboratoire</button>
+                <button class="btn" id="tab-stock-consommable_laboratoire" onclick="showStockTab('consommable_laboratoire')">Services Laboratoire</button>
                 <button class="btn" id="tab-stock-consommable_medical" onclick="showStockTab('consommable_medical')">Consommables médicaux</button>
                 <button class="btn" id="tab-stock-equipement" onclick="showStockTab('equipement')">Équipement</button>
             </div>
@@ -1003,6 +980,7 @@
                     </tbody>
                 </table>
             </div>
+
         </div>
 
         <!-- UTILISATION MÉDICALE (prélèvements de consommables médicaux, tous rôles) -->
@@ -1552,11 +1530,6 @@
             <div id="examen-lignes-container"></div>
             <button type="button" class="btn btn-sm" id="btn-add-ligne-examen" onclick="addLigneExamen()">+ Ajouter un examen</button>
         </div>
-        <div class="form-group" id="examen-consommables-group">
-            <label>Consommables laboratoire utilisés <span style="color:var(--text-light);font-weight:400;">(optionnel — déduits du stock à l'enregistrement)</span></label>
-            <div id="examen-consommables-container"></div>
-            <button type="button" class="btn btn-sm" id="btn-add-consommable-examen" onclick="addLigneConsommableExamen()">+ Ajouter un consommable</button>
-        </div>
         <div class="form-row">
             <div class="form-group">
                 <label>Total</label>
@@ -1589,6 +1562,55 @@
         <div class="modal-actions">
             <button class="btn" onclick="closeModal('modal-resultat-examen')">Annuler</button>
             <button class="btn btn-primary" onclick="saveResultatExamen()">Enregistrer</button>
+        </div>
+    </div>
+</div>
+<!-- MODAL CONSOMMABLES LABORATOIRE (page Examens : prélèvement usage interne + historique) -->
+<div class="modal-overlay" id="modal-consommables-labo">
+    <div class="modal" style="width:920px; max-width:95%;">
+        <h3>Consommables laboratoire</h3>
+        <div style="display:flex; gap:10px; margin-bottom:15px;">
+            <button class="btn btn-primary" id="tab-conso-labo-prelever" onclick="showConsoLaboTab('prelever')">Prélever (usage interne)</button>
+            <button class="btn" id="tab-conso-labo-historique" onclick="showConsoLaboTab('historique')">Historique</button>
+        </div>
+        <div id="conso-labo-tab-prelever">
+            <p style="color:#64748B; font-size:13px; margin-top:0;">Sortie de stock non liée à un patient (contrôle qualité, casse, péremption...). Déduit du stock et tracé dans l'historique. Les sorties liées à un examen sont automatiques à la création de l'examen.</p>
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Article<span class="required-mark">*</span></label>
+                    <select id="ul-article"><option value="">-- Choisir un consommable --</option></select>
+                </div>
+                <div class="form-group">
+                    <label>Quantité<span class="required-mark">*</span></label>
+                    <input type="number" id="ul-quantite" min="1" value="1">
+                </div>
+            </div>
+            <div class="form-group">
+                <label>Motif (optionnel)</label>
+                <input type="text" id="ul-motif" placeholder="Ex: contrôle qualité">
+            </div>
+            <div class="modal-actions">
+                <button class="btn" onclick="closeModal('modal-consommables-labo')">Fermer</button>
+                <button class="btn btn-primary" onclick="preleverUsageInterneLabo()">Prélever</button>
+            </div>
+        </div>
+        <div id="conso-labo-tab-historique" style="display:none;">
+            <div style="display:flex; justify-content:flex-end; margin-bottom:10px;">
+                <button class="btn" onclick="exportConsoLaboHistoriqueExcel()">📊 Exporter Excel</button>
+            </div>
+            <div style="max-height:60vh; overflow-y:auto;">
+                <table>
+                    <thead>
+                        <tr><th>Date</th><th>Article</th><th>Qté</th><th>Type</th><th>Patient</th><th>Par</th><th>Motif</th></tr>
+                    </thead>
+                    <tbody id="table-conso-labo-historique">
+                        <tr><td colspan="7" class="loading">Chargement...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+            <div class="modal-actions">
+                <button class="btn" onclick="closeModal('modal-consommables-labo')">Fermer</button>
+            </div>
         </div>
     </div>
 </div>
@@ -1703,6 +1725,18 @@
             <div class="form-group" id="st-seuil-group">
                 <label>Seuil alerte</label>
                 <input type="number" id="st-seuil">
+            </div>
+        </div>
+        <!-- Champs réservés aux consommables laboratoire : lien vers un type d'examen
+             (pré-remplit la section consommables du modal Examen) -->
+        <div class="form-row" id="st-examen-row" style="display:none;">
+            <div class="form-group">
+                <label>Type d'examen associé <span style="color:var(--text-light);font-weight:400;">(optionnel)</span></label>
+                <select id="st-examen-type"></select>
+            </div>
+            <div class="form-group">
+                <label>Quantité utilisée par examen</label>
+                <input type="number" id="st-quantite-examen" min="0" step="any" value="1">
             </div>
         </div>
         <!-- Champs réservés à l'équipement (jamais vendu : pas de prix de vente ni de marge) -->

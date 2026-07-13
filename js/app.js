@@ -1984,7 +1984,7 @@ function genererEtImprimerCertificat() {
 
 // Stock
 let currentStockTab = 'medicament';
-const STOCK_TAB_LABELS = { medicament: 'Stock médicaments', consommable_laboratoire: 'Consommables laboratoire', consommable_medical: 'Consommables médicaux', equipement: 'Équipement' };
+const STOCK_TAB_LABELS = { medicament: 'Stock médicaments', consommable_laboratoire: 'Services Laboratoire', consommable_medical: 'Consommables médicaux', equipement: 'Équipement' };
 const STOCK_CATEGORIE_LABELS = { medicament: 'Médicament', consommable_laboratoire: 'Consommable laboratoire', consommable_medical: 'Consommable médical', equipement: 'Équipement' };
 const STATUT_EQUIPEMENT_LABELS = { bon_etat: 'Bon état', en_utilisation: "En cours d'utilisation", a_remplacer: 'À remplacer' };
 // Catégories concernées par les sorties internes tracées (mouvements_consommable)
@@ -2013,6 +2013,11 @@ function showStockTab(tab) {
     document.getElementById('btn-recalcul-prix').style.display = tab === 'equipement' ? 'none' : '';
     filterStock();
 }
+
+// Catégorie d'examen "Laboratoire" (type_examen.id = 1) : depuis le retrait de la
+// section "Services (types d'examen)", le type d'un nouvel examen Laboratoire est
+// directement un article du Services Laboratoire (stock, categorie consommable_laboratoire).
+const TYPE_EXAMEN_LABORATOIRE_ID = 1;
 
 // Variable dédiée à la page Stock (liste complète admin, avec categorie) : distincte de
 // stockData (cache partagé Ordonnances/Achats, alimenté par /stock/designations ou /stock)
@@ -2371,11 +2376,35 @@ function populateFournisseurSelect(selected, selectId = 'st-fournisseur', valueF
 // L'équipement n'est jamais vendu : seuil d'alerte, prix de vente et marge masqués ;
 // à la place, date d'achat + état de l'équipement (Bon état / En cours d'utilisation / À remplacer)
 function onStockCategorieChange() {
-    const isEquipement = document.getElementById('st-categorie').value === 'equipement';
+    const categorie = document.getElementById('st-categorie').value;
+    const isEquipement = categorie === 'equipement';
     document.getElementById('st-seuil-group').style.display = isEquipement ? 'none' : '';
     document.getElementById('st-prix-vente-group').style.display = isEquipement ? 'none' : '';
     document.getElementById('st-marge-group').style.display = isEquipement ? 'none' : '';
     document.getElementById('st-equipement-row').style.display = isEquipement ? '' : 'none';
+    // Lien type d'examen : réservé aux consommables laboratoire
+    document.getElementById('st-examen-row').style.display = categorie === 'consommable_laboratoire' ? '' : 'none';
+}
+
+// Charge les types d'examens si absents (cache partagé avec le modal Examen et la page admin)
+async function ensureTypesExamensLoaded() {
+    if (typesExamensData.length) return;
+    try { typesExamensData = await apiFetch('/examens-types/').then(r => r.json()); }
+    catch (e) { typesExamensData = []; }
+}
+
+// Peuple le select "Type d'examen associé" de la fiche article (consommable labo).
+// Filtré sur la catégorie Laboratoire — repli sur tous les types si aucun nom de
+// catégorie ne contient "labo" (renommage éventuel côté admin).
+async function populateStockExamenSelect(selectedId) {
+    await ensureTypesExamensLoaded();
+    const labo = typesExamensData.filter(t => (t.type_nom || '').toLowerCase().includes('labo'));
+    const types = labo.length ? labo : typesExamensData;
+    const select = document.getElementById('st-examen-type');
+    select.innerHTML = '<option value="">-- Aucun --</option>'
+        + types.map(t => `<option value="${t.id}">${escapeHtml(t.nom || '')}</option>`).join('');
+    select.value = selectedId != null ? String(selectedId) : '';
+    if (selectedId != null && select.value !== String(selectedId)) select.value = '';
 }
 
 // Créer un article directement depuis la page Stock (indépendant du parcours Achats)
@@ -2397,6 +2426,8 @@ function openNewStockModal() {
     document.getElementById('st-peremption').value = '';
     document.getElementById('st-date-achat').value = new Date().toISOString().split('T')[0];
     document.getElementById('st-statut-equipement').value = 'bon_etat';
+    document.getElementById('st-quantite-examen').value = 1;
+    populateStockExamenSelect(null);
     const margeInputNew = document.getElementById('st-marge-perso');
     margeInputNew.value = '';
     delete margeInputNew.dataset.touched;
@@ -2425,6 +2456,8 @@ function editStockArticle(id) {
     document.getElementById('st-peremption').value = article.DatePeremption || '';
     document.getElementById('st-date-achat').value = (article.DateEntree || '').split('T')[0];
     document.getElementById('st-statut-equipement').value = article.statut_equipement || 'bon_etat';
+    document.getElementById('st-quantite-examen').value = article.quantite_examen || 1;
+    populateStockExamenSelect(article.sous_type_examen_id || null);
     const margeInput = document.getElementById('st-marge-perso');
     margeInput.value = (article.marge_personnalisee ?? '') === '' ? '' : article.marge_personnalisee;
     delete margeInput.dataset.touched;
@@ -2455,6 +2488,8 @@ function dupliquerStockArticle(id) {
     document.getElementById('st-peremption').value = article.DatePeremption || '';
     document.getElementById('st-date-achat').value = new Date().toISOString().split('T')[0];
     document.getElementById('st-statut-equipement').value = 'bon_etat';
+    document.getElementById('st-quantite-examen').value = article.quantite_examen || 1;
+    populateStockExamenSelect(article.sous_type_examen_id || null);
     const margeInput = document.getElementById('st-marge-perso');
     margeInput.value = '';
     delete margeInput.dataset.touched;
@@ -2598,21 +2633,72 @@ function populateUsageInterneLaboSelect() {
     if (select) select.innerHTML = consommablesLaboOptions();
 }
 
-// Ligne de consommable dans le modal Examen (création uniquement)
-function addLigneConsommableExamen() {
-    const container = document.getElementById('examen-consommables-container');
-    const wrapper = document.createElement('div');
-    wrapper.className = 'ligne-consommable-examen';
-    wrapper.style.cssText = 'display:flex; gap:8px; margin-bottom:6px; align-items:center;';
-    wrapper.innerHTML = `
-        <select class="ce-article" style="flex:2;">${consommablesLaboOptions()}</select>
-        <input type="number" class="ce-quantite" style="flex:0 0 110px;" min="1" value="1" title="Quantité">
-        <button type="button" class="btn-remove" onclick="this.parentElement.remove()">✕</button>
-    `;
-    container.appendChild(wrapper);
+// Modal Consommables de la page Examens : prélèvement usage interne + historique des
+// mouvements labo. Les sorties liées à un examen patient sont désormais automatiques
+// (backend, à la création de l'examen) — plus de saisie manuelle dans le modal Examen.
+async function openConsommablesLaboModal() {
+    showConsoLaboTab('prelever');
+    document.getElementById('ul-quantite').value = 1;
+    document.getElementById('ul-motif').value = '';
+    openModal('modal-consommables-labo');
+    try {
+        await ensureConsommablesLaboLoaded(true);
+        populateUsageInterneLaboSelect();
+    } catch (e) { showToast('Erreur de chargement des consommables : ' + e.message, 'error'); }
 }
 
-// Sortie de consommable labo sans patient (mini-formulaire sous la liste des examens)
+function showConsoLaboTab(tab) {
+    ['prelever', 'historique'].forEach(t => {
+        document.getElementById('tab-conso-labo-' + t).className = t === tab ? 'btn btn-primary' : 'btn';
+        document.getElementById('conso-labo-tab-' + t).style.display = t === tab ? '' : 'none';
+    });
+    if (tab === 'historique') loadConsoLaboHistorique();
+}
+
+let consoLaboHistoriqueData = [];
+
+async function loadConsoLaboHistorique() {
+    const tbody = document.getElementById('table-conso-labo-historique');
+    tbody.innerHTML = '<tr><td colspan="7" class="loading">Chargement...</td></tr>';
+    consoLaboHistoriqueData = [];
+    try {
+        const res = await apiFetch('/stock/mouvements?categorie=consommable_laboratoire&limit=100').then(r => r.json());
+        consoLaboHistoriqueData = res.mouvements;
+        if (!res.mouvements.length) { tbody.innerHTML = '<tr><td colspan="7">Aucun mouvement</td></tr>'; return; }
+        tbody.innerHTML = res.mouvements.map(m => {
+            const type = m.type_sortie === 'examen_patient' ? 'Examen patient' : 'Usage interne';
+            const patient = m.patient_id ? `${m.patient_nom || ''} ${m.patient_prenom || ''}`.trim() : '-';
+            return `<tr>
+                <td>${formatDateFR(m.date_mouvement)}</td>
+                <td>${escapeHtml(m.designation || '')}</td>
+                <td>${m.quantite}</td>
+                <td>${type}</td>
+                <td>${escapeHtml(patient)}</td>
+                <td>${escapeHtml(m.utilisateur_nom || m.utilisateur_login || '-')}</td>
+                <td>${escapeHtml(m.motif || '-')}</td>
+            </tr>`;
+        }).join('');
+    } catch (e) { tbody.innerHTML = '<tr><td colspan="7">Erreur</td></tr>'; }
+}
+
+function exportConsoLaboHistoriqueExcel() {
+    if (!consoLaboHistoriqueData.length) { showToast('Aucun mouvement à exporter', 'warning'); return; }
+    const rows = consoLaboHistoriqueData.map(m => ({
+        'Date': formatDateFR(m.date_mouvement),
+        'Article': m.designation || '',
+        'Quantité': m.quantite,
+        'Type': m.type_sortie === 'examen_patient' ? 'Examen patient' : 'Usage interne',
+        'Patient': m.patient_id ? `${m.patient_nom || ''} ${m.patient_prenom || ''}`.trim() : '-',
+        'Par': m.utilisateur_nom || m.utilisateur_login || '-',
+        'Motif': m.motif || '-',
+    }));
+    const ws = XLSX.utils.json_to_sheet(rows);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Historique labo');
+    telechargerEtOuvrir(wb, `consommables_labo_${new Date().toISOString().split('T')[0]}.xlsx`);
+}
+
+// Sortie de consommable labo sans patient (onglet Prélever du modal Consommables)
 async function preleverUsageInterneLabo() {
     const stockId = document.getElementById('ul-article').value;
     const quantite = parseInt(document.getElementById('ul-quantite').value) || 0;
@@ -2669,6 +2755,14 @@ async function saveStockArticle() {
         // La date d'achat visible du volet équipement remplace la DateEntree cachée
         const dateAchat = document.getElementById('st-date-achat').value;
         if (dateAchat) article.DateEntree = dateAchat;
+    }
+
+    // Lien type d'examen : uniquement pour les consommables laboratoire (le backend
+    // refuse le champ pour les autres catégories et force NULL en base)
+    if (article.categorie === 'consommable_laboratoire') {
+        article.sous_type_examen_id = parseInt(document.getElementById('st-examen-type').value) || null;
+        const qteExamen = parseFloat(document.getElementById('st-quantite-examen').value);
+        article.quantite_examen = qteExamen > 0 ? qteExamen : 1;
     }
 
     // marge_personnalisee : la clé n'est envoyée QUE si l'admin a touché le champ
@@ -3649,12 +3743,6 @@ async function loadExamens() {
         examensData = await apiFetch('/examens-complementaires').then(r => r.json());
         filterExamens();
     } catch(e) { document.getElementById('table-examens').innerHTML = '<tr><td colspan="9">Erreur</td></tr>'; }
-    // Alimente le mini-formulaire "Usage interne" (rechargé à chaque visite : les
-    // quantités disponibles changent au fil des prélèvements)
-    try {
-        await ensureConsommablesLaboLoaded(true);
-        populateUsageInterneLaboSelect();
-    } catch (e) { /* non bloquant : la liste des examens reste utilisable */ }
 }
 
 function renderExamens(data) {
@@ -3799,15 +3887,20 @@ async function loadExamenRefs() {
     const tasks = [];
     if (!medecinsData.length) tasks.push(ensureMedecinsLoaded());
     if (!typesExamensData.length) tasks.push(apiFetch('/examens-types/').then(r => r.json()).then(d => typesExamensData = Array.isArray(d) ? d : []).catch(() => typesExamensData = []));
+    // Articles du Services Laboratoire : servent de types d'examen pour la catégorie
+    // Laboratoire (rechargés à chaque ouverture pour refléter quantités/prix à jour)
+    tasks.push(ensureConsommablesLaboLoaded(true).catch(() => {}));
     if (tasks.length) await Promise.all(tasks);
 
     const medecinSelect = document.getElementById('e-medecin');
     medecinSelect.innerHTML = '<option value="">-- Aucun --</option>' + medecinsData.map(m => `<option value="${m.id}">${m.nom}</option>`).join('');
 }
 
-// Retourne la liste des catégories d'examens (id + nom) déduite des types d'examens chargés
+// Retourne la liste des catégories d'examens (id + nom) déduite des types d'examens chargés.
+// Laboratoire est toujours présent : ses types viennent des articles du Services Laboratoire,
+// plus de la table sous_type_examen.
 function getExamenCategoriesList() {
-    const map = new Map();
+    const map = new Map([[TYPE_EXAMEN_LABORATOIRE_ID, 'Laboratoire']]);
     typesExamensData.forEach(t => { if (!map.has(t.type_examen_id)) map.set(t.type_examen_id, t.type_nom); });
     return [...map.entries()].map(([id, nom]) => ({ id, nom }));
 }
@@ -3844,12 +3937,20 @@ function updateExamenLignesRemoveButtons() {
     });
 }
 
+// Valeurs du select type préfixées pour distinguer les deux sources :
+// "art-<idStock>" = article du Services Laboratoire (nouveau flux Laboratoire),
+// "ste-<id>" = sous_type_examen (Imagerie, et anciens examens Laboratoire en modification).
 function onLigneExamenCategorieChange(select) {
     const wrapper = select.closest('.ligne-examen-wrapper');
     const typeSelect = wrapper.querySelector('.le-type');
     const categorieId = parseInt(select.value);
-    const types = typesExamensData.filter(t => t.type_examen_id === categorieId);
-    typeSelect.innerHTML = types.map(t => `<option value="${t.id}" data-tarif="${t.tarif}">${t.nom}</option>`).join('');
+    if (categorieId === TYPE_EXAMEN_LABORATOIRE_ID) {
+        typeSelect.innerHTML = consommablesLaboData.map(s =>
+            `<option value="art-${s.idStock}" data-tarif="${s.PrixVente || 0}">${escapeHtml(s.Designation || '')}</option>`).join('');
+    } else {
+        const types = typesExamensData.filter(t => t.type_examen_id === categorieId);
+        typeSelect.innerHTML = types.map(t => `<option value="ste-${t.id}" data-tarif="${t.tarif}">${escapeHtml(t.nom || '')}</option>`).join('');
+    }
     onLigneExamenTypeChange(typeSelect);
 }
 
@@ -3882,7 +3983,7 @@ async function openExamenModal() {
     onExamenTypePatientChange(isExterne ? 'externe' : 'enregistre');
     document.getElementById('e-nom-externe').value = '';
 
-    const tasks = [loadExamenRefs(), ensureConsommablesLaboLoaded(true)];
+    const tasks = [loadExamenRefs()];
     if (!patientsData.length) tasks.push(loadPatients());
     await Promise.all(tasks);
     resetPatientCombo('e');
@@ -3894,11 +3995,6 @@ async function openExamenModal() {
     addLigneExamen();
     document.getElementById('btn-add-ligne-examen').style.display = '';
     updateExamenTotalDisplay();
-
-    // Consommables labo : uniquement à la création (en modification, les mouvements
-    // de stock ont déjà été appliqués — pas de re-consommation)
-    document.getElementById('examen-consommables-container').innerHTML = '';
-    document.getElementById('examen-consommables-group').style.display = '';
 
     openModal('modal-examen');
 }
@@ -3924,11 +4020,33 @@ async function editExamen(id) {
     document.getElementById('examen-lignes-container').innerHTML = '';
     addLigneExamen();
     const wrapper = document.querySelector('#examen-lignes-container .ligne-examen-wrapper');
-    const sousType = typesExamensData.find(t => t.id === examen.sous_type_examen_id);
-    if (sousType) {
-        wrapper.querySelector('.le-categorie').value = sousType.type_examen_id;
+    const typeSelect = wrapper.querySelector('.le-type');
+    if (examen.article_stock_id) {
+        // Nouveau flux Laboratoire : le type est un article du Services Laboratoire
+        wrapper.querySelector('.le-categorie').value = TYPE_EXAMEN_LABORATOIRE_ID;
         onLigneExamenCategorieChange(wrapper.querySelector('.le-categorie'));
-        wrapper.querySelector('.le-type').value = examen.sous_type_examen_id;
+        typeSelect.value = `art-${examen.article_stock_id}`;
+        // Article supprimé/décatégorisé depuis : option legacy pour rester affichable
+        if (typeSelect.value !== `art-${examen.article_stock_id}`) {
+            typeSelect.insertAdjacentHTML('beforeend',
+                `<option value="art-${examen.article_stock_id}" data-tarif="${examen.prix || 0}">${escapeHtml(examen.examen_nom || 'Article inconnu')}</option>`);
+            typeSelect.value = `art-${examen.article_stock_id}`;
+        }
+    } else {
+        const sousType = typesExamensData.find(t => t.id === examen.sous_type_examen_id);
+        if (sousType) {
+            wrapper.querySelector('.le-categorie').value = sousType.type_examen_id;
+            onLigneExamenCategorieChange(wrapper.querySelector('.le-categorie'));
+            typeSelect.value = `ste-${examen.sous_type_examen_id}`;
+            // Ancien examen Laboratoire (créé via sous_type_examen) : la catégorie
+            // Laboratoire ne liste plus que des articles — on ajoute son type
+            // historique en option legacy pour qu'il reste affichable/modifiable.
+            if (typeSelect.value !== `ste-${examen.sous_type_examen_id}`) {
+                typeSelect.insertAdjacentHTML('beforeend',
+                    `<option value="ste-${sousType.id}" data-tarif="${sousType.tarif || 0}">${escapeHtml(sousType.nom || '')} (ancien type)</option>`);
+                typeSelect.value = `ste-${examen.sous_type_examen_id}`;
+            }
+        }
     }
     wrapper.querySelector('.le-prix').value = examen.prix || 0;
     document.getElementById('btn-add-ligne-examen').style.display = 'none';
@@ -3937,11 +4055,6 @@ async function editExamen(id) {
     document.getElementById('e-date').value = examen.date_examen || '';
     document.getElementById('e-medecin').value = examen.medecin_id || '';
     document.getElementById('e-renseignement').value = examen.renseignement_clinique || '';
-
-    // Pas de section consommables en modification (les mouvements de stock ont déjà
-    // été appliqués à la création — pas de re-consommation)
-    document.getElementById('examen-consommables-container').innerHTML = '';
-    document.getElementById('examen-consommables-group').style.display = 'none';
 
     openModal('modal-examen');
 }
@@ -3985,13 +4098,19 @@ async function saveExamen() {
     const medecinId = document.getElementById('e-medecin').value ? parseInt(document.getElementById('e-medecin').value) : null;
     const renseignement = document.getElementById('e-renseignement').value;
 
+    // Traduit la valeur préfixée du select type ("art-<idStock>" ou "ste-<id>")
+    // en champ API : article_stock_id (Laboratoire) ou sous_type_examen_id.
+    const champsType = (valeur) => valeur.startsWith('art-')
+        ? { article_stock_id: parseInt(valeur.slice(4)), sous_type_examen_id: null }
+        : { sous_type_examen_id: parseInt(valeur.replace('ste-', '')), article_stock_id: null };
+
     try {
         if (id) {
             const ligne = lignes[0];
             const data = {
                 patient_id: patientId,
                 nom_patient_externe: nomPatientExterne,
-                sous_type_examen_id: parseInt(ligne.querySelector('.le-type').value),
+                ...champsType(ligne.querySelector('.le-type').value),
                 date_examen: dateExamen,
                 prix: parseFloat(ligne.querySelector('.le-prix').value) || 0,
                 medecin_id: medecinId,
@@ -3999,52 +4118,21 @@ async function saveExamen() {
             };
             await apiFetch(`/examens-complementaires/${id}`, { method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(data) });
         } else {
-            let premierExamenId = null;
             for (const ligne of lignes) {
                 const data = {
                     patient_id: patientId,
                     nom_patient_externe: nomPatientExterne,
-                    sous_type_examen_id: parseInt(ligne.querySelector('.le-type').value),
+                    ...champsType(ligne.querySelector('.le-type').value),
                     date_examen: dateExamen,
                     prix: parseFloat(ligne.querySelector('.le-prix').value) || 0,
                     medecin_id: medecinId,
                     renseignement_clinique: renseignement
                 };
+                // La sortie de stock des consommables liés au type d'examen est
+                // automatique côté backend — un échec (ex: stock insuffisant)
+                // n'annule pas l'examen, il est remonté en avertissement.
                 const res = await apiFetch('/examens-complementaires/', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(data) }).then(r => r.json());
-                if (premierExamenId === null && res.id) premierExamenId = res.id;
-            }
-
-            // Consommables labo utilisés : sortie de stock tracée, liée au premier
-            // examen créé (une saisie multi-types produit un enregistrement par type).
-            // Les erreurs (ex: stock insuffisant) n'annulent pas les examens déjà
-            // créés — elles sont signalées et le consommable reste à prélever à la main.
-            const consommables = Array.from(document.querySelectorAll('#examen-consommables-container .ligne-consommable-examen'))
-                .map(l => ({
-                    stock_id: parseInt(l.querySelector('.ce-article').value) || null,
-                    quantite: parseInt(l.querySelector('.ce-quantite').value) || 0,
-                }))
-                .filter(c => c.stock_id && c.quantite > 0);
-            for (const c of consommables) {
-                try {
-                    await apiFetch(`/stock/${c.stock_id}/consommer`, {
-                        method: 'POST',
-                        headers: {'Content-Type': 'application/json'},
-                        body: JSON.stringify({
-                            quantite: c.quantite,
-                            type_sortie: 'examen_patient',
-                            patient_id: patientId,
-                            examen_id: premierExamenId,
-                        }),
-                    });
-                } catch (errConso) {
-                    showToast('Examen créé, mais sortie de consommable non appliquée : ' + errConso.message, 'warning');
-                }
-            }
-            if (consommables.length) {
-                try {
-                    await ensureConsommablesLaboLoaded(true);
-                    populateUsageInterneLaboSelect();
-                } catch (e) { /* non bloquant */ }
+                (res.avertissements || []).forEach(a => showToast(a, 'warning'));
             }
         }
         closeModal('modal-examen');
@@ -4655,6 +4743,9 @@ async function loadExamensConfig() {
 
 function renderCategoriesExamens(data) {
     const tbody = document.getElementById('table-categories-examens');
+    // La catégorie Laboratoire est gérée depuis l'onglet Services Laboratoire de la
+    // page Stock — masquée ici pour éviter une double gestion (Imagerie etc. inchangées)
+    data = data.filter(c => c.id !== TYPE_EXAMEN_LABORATOIRE_ID);
     if (!data.length) { tbody.innerHTML = '<tr><td colspan="2">Aucune catégorie</td></tr>'; return; }
     tbody.innerHTML = data.map(c => `<tr>
         <td>${c.nom}</td>
@@ -4667,6 +4758,8 @@ function renderCategoriesExamens(data) {
 
 function renderTypesExamens(data) {
     const tbody = document.getElementById('table-types-examens');
+    // Types Laboratoire gérés depuis l'onglet Services Laboratoire de la page Stock
+    data = data.filter(t => t.type_examen_id !== TYPE_EXAMEN_LABORATOIRE_ID);
     if (!data.length) { tbody.innerHTML = '<tr><td colspan="4">Aucun type d\'examen</td></tr>'; return; }
     tbody.innerHTML = data.map(t => `<tr>
         <td>${t.type_nom || '-'}</td>
@@ -4681,7 +4774,9 @@ function renderTypesExamens(data) {
 
 function populateCategorieExamenSelect(selected) {
     const select = document.getElementById('te-categorie');
-    select.innerHTML = categoriesExamensData.map(c => `<option value="${c.id}">${c.nom}</option>`).join('');
+    select.innerHTML = categoriesExamensData
+        .filter(c => c.id !== TYPE_EXAMEN_LABORATOIRE_ID)
+        .map(c => `<option value="${c.id}">${c.nom}</option>`).join('');
     select.value = selected || '';
 }
 
