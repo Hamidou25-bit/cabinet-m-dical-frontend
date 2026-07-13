@@ -402,11 +402,12 @@ function showToast(message, type = 'success', duration = 3000) {
 // Dashboard
 async function loadDashboard() {
     try {
-        const [patients, consultations, stock, alertes, rdvAujourdhui, statistiques] = await Promise.all([
+        const [patients, consultations, stock, alertes, equipementsARemplacer, rdvAujourdhui, statistiques] = await Promise.all([
             apiFetch('/patients').then(r => r.json()),
             apiFetch('/consultations').then(r => r.json()),
             apiFetch('/stock').then(r => r.json()),
             apiFetch('/stock/alertes').then(r => r.json()),
+            apiFetch('/stock/equipements-a-remplacer').then(r => r.json()),
             apiFetch('/dashboard/rdv-aujourdhui').then(r => r.json()),
             apiFetch('/dashboard/statistiques').then(r => r.json())
         ]);
@@ -414,10 +415,10 @@ async function loadDashboard() {
         document.getElementById('stat-patients').textContent = patients.length;
         document.getElementById('stat-consultations').textContent = consultations.length;
         document.getElementById('stat-stock').textContent = stock.length;
-        document.getElementById('stat-alertes').textContent = alertes.length;
+        document.getElementById('stat-alertes').textContent = alertes.length + equipementsARemplacer.length;
 
         renderDashboardRdv(rdvAujourdhui);
-        updateAlertesBadges(alertes.length, rdvAujourdhui.filter(r => r.statut === 'en_attente' || r.statut === 'planifié').length);
+        updateAlertesBadges(alertes.length + equipementsARemplacer.length, rdvAujourdhui.filter(r => r.statut === 'en_attente' || r.statut === 'planifié').length);
         renderDashboardStatistiques(statistiques);
     } catch(e) { console.error('Erreur dashboard:', e); }
 }
@@ -1985,6 +1986,7 @@ function genererEtImprimerCertificat() {
 let currentStockTab = 'medicament';
 const STOCK_TAB_LABELS = { medicament: 'Stock médicaments', consommable_laboratoire: 'Consommables laboratoire', consommable_medical: 'Consommables médicaux', equipement: 'Équipement' };
 const STOCK_CATEGORIE_LABELS = { medicament: 'Médicament', consommable_laboratoire: 'Consommable laboratoire', consommable_medical: 'Consommable médical', equipement: 'Équipement' };
+const STATUT_EQUIPEMENT_LABELS = { bon_etat: 'Bon état', en_utilisation: "En cours d'utilisation", a_remplacer: 'À remplacer' };
 // Catégories concernées par les sorties internes tracées (mouvements_consommable)
 const CATEGORIES_CONSOMMABLES = ['consommable_laboratoire', 'consommable_medical'];
 
@@ -2007,6 +2009,8 @@ function showStockTab(tab) {
         document.getElementById('tab-stock-' + t).className = t === tab ? 'btn btn-primary' : 'btn';
     });
     document.getElementById('stock-tab-titre').textContent = STOCK_TAB_LABELS[tab];
+    // Le recalcul des prix exclut l'équipement (jamais vendu) : bouton sans objet sur cet onglet
+    document.getElementById('btn-recalcul-prix').style.display = tab === 'equipement' ? 'none' : '';
     filterStock();
 }
 
@@ -2017,10 +2021,11 @@ let stockAdminData = [];
 
 async function loadStock() {
     try {
-        const [data, alertes, alertesPeremption] = await Promise.all([
+        const [data, alertes, alertesPeremption, equipementsARemplacer] = await Promise.all([
             apiFetch('/stock').then(r => r.json()),
             apiFetch('/stock/alertes').then(r => r.json()),
             apiFetch('/stock/alertes-peremption').then(r => r.json()),
+            apiFetch('/stock/equipements-a-remplacer').then(r => r.json()),
             ensureFournisseursLoaded()
         ]);
         stockAdminData = data;
@@ -2029,6 +2034,11 @@ async function loadStock() {
         let alertsHtml = '';
         if (alertesTab.length > 0) alertsHtml += `<div class="alert alert-warning">⚠️ ${alertesTab.length} article(s) en alerte de stock (${STOCK_TAB_LABELS[currentStockTab].toLowerCase()})</div>`;
         if (alertesPeremption.length > 0) alertsHtml += `<div class="alert alert-warning">⏳ ${alertesPeremption.length} article(s) proche(s) de leur date de péremption</div>`;
+        // Bandeau affiché quel que soit l'onglet actif : signale qu'un rachat est à prévoir
+        if (equipementsARemplacer.length > 0) {
+            const noms = equipementsARemplacer.map(e => escapeHtml(e.Designation || '')).join(', ');
+            alertsHtml += `<div class="alert alert-danger">🔧 ${equipementsARemplacer.length} équipement(s) à remplacer : ${noms}</div>`;
+        }
         alertDiv.innerHTML = alertsHtml;
         filterStock();
     } catch(e) { document.getElementById('table-stock').innerHTML = '<tr><td colspan="10">Erreur</td></tr>'; }
@@ -2036,15 +2046,36 @@ async function loadStock() {
 
 function renderStock(data) {
     const tbody = document.getElementById('table-stock');
-    if (!data.length) { tbody.innerHTML = '<tr><td colspan="10">Aucun article</td></tr>'; return; }
+    // L'onglet Équipement a ses propres colonnes : pas de prix de vente/seuil/péremption
+    // (jamais vendu), mais date d'achat (DateEntree) et état modifiable en ligne.
+    const isEquipementTab = currentStockTab === 'equipement';
+    document.getElementById('stock-table-head').innerHTML = isEquipementTab
+        ? `<th>Désignation</th><th>Type</th><th>Quantité</th><th>Date d'achat</th><th>État</th><th>Actions</th>`
+        : '<th>Désignation</th><th>Type</th><th>Dosage</th><th>Forme</th><th>Quantité</th><th>Seuil alerte</th><th>Prix vente</th><th>Péremption</th><th>Statut</th><th>Actions</th>';
+    if (!data.length) { tbody.innerHTML = `<tr><td colspan="${isEquipementTab ? 6 : 10}">Aucun article</td></tr>`; return; }
     const dans30Jours = new Date();
     dans30Jours.setDate(dans30Jours.getDate() + 30);
     tbody.innerHTML = data.map(s => {
-        // Les articles Équipement n'ont pas de logique de seuil d'alerte : ni statut "Alerte", ni ligne colorée
-        const isEquipement = s.categorie === 'equipement';
+        const actions = `
+                <button class="btn btn-sm" onclick="openReapproModal(${s.idStock})">Réappro</button>
+                <button class="btn btn-sm" onclick="editStockArticle(${s.idStock})">Modifier</button>
+                <button class="btn btn-sm" onclick="dupliquerStockArticle(${s.idStock})" title="Créer un nouvel article pré-rempli à partir de celui-ci (ex: version usage interne d'un article vendu)">Dupliquer</button>
+                ${CATEGORIES_CONSOMMABLES.includes(s.categorie) ? `<button class="btn btn-sm" onclick="openMouvementsModal(${s.idStock})">Historique</button>` : ''}
+                <button class="btn btn-sm btn-danger" onclick="deleteStockArticle(${s.idStock})">Supprimer</button>`;
+        if (isEquipementTab) {
+            const statutActuel = s.statut_equipement || 'bon_etat';
+            const options = Object.entries(STATUT_EQUIPEMENT_LABELS)
+                .map(([val, label]) => `<option value="${val}"${val === statutActuel ? ' selected' : ''}>${label}</option>`).join('');
+            return `<tr class="${statutActuel === 'a_remplacer' ? 'row-danger' : ''}">
+                <td>${s.Designation||''}</td><td>${s.Type||''}</td><td>${formatQuantiteUnites(s.Quantite, s.unites_par_boite)}</td>
+                <td>${s.DateEntree ? formatDateFR(s.DateEntree) : '-'}</td>
+                <td><select onchange="changerStatutEquipement(${s.idStock}, this.value)" title="État de l'équipement (modifiable)">${options}</select></td>
+                <td>${actions}</td>
+            </tr>`;
+        }
         const statut = s.Quantite < 0 ? '<span class="status status-danger">Anomalie</span>'
             : s.Quantite <= 0 ? '<span class="status status-danger">Rupture</span>'
-            : (!isEquipement && s.Quantite <= s.SeuilAlerte) ? '<span class="status status-warning">Alerte</span>'
+            : s.Quantite <= s.SeuilAlerte ? '<span class="status status-warning">Alerte</span>'
             : '<span class="status status-ok">Normal</span>';
         let peremption = '-';
         if (s.DatePeremption) {
@@ -2052,18 +2083,35 @@ function renderStock(data) {
             const classe = datePeremption <= new Date() ? 'status-danger' : datePeremption <= dans30Jours ? 'status-warning' : 'status-ok';
             peremption = `<span class="status ${classe}">${formatDateFR(s.DatePeremption)}</span>`;
         }
-        const rowClass = s.Quantite <= 0 ? 'row-danger' : (!isEquipement && s.Quantite <= s.SeuilAlerte) ? 'row-alert' : '';
+        const rowClass = s.Quantite <= 0 ? 'row-danger' : s.Quantite <= s.SeuilAlerte ? 'row-alert' : '';
         return `<tr class="${rowClass}">
-            <td>${s.Designation||''}</td><td>${s.Type||''}</td><td>${s.Dosage||'-'}</td><td>${s.Forme||'-'}</td><td>${formatQuantiteUnites(s.Quantite, s.unites_par_boite)}</td><td>${isEquipement ? '—' : (s.SeuilAlerte||0)}</td><td>${(s.PrixVente||0).toLocaleString()} FCFA</td><td>${peremption}</td><td>${statut}</td>
-            <td>
-                <button class="btn btn-sm" onclick="openReapproModal(${s.idStock})">Réappro</button>
-                <button class="btn btn-sm" onclick="editStockArticle(${s.idStock})">Modifier</button>
-                <button class="btn btn-sm" onclick="dupliquerStockArticle(${s.idStock})" title="Créer un nouvel article pré-rempli à partir de celui-ci (ex: version usage interne d'un article vendu)">Dupliquer</button>
-                ${CATEGORIES_CONSOMMABLES.includes(s.categorie) ? `<button class="btn btn-sm" onclick="openMouvementsModal(${s.idStock})">Historique</button>` : ''}
-                <button class="btn btn-sm btn-danger" onclick="deleteStockArticle(${s.idStock})">Supprimer</button>
-            </td>
+            <td>${s.Designation||''}</td><td>${s.Type||''}</td><td>${s.Dosage||'-'}</td><td>${s.Forme||'-'}</td><td>${formatQuantiteUnites(s.Quantite, s.unites_par_boite)}</td><td>${s.SeuilAlerte||0}</td><td>${(s.PrixVente||0).toLocaleString()} FCFA</td><td>${peremption}</td><td>${statut}</td>
+            <td>${actions}</td>
         </tr>`;
     }).join('');
+}
+
+// Changement d'état d'un équipement directement depuis la liste (PUT complet
+// reconstruit depuis le cache stockAdminData — même donnée que le modal Modifier)
+async function changerStatutEquipement(id, statut) {
+    const article = stockAdminData.find(s => s.idStock === id);
+    if (!article) return;
+    try {
+        await apiFetch(`/stock/${id}`, { method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({
+            DateEntree: article.DateEntree, Type: article.Type, categorie: article.categorie,
+            unites_par_boite: article.unites_par_boite || 1, Designation: article.Designation,
+            Fournisseur: article.Fournisseur, Quantite: article.Quantite, SeuilAlerte: article.SeuilAlerte,
+            PrixVente: article.PrixVente || 0, PrixAchat: article.PrixAchat,
+            Dosage: article.Dosage, Forme: article.Forme, DatePeremption: article.DatePeremption,
+            statut_equipement: statut,
+        })});
+        showToast(statut === 'a_remplacer'
+            ? `« ${article.Designation} » marqué à remplacer — pensez à en acheter un nouveau`
+            : 'État de l\'équipement mis à jour', 'success');
+    } catch (e) {
+        showToast('Erreur lors du changement d\'état : ' + e.message, 'error');
+    }
+    loadStock(); // recharge liste + bandeau "équipements à remplacer" (ou restaure le select en cas d'erreur)
 }
 
 function getFilteredStock() {
@@ -2092,7 +2140,9 @@ function exportStockExcel() {
         'Fournisseur': s.Fournisseur || '',
         'Date entrée': formatDateFR(s.DateEntree),
         'Péremption': formatDateFR(s.DatePeremption),
-        'Statut': s.Quantite < 0 ? 'Anomalie' : s.Quantite <= 0 ? 'Rupture' : (s.categorie !== 'equipement' && s.Quantite <= s.SeuilAlerte) ? 'Alerte' : 'Normal'
+        'Statut': s.categorie === 'equipement'
+            ? (STATUT_EQUIPEMENT_LABELS[s.statut_equipement] || 'Bon état')
+            : s.Quantite < 0 ? 'Anomalie' : s.Quantite <= 0 ? 'Rupture' : s.Quantite <= s.SeuilAlerte ? 'Alerte' : 'Normal'
     }));
     const ws = XLSX.utils.json_to_sheet(rows);
     const wb = XLSX.utils.book_new();
@@ -2318,10 +2368,14 @@ function populateFournisseurSelect(selected, selectId = 'st-fournisseur', valueF
     select.value = selected || '';
 }
 
-// Le seuil d'alerte n'a pas de sens pour l'équipement : champ masqué dans le formulaire
+// L'équipement n'est jamais vendu : seuil d'alerte, prix de vente et marge masqués ;
+// à la place, date d'achat + état de l'équipement (Bon état / En cours d'utilisation / À remplacer)
 function onStockCategorieChange() {
     const isEquipement = document.getElementById('st-categorie').value === 'equipement';
     document.getElementById('st-seuil-group').style.display = isEquipement ? 'none' : '';
+    document.getElementById('st-prix-vente-group').style.display = isEquipement ? 'none' : '';
+    document.getElementById('st-marge-group').style.display = isEquipement ? 'none' : '';
+    document.getElementById('st-equipement-row').style.display = isEquipement ? '' : 'none';
 }
 
 // Créer un article directement depuis la page Stock (indépendant du parcours Achats)
@@ -2341,6 +2395,8 @@ function openNewStockModal() {
     document.getElementById('st-dosage').value = '';
     document.getElementById('st-forme').value = '';
     document.getElementById('st-peremption').value = '';
+    document.getElementById('st-date-achat').value = new Date().toISOString().split('T')[0];
+    document.getElementById('st-statut-equipement').value = 'bon_etat';
     const margeInputNew = document.getElementById('st-marge-perso');
     margeInputNew.value = '';
     delete margeInputNew.dataset.touched;
@@ -2367,6 +2423,8 @@ function editStockArticle(id) {
     document.getElementById('st-dosage').value = article.Dosage || '';
     document.getElementById('st-forme').value = article.Forme || '';
     document.getElementById('st-peremption').value = article.DatePeremption || '';
+    document.getElementById('st-date-achat').value = (article.DateEntree || '').split('T')[0];
+    document.getElementById('st-statut-equipement').value = article.statut_equipement || 'bon_etat';
     const margeInput = document.getElementById('st-marge-perso');
     margeInput.value = (article.marge_personnalisee ?? '') === '' ? '' : article.marge_personnalisee;
     delete margeInput.dataset.touched;
@@ -2395,6 +2453,8 @@ function dupliquerStockArticle(id) {
     document.getElementById('st-dosage').value = article.Dosage || '';
     document.getElementById('st-forme').value = article.Forme || '';
     document.getElementById('st-peremption').value = article.DatePeremption || '';
+    document.getElementById('st-date-achat').value = new Date().toISOString().split('T')[0];
+    document.getElementById('st-statut-equipement').value = 'bon_etat';
     const margeInput = document.getElementById('st-marge-perso');
     margeInput.value = '';
     delete margeInput.dataset.touched;
@@ -2577,11 +2637,14 @@ async function preleverUsageInterneLabo() {
 }
 
 async function saveStockArticle() {
-    if (!validateRequiredFields([
+    const isEquipement = document.getElementById('st-categorie').value === 'equipement';
+    const champsRequis = [
         { id: 'st-designation', label: 'Désignation' },
         { id: 'st-quantite', label: 'Quantité', min: 0 },
-        { id: 'st-prix-vente', label: 'Prix vente', min: 0 },
-    ])) return;
+    ];
+    // L'équipement n'est jamais vendu : pas de prix de vente exigé
+    if (!isEquipement) champsRequis.push({ id: 'st-prix-vente', label: 'Prix vente', min: 0 });
+    if (!validateRequiredFields(champsRequis)) return;
 
     const id = document.getElementById('st-id').value;
     const article = {
@@ -2600,11 +2663,20 @@ async function saveStockArticle() {
         DatePeremption: document.getElementById('st-peremption').value,
     };
 
+    if (isEquipement) {
+        article.PrixVente = 0; // jamais vendu (le backend le force aussi)
+        article.statut_equipement = document.getElementById('st-statut-equipement').value;
+        // La date d'achat visible du volet équipement remplace la DateEntree cachée
+        const dateAchat = document.getElementById('st-date-achat').value;
+        if (dateAchat) article.DateEntree = dateAchat;
+    }
+
     // marge_personnalisee : la clé n'est envoyée QUE si l'admin a touché le champ
     // (le PUT backend ne modifie la colonne que si la clé est présente dans le
     // payload — null explicite = revenir à la marge de la catégorie).
+    // Sans objet pour l'équipement (champ masqué, aucune marge applicable).
     const margeInput = document.getElementById('st-marge-perso');
-    if (margeInput.dataset.touched === 'yes') {
+    if (!isEquipement && margeInput.dataset.touched === 'yes') {
         const margeStr = margeInput.value.trim();
         if (margeStr === '') {
             article.marge_personnalisee = null;
@@ -5247,7 +5319,7 @@ function addLigneAchat(ligne) {
         <div class="ligne-achat-info"></div>
         <div class="ligne-achat-apercu"></div>
         <div class="ligne-achat-nouvel" style="display:none;">
-            <select class="la-categorie" title="Catégorie du nouvel article">
+            <select class="la-categorie" title="Catégorie du nouvel article" onchange="onLigneAchatCategorieChange(this)">
                 <option value="medicament">Médicament</option>
                 <option value="consommable_laboratoire">Consommable laboratoire</option>
                 <option value="consommable_medical">Consommable médical</option>
@@ -5275,6 +5347,18 @@ function addLigneAchat(ligne) {
     onLigneAchatModeChange(wrapper.querySelector('.la-mode'));
     refreshLigneAchatInfo(wrapper);
     updateAchatTotal();
+}
+
+// Un nouvel article Équipement n'est jamais vendu ni périssable : les champs
+// prix de vente / seuil / dosage / forme / péremption / unités par boîte sont
+// masqués (et ignorés à l'enregistrement, cf. saveAchat).
+function onLigneAchatCategorieChange(select) {
+    const wrapper = select.closest('.ligne-achat-wrapper');
+    const isEquipement = select.value === 'equipement';
+    ['.la-unites-boite', '.la-prix-vente', '.la-seuil-alerte', '.la-dosage', '.la-forme', '.la-date-peremption']
+        .forEach(sel => { wrapper.querySelector(sel).style.display = isEquipement ? 'none' : ''; });
+    if (isEquipement) wrapper.querySelector('.la-unites-boite').value = 1;
+    updateLigneAchatApercu(wrapper);
 }
 
 // Unités par boîte applicables à une ligne : celles de l'article lié (stock_id),
@@ -5413,17 +5497,23 @@ async function saveAchat() {
             ligne.stock_id = parseInt(stockId);
         } else {
             ligne.categorie = wrapper.querySelector('.la-categorie').value;
-            ligne.unites_par_boite = parseInt(wrapper.querySelector('.la-unites-boite').value) || 1;
-            const prixVente = wrapper.querySelector('.la-prix-vente').value;
-            const seuilAlerte = wrapper.querySelector('.la-seuil-alerte').value;
-            const dosage = wrapper.querySelector('.la-dosage').value;
-            const forme = wrapper.querySelector('.la-forme').value;
-            const datePeremption = wrapper.querySelector('.la-date-peremption').value;
-            if (prixVente) ligne.prix_vente = parseFloat(prixVente);
-            if (seuilAlerte) ligne.seuil_alerte = parseInt(seuilAlerte);
-            if (dosage) ligne.dosage = dosage;
-            if (forme) ligne.forme = forme;
-            if (datePeremption) ligne.date_peremption = datePeremption;
+            const isEquipement = ligne.categorie === 'equipement';
+            ligne.unites_par_boite = isEquipement ? 1 : (parseInt(wrapper.querySelector('.la-unites-boite').value) || 1);
+            if (!isEquipement) {
+                // Champs sans objet pour un équipement (masqués par
+                // onLigneAchatCategorieChange, mais une valeur a pu être saisie
+                // avant le changement de catégorie — on ne l'envoie jamais)
+                const prixVente = wrapper.querySelector('.la-prix-vente').value;
+                const seuilAlerte = wrapper.querySelector('.la-seuil-alerte').value;
+                const dosage = wrapper.querySelector('.la-dosage').value;
+                const forme = wrapper.querySelector('.la-forme').value;
+                const datePeremption = wrapper.querySelector('.la-date-peremption').value;
+                if (prixVente) ligne.prix_vente = parseFloat(prixVente);
+                if (seuilAlerte) ligne.seuil_alerte = parseInt(seuilAlerte);
+                if (dosage) ligne.dosage = dosage;
+                if (forme) ligne.forme = forme;
+                if (datePeremption) ligne.date_peremption = datePeremption;
+            }
         }
         return ligne;
     }).filter(l => l.designation.trim() !== '');
