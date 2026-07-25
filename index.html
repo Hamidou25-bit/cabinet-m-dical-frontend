@@ -662,7 +662,10 @@
             <div class="table-container" id="examens-interne-bloc" style="display:none;">
                 <div class="table-header">
                     <h3>Prélèvement pour usage interne (stock laboratoire)</h3>
-                    <input type="text" class="search-box" placeholder="Rechercher un article..." id="search-examens-interne" oninput="filterExamensInterne()">
+                    <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+                        <input type="text" class="search-box" placeholder="Rechercher un article..." id="search-examens-interne" oninput="filterExamensInterne()">
+                        <button class="btn btn-primary admin-only" onclick="openAjouterArticleInterneModal()">➕ Ajouter un article</button>
+                    </div>
                 </div>
                 <p style="color:#666; font-size:0.9em; margin:0 0 10px;">Prélèvement de consommables de laboratoire à quantité gérée, sans patient associé (usage interne). Le stock est décrémenté immédiatement.</p>
                 <table>
@@ -988,6 +991,7 @@
                         <button class="btn" id="btn-recalcul-prix" onclick="ouvrirRecalculPrix()">💰 Recalculer les prix</button>
                         <button class="btn" id="btn-gerer-statuts-equipement" style="display:none;" onclick="openStatutsEquipementModal()">⚙️ Gérer les états</button>
                         <button class="btn" id="btn-historique-labo" style="display:none;" onclick="openMouvementsLaboModal()">📜 Historique</button>
+                        <button class="btn" id="btn-historique-medical" style="display:none;" onclick="openMouvementsMedicalModal()">📜 Historique</button>
                         <button class="btn btn-primary" onclick="openNewStockModal()">+ Nouvel article</button>
                     </div>
                 </div>
@@ -1911,6 +1915,26 @@
     </div>
 </div>
 
+<!-- MODAL AJOUT D'UN ARTICLE À L'USAGE INTERNE (page Examens, volet Utilisation interne).
+     Active un consommable de laboratoire existant en mettant gestion_quantite=true via
+     la route update_article existante — ne crée aucun article. Admin uniquement. -->
+<div class="modal-overlay" id="modal-ajouter-article-interne">
+    <div class="modal">
+        <h3>Ajouter un article à l'usage interne</h3>
+        <p style="color:#666; font-size:0.9em; margin:0 0 12px;">Sélectionnez un consommable de laboratoire existant à activer pour le prélèvement en usage interne. Son stock sera désormais suivi (gestion de quantité).</p>
+        <div class="form-group">
+            <label>Article<span class="required-mark">*</span></label>
+            <select id="aai-stock-id">
+                <option value="">— Sélectionner un article —</option>
+            </select>
+        </div>
+        <div class="modal-actions">
+            <button class="btn" onclick="closeModal('modal-ajouter-article-interne')">Annuler</button>
+            <button class="btn btn-primary" id="btn-confirmer-ajouter-article-interne" onclick="confirmerAjouterArticleInterne()">Ajouter</button>
+        </div>
+    </div>
+</div>
+
 <!-- MODAL MODIFICATION D'UN PRÉLÈVEMENT (onglet Historique de la page Utilisation Médicale) -->
 <div class="modal-overlay" id="modal-edit-mouvement">
     <div class="modal">
@@ -1936,35 +1960,6 @@
     </div>
 </div>
 
-<!-- MODAL HISTORIQUE DES MOUVEMENTS DE CONSOMMABLE (page Stock, admin) -->
-<div class="modal-overlay" id="modal-mouvements">
-    <div class="modal modal-lg">
-        <h3>Historique des mouvements — <span id="mv-article-nom"></span></h3>
-        <div style="max-height:50vh; overflow-y:auto;">
-            <table>
-                <thead>
-                    <tr>
-                        <th>Date</th>
-                        <th>Quantité</th>
-                        <th>Type</th>
-                        <th>Patient / Examen</th>
-                        <th>Utilisateur</th>
-                        <th>Motif</th>
-                    </tr>
-                </thead>
-                <tbody id="table-mouvements"></tbody>
-            </table>
-        </div>
-        <div style="display:flex; align-items:center; gap:10px; margin-top:10px;">
-            <span id="mv-pagination-info" style="font-size:13px; color:#64748B;"></span>
-            <button class="btn btn-sm" id="mv-prev" onclick="mouvementsPage(-1)">◀ Précédent</button>
-            <button class="btn btn-sm" id="mv-next" onclick="mouvementsPage(1)">Suivant ▶</button>
-        </div>
-        <div class="modal-actions">
-            <button class="btn" onclick="closeModal('modal-mouvements')">Fermer</button>
-        </div>
-    </div>
-</div>
 
 <!-- MODAL HISTORIQUE DES MOUVEMENTS — SERVICES LABORATOIRE (onglet Services Labo, page Stock) -->
 <div class="modal-overlay" id="modal-mouvements-labo">
@@ -1994,6 +1989,39 @@
         </div>
         <div class="modal-actions">
             <button class="btn" onclick="closeModal('modal-mouvements-labo')">Fermer</button>
+        </div>
+    </div>
+</div>
+
+<!-- MODAL HISTORIQUE DES MOUVEMENTS — CONSOMMABLES MÉDICAUX (onglet Consommables médicaux, page Stock).
+     Même structure/composant que Services Laboratoire, filtré sur categorie='consommable_medical'. -->
+<div class="modal-overlay" id="modal-mouvements-medical">
+    <div class="modal modal-lg">
+        <h3>Historique des mouvements — Consommables médicaux</h3>
+        <div class="table-header" style="margin-bottom:10px;">
+            <span></span>
+            <div style="display:flex; gap:10px; flex-wrap:wrap;">
+                <button class="btn" onclick="exportMouvementsMedicalExcel()">📊 Exporter Excel</button>
+                <button class="btn btn-danger" onclick="viderMouvementsMedical(this)">🗑️ Vider l'historique</button>
+            </div>
+        </div>
+        <div style="max-height:50vh; overflow-y:auto;">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Date</th>
+                        <th>Article</th>
+                        <th>Quantité</th>
+                        <th>Type</th>
+                        <th>Patient</th>
+                        <th>Utilisateur</th>
+                    </tr>
+                </thead>
+                <tbody id="table-mouvements-medical"></tbody>
+            </table>
+        </div>
+        <div class="modal-actions">
+            <button class="btn" onclick="closeModal('modal-mouvements-medical')">Fermer</button>
         </div>
     </div>
 </div>
