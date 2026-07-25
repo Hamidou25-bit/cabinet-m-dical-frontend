@@ -616,13 +616,14 @@
 
         <!-- EXAMENS COMPLEMENTAIRES -->
         <div id="page-examens" class="page">
-            <!-- Onglets patients enregistrés / externes -->
+            <!-- Onglets patients enregistrés / externes / utilisation interne -->
             <div style="display:flex; gap:10px; margin-bottom:15px;">
                 <button class="btn btn-primary" id="tab-examens-enregistre" onclick="showExamensTab('enregistre')">Patients enregistrés</button>
                 <button class="btn" id="tab-examens-externe" onclick="showExamensTab('externe')">Patients externes</button>
+                <button class="btn" id="tab-examens-interne" onclick="showExamensTab('interne')">Utilisation interne</button>
             </div>
 
-            <div class="table-container">
+            <div class="table-container" id="examens-liste-bloc">
                 <div class="table-header">
                     <h3>Liste des examens complémentaires</h3>
                     <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
@@ -651,6 +652,31 @@
                     </thead>
                     <tbody id="table-examens">
                         <tr><td colspan="9" class="loading">Chargement...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Volet Utilisation interne : prélèvement de consommables laboratoire à
+                 quantité gérée pour usage interne (sans patient), réutilise POST
+                 /stock/{id}/consommer (type_sortie usage_interne). -->
+            <div class="table-container" id="examens-interne-bloc" style="display:none;">
+                <div class="table-header">
+                    <h3>Prélèvement pour usage interne (stock laboratoire)</h3>
+                    <input type="text" class="search-box" placeholder="Rechercher un article..." id="search-examens-interne" oninput="filterExamensInterne()">
+                </div>
+                <p style="color:#666; font-size:0.9em; margin:0 0 10px;">Prélèvement de consommables de laboratoire à quantité gérée, sans patient associé (usage interne). Le stock est décrémenté immédiatement.</p>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Désignation</th>
+                            <th>Dosage</th>
+                            <th>Forme</th>
+                            <th>Quantité en stock</th>
+                            <th>Action</th>
+                        </tr>
+                    </thead>
+                    <tbody id="table-examens-interne">
+                        <tr><td colspan="5" class="loading">Chargement...</td></tr>
                     </tbody>
                 </table>
             </div>
@@ -952,10 +978,16 @@
                 <div class="table-header">
                     <h3 id="stock-tab-titre">Stock médicaments</h3>
                     <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+                        <div id="stock-labo-filtres" style="display:none; gap:6px;">
+                            <button class="btn btn-sm btn-primary" id="filtre-labo-tous" onclick="setLaboFilter('tous')">Tous</button>
+                            <button class="btn btn-sm" id="filtre-labo-analyse" onclick="setLaboFilter('analyse')">Analyses</button>
+                            <button class="btn btn-sm" id="filtre-labo-materiel" onclick="setLaboFilter('materiel')">Matériel</button>
+                        </div>
                         <input type="text" class="search-box" placeholder="Rechercher..." id="search-stock" oninput="filterStock()">
                         <button class="btn" onclick="exportStockExcel()">📊 Exporter Excel</button>
                         <button class="btn" id="btn-recalcul-prix" onclick="ouvrirRecalculPrix()">💰 Recalculer les prix</button>
                         <button class="btn" id="btn-gerer-statuts-equipement" style="display:none;" onclick="openStatutsEquipementModal()">⚙️ Gérer les états</button>
+                        <button class="btn" id="btn-historique-labo" style="display:none;" onclick="openMouvementsLaboModal()">📜 Historique</button>
                         <button class="btn btn-primary" onclick="openNewStockModal()">+ Nouvel article</button>
                     </div>
                 </div>
@@ -1684,8 +1716,30 @@
                 </select>
             </div>
         </div>
-        <div class="form-row">
+        <!-- Champ réservé au Services Laboratoire : distingue l'analyse vendue au
+             patient (sans gestion de quantité) du matériel d'usage interne (avec quantité) -->
+        <div class="form-row" id="st-type-labo-row" style="display:none;">
             <div class="form-group">
+                <label>Type de service laboratoire<span class="required-mark">*</span></label>
+                <select id="st-type-labo" onchange="onStockTypeLaboChange()">
+                    <option value="analyse">Analyse vendue (au patient)</option>
+                    <option value="materiel">Matériel usage interne</option>
+                </select>
+            </div>
+        </div>
+        <!-- Suivi du stock physique : proposé uniquement pour une analyse vendue
+             (le matériel a toujours une quantité gérée, la case est alors masquée
+             et forcée). Cochée → l'analyse est décrémentée/alerte à la prescription. -->
+        <div class="form-row" id="st-gestion-quantite-row" style="display:none;">
+            <div class="form-group">
+                <label style="font-weight:400;cursor:pointer;">
+                    <input type="checkbox" id="st-gestion-quantite" onchange="onStockGestionQuantiteChange()" style="width:auto;margin-right:6px;vertical-align:middle;">
+                    Gérer le stock de cet article (décrémenté à la prescription)
+                </label>
+            </div>
+        </div>
+        <div class="form-row">
+            <div class="form-group" id="st-quantite-group">
                 <label>Quantité (en unités)<span class="required-mark">*</span></label>
                 <input type="number" id="st-quantite">
             </div>
@@ -1831,6 +1885,32 @@
     </div>
 </div>
 
+<!-- Prélèvement usage interne depuis la page Examens (volet Utilisation interne).
+     Modal dédié pour ne pas coupler à utilisationMedicaleData (page Utilisation médicale). -->
+<div class="modal-overlay" id="modal-prelevement-examen">
+    <div class="modal">
+        <h3>Prélever un consommable (usage interne)</h3>
+        <input type="hidden" id="ple-stock-id">
+        <div class="form-group">
+            <label>Article</label>
+            <div id="ple-article-nom" style="font-weight:600; padding:6px 0;"></div>
+        </div>
+        <div class="form-group">
+            <label>Quantité à prélever<span class="required-mark">*</span></label>
+            <input type="number" id="ple-quantite" min="1" value="1" oninput="updatePrelevementExamenApercu()">
+        </div>
+        <div class="form-group">
+            <label>Note (optionnel)</label>
+            <input type="text" id="ple-motif" placeholder="Ex: contrôle qualité, calibration...">
+        </div>
+        <div id="ple-apercu" style="background:#E3F2FD; border-radius:6px; padding:10px 12px; font-size:13px; margin-bottom:12px;"></div>
+        <div class="modal-actions">
+            <button class="btn" onclick="closeModal('modal-prelevement-examen')">Annuler</button>
+            <button class="btn btn-primary" id="btn-confirmer-prelevement-examen" onclick="savePrelevementExamen()">Prélever</button>
+        </div>
+    </div>
+</div>
+
 <!-- MODAL MODIFICATION D'UN PRÉLÈVEMENT (onglet Historique de la page Utilisation Médicale) -->
 <div class="modal-overlay" id="modal-edit-mouvement">
     <div class="modal">
@@ -1882,6 +1962,38 @@
         </div>
         <div class="modal-actions">
             <button class="btn" onclick="closeModal('modal-mouvements')">Fermer</button>
+        </div>
+    </div>
+</div>
+
+<!-- MODAL HISTORIQUE DES MOUVEMENTS — SERVICES LABORATOIRE (onglet Services Labo, page Stock) -->
+<div class="modal-overlay" id="modal-mouvements-labo">
+    <div class="modal modal-lg">
+        <h3>Historique des mouvements — Services Laboratoire</h3>
+        <div class="table-header" style="margin-bottom:10px;">
+            <span></span>
+            <div style="display:flex; gap:10px; flex-wrap:wrap;">
+                <button class="btn" onclick="exportMouvementsLaboExcel()">📊 Exporter Excel</button>
+                <button class="btn btn-danger" onclick="viderMouvementsLabo(this)">🗑️ Vider l'historique</button>
+            </div>
+        </div>
+        <div style="max-height:50vh; overflow-y:auto;">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Date</th>
+                        <th>Article</th>
+                        <th>Quantité</th>
+                        <th>Type</th>
+                        <th>Patient</th>
+                        <th>Utilisateur</th>
+                    </tr>
+                </thead>
+                <tbody id="table-mouvements-labo"></tbody>
+            </table>
+        </div>
+        <div class="modal-actions">
+            <button class="btn" onclick="closeModal('modal-mouvements-labo')">Fermer</button>
         </div>
     </div>
 </div>
