@@ -3672,14 +3672,31 @@ function importerPhotoOrdonnance() {
     document.getElementById('ocr-file-input').click();
 }
 
-function afficherPhotoOcrPanel(photoUrl) {
-    document.getElementById('ocr-photo-img').src = API_URL + photoUrl;
-    document.getElementById('ocr-photo-panel').style.display = 'block';
+// L'image n'est plus servie via une URL statique publique : on la récupère via
+// apiFetch() (route protégée GET /ocr/fichier/{nom}) puis on l'affiche en blob URL.
+let _ocrBlobUrl = null;
+
+async function afficherPhotoOcrPanel(photoNom) {
+    try {
+        const res = await apiFetch('/ocr/fichier/' + encodeURIComponent(photoNom));
+        const blob = await res.blob();
+        if (_ocrBlobUrl) URL.revokeObjectURL(_ocrBlobUrl);
+        _ocrBlobUrl = URL.createObjectURL(blob);
+        document.getElementById('ocr-photo-img').src = _ocrBlobUrl;
+        document.getElementById('ocr-photo-panel').style.display = 'block';
+    } catch (e) {
+        // L'échec d'affichage de la vignette ne doit pas bloquer la saisie.
+        showToast('Aperçu de la photo indisponible', 'error');
+    }
 }
 
 function fermerPhotoOcrPanel() {
     document.getElementById('ocr-photo-panel').style.display = 'none';
     document.getElementById('ocr-photo-img').src = '';
+    if (_ocrBlobUrl) {
+        URL.revokeObjectURL(_ocrBlobUrl);
+        _ocrBlobUrl = null;
+    }
 }
 
 async function onOcrFileSelected(event) {
@@ -3704,7 +3721,7 @@ async function onOcrFileSelected(event) {
     const medicaments = extraction.medicaments || [];
 
     await openOrdonnanceModal('patient');
-    afficherPhotoOcrPanel(data.photo_url);
+    afficherPhotoOcrPanel(data.photo_nom);
 
     if (data.patient_existant) {
         setPatientComboValue('o', data.patient_existant.id);
