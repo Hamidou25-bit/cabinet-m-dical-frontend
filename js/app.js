@@ -440,7 +440,7 @@ function renderDashboardStatistiques(stats) {
 
     const tbodyPatho = document.getElementById('table-top-pathologies');
     tbodyPatho.innerHTML = stats.top_pathologies.length
-        ? stats.top_pathologies.map(p => `<tr><td>${p.diagnostic}</td><td>${p.nb}</td></tr>`).join('')
+        ? stats.top_pathologies.map(p => `<tr><td>${escapeHtml(p.diagnostic)}</td><td>${p.nb}</td></tr>`).join('')
         : '<tr><td colspan="2">Aucune donnée</td></tr>';
 
     // Donut "Top 5 pathologies" (Phase 1) — réutilise les données déjà fetchées ci-dessus
@@ -463,7 +463,7 @@ function renderDashboardStatistiques(stats) {
     tbodyMed.innerHTML = stats.top_medicaments.length
         ? stats.top_medicaments.map(m => {
             const pct = maxQteMedicament > 0 ? Math.round((m.quantite_totale / maxQteMedicament) * 100) : 0;
-            return `<tr><td>${m.designation}<div class="progress-bar"><div class="progress-bar-fill" style="width:${pct}%"></div></div></td><td>${m.quantite_totale}</td></tr>`;
+            return `<tr><td>${escapeHtml(m.designation)}<div class="progress-bar"><div class="progress-bar-fill" style="width:${pct}%"></div></div></td><td>${m.quantite_totale}</td></tr>`;
         }).join('')
         : '<tr><td colspan="2">Aucune donnée</td></tr>';
 
@@ -486,7 +486,7 @@ function renderDashboardRdv(rdv) {
         const heure = (r.date_heure_rdv || '').split('T')[1] || '';
         const statutLabel = STATUT_RDV_LABELS[r.statut] || r.statut || '-';
         return `<tr>
-            <td>${heure}</td><td>${r.nom ? `${r.nom} ${r.prenom}` : '-'}</td><td>${r.motif || '-'}</td><td>${statutLabel}</td>
+            <td>${heure}</td><td>${r.nom ? `${escapeHtml(r.nom)} ${escapeHtml(r.prenom)}` : '-'}</td><td>${escapeHtml(r.motif || '-')}</td><td>${statutLabel}</td>
         </tr>`;
     }).join('');
 }
@@ -517,7 +517,7 @@ function renderPatients(data) {
     const tbody = document.getElementById('table-patients');
     if (!data.length) { tbody.innerHTML = '<tr><td colspan="8">Aucun patient</td></tr>'; return; }
     tbody.innerHTML = data.map(p => `<tr>
-        <td>${p.nom}</td><td>${p.prenom}</td><td>${p.age}</td><td>${p.sexe}</td><td>${p.telephone || '-'}</td><td>${p.numero_dossier || '-'}</td><td>${formatDateFR(p.date_enregistrement)}</td>
+        <td>${escapeHtml(p.nom)}</td><td>${escapeHtml(p.prenom)}</td><td>${p.age}</td><td>${escapeHtml(p.sexe)}</td><td>${escapeHtml(p.telephone || '-')}</td><td>${escapeHtml(p.numero_dossier || '-')}</td><td>${formatDateFR(p.date_enregistrement)}</td>
         <td>
             ${boutonDossierPatient(p)}
             <button class="btn btn-sm" onclick="editPatient(${p.id})">Modifier</button>
@@ -606,7 +606,7 @@ function renderDossiersList(data) {
     const tbody = document.getElementById('table-dossiers');
     if (!data.length) { tbody.innerHTML = '<tr><td colspan="6">Aucun patient</td></tr>'; return; }
     tbody.innerHTML = data.map(p => `<tr>
-        <td>${p.nom}</td><td>${p.prenom}</td><td>${p.age}</td><td>${p.numero_dossier || '-'}</td><td>${p.telephone || '-'}</td>
+        <td>${escapeHtml(p.nom)}</td><td>${escapeHtml(p.prenom)}</td><td>${p.age}</td><td>${escapeHtml(p.numero_dossier || '-')}</td><td>${escapeHtml(p.telephone || '-')}</td>
         <td>${boutonDossierPatient(p)}</td>
     </tr>`).join('');
 }
@@ -632,8 +632,8 @@ async function showDossierPatient(patientId) {
 
     document.getElementById('dossier-patient-nom').textContent = `${p.nom} ${p.prenom}`;
     document.getElementById('dossier-patient-infos').innerHTML = `
-        <div><strong>Âge :</strong> ${p.age ?? '-'} &nbsp; <strong>Sexe :</strong> ${p.sexe || '-'} &nbsp; <strong>N° Dossier :</strong> ${p.numero_dossier || '-'}</div>
-        <div><strong>Téléphone :</strong> ${p.telephone || '-'} &nbsp; <strong>Adresse :</strong> ${p.adresse || '-'}</div>
+        <div><strong>Âge :</strong> ${p.age ?? '-'} &nbsp; <strong>Sexe :</strong> ${escapeHtml(p.sexe || '-')} &nbsp; <strong>N° Dossier :</strong> ${escapeHtml(p.numero_dossier || '-')}</div>
+        <div><strong>Téléphone :</strong> ${escapeHtml(p.telephone || '-')} &nbsp; <strong>Adresse :</strong> ${escapeHtml(p.adresse || '-')}</div>
         <div><strong>Dernière visite :</strong> ${formatDateFR(r.derniere_visite) || '-'} &nbsp; <strong>Nombre de visites :</strong> ${nbVisites}</div>
     `;
     document.getElementById('dossier-resume').innerHTML = `
@@ -668,26 +668,26 @@ function renderDossierTab() {
         thead.innerHTML = '<tr><th>Date</th><th>Prescripteur</th><th>Motif</th><th>Diagnostic</th><th>Montant</th></tr>';
         const rows = dossierPatientData.consultations;
         tbody.innerHTML = rows.length ? rows.map(c => `<tr>
-            <td>${formatDateFR(c.date_consult)}</td><td>${c.medecin_nom || '-'}</td><td>${c.motif || '-'}</td><td>${c.diagnostic || '-'}</td><td>${(c.montant_total || 0).toLocaleString()} FCFA</td>
+            <td>${formatDateFR(c.date_consult)}</td><td>${escapeHtml(c.medecin_nom || '-')}</td><td>${escapeHtml(c.motif || '-')}</td><td>${escapeHtml(c.diagnostic || '-')}</td><td>${(c.montant_total || 0).toLocaleString()} FCFA</td>
         </tr>`).join('') : '<tr><td colspan="5">Aucune consultation</td></tr>';
     } else if (dossierActiveTab === 'ordonnances') {
         thead.innerHTML = '<tr><th>Date</th><th>Type</th><th>Statut</th><th>Médicaments</th><th>Total</th></tr>';
         const rows = dossierPatientData.ordonnances;
         tbody.innerHTML = rows.length ? rows.map(o => `<tr>
-            <td>${formatDateFR(o.date_ordonnance)}</td><td>${o.type_beneficiaire || '-'}</td><td>${o.est_validee ? 'Validée' : 'Non validée'}</td>
+            <td>${formatDateFR(o.date_ordonnance)}</td><td>${escapeHtml(o.type_beneficiaire || '-')}</td><td>${o.est_validee ? 'Validée' : 'Non validée'}</td>
             <td>${(o.lignes || []).map(l => escapeHtml(l.medicament)).join(', ') || '-'}</td><td>${(o.total || 0).toLocaleString()} FCFA</td>
         </tr>`).join('') : '<tr><td colspan="5">Aucune ordonnance</td></tr>';
     } else if (dossierActiveTab === 'soins') {
         thead.innerHTML = '<tr><th>Date</th><th>Type de soin</th><th>Montant</th><th>Notes</th></tr>';
         const rows = dossierPatientData.soins;
         tbody.innerHTML = rows.length ? rows.map(s => `<tr>
-            <td>${formatDateFR(s.date_soin)}</td><td>${s.type_soin_nom || '-'}</td><td>${(s.prix_applique || 0).toLocaleString()} FCFA</td><td>${s.notes || '-'}</td>
+            <td>${formatDateFR(s.date_soin)}</td><td>${escapeHtml(s.type_soin_nom || '-')}</td><td>${(s.prix_applique || 0).toLocaleString()} FCFA</td><td>${escapeHtml(s.notes || '-')}</td>
         </tr>`).join('') : '<tr><td colspan="4">Aucun soin</td></tr>';
     } else if (dossierActiveTab === 'examens') {
         thead.innerHTML = '<tr><th>Date</th><th>Catégorie</th><th>Type d\'examen</th><th>Résultat</th><th>Prix</th></tr>';
         const rows = dossierPatientData.examens;
         tbody.innerHTML = rows.length ? rows.map(e => `<tr>
-            <td>${formatDateFR(e.date_examen)}</td><td>${e.categorie_nom || '-'}</td><td>${e.type_examen_nom || '-'}</td><td>${e.resultat || '-'}</td><td>${(e.prix || 0).toLocaleString()} FCFA</td>
+            <td>${formatDateFR(e.date_examen)}</td><td>${escapeHtml(e.categorie_nom || '-')}</td><td>${escapeHtml(e.type_examen_nom || '-')}</td><td>${escapeHtml(e.resultat || '-')}</td><td>${(e.prix || 0).toLocaleString()} FCFA</td>
         </tr>`).join('') : '<tr><td colspan="5">Aucun examen</td></tr>';
     } else if (dossierActiveTab === 'vaccinations') {
         thead.innerHTML = '<tr><th>Vaccin</th><th>Date administration</th><th>Dose</th><th>Prochain rappel</th><th>Observations</th><th>Actions</th></tr>';
@@ -696,9 +696,9 @@ function renderDossierTab() {
         tbody.innerHTML = rows.length ? rows.map(v => {
             const enRetard = v.prochain_rappel && v.prochain_rappel < today;
             return `<tr${enRetard ? ' class="row-danger"' : ''}>
-                <td>${escapeHtml(v.vaccin)}</td><td>${formatDateFR(v.date_administration)}</td><td>${v.dose || '-'}</td>
+                <td>${escapeHtml(v.vaccin)}</td><td>${formatDateFR(v.date_administration)}</td><td>${escapeHtml(v.dose || '-')}</td>
                 <td>${v.prochain_rappel ? formatDateFR(v.prochain_rappel) + (enRetard ? ' ⚠️ En retard' : '') : '-'}</td>
-                <td>${v.observations || '-'}</td>
+                <td>${escapeHtml(v.observations || '-')}</td>
                 <td>
                     <button class="btn btn-sm" onclick="editVaccination(${v.id})">Modifier</button>
                     <button class="btn btn-sm btn-danger" onclick="deleteVaccination(${v.id})">Supprimer</button>
@@ -1074,7 +1074,7 @@ function filterPatientCombo(prefix) {
     if (!results.length) {
         list.innerHTML = '<div class="patient-combo-item no-result">Aucun patient trouvé</div>';
     } else {
-        list.innerHTML = results.map(p => `<div class="patient-combo-item" onclick="selectPatientCombo('${prefix}', ${p.id})">${p.nom} ${p.prenom}${p.telephone ? ' - ' + p.telephone : ''}</div>`).join('');
+        list.innerHTML = results.map(p => `<div class="patient-combo-item" onclick="selectPatientCombo('${prefix}', ${p.id})">${escapeHtml(p.nom)} ${escapeHtml(p.prenom)}${p.telephone ? ' - ' + escapeHtml(p.telephone) : ''}</div>`).join('');
     }
     list.classList.add('active');
 }
@@ -1143,7 +1143,7 @@ const MODE_PAIEMENT_LABELS = { especes: 'Espèces', mobile_money: 'Mobile money'
 
 function libellePaiement(modePaiement, mutuelleNom) {
     const label = MODE_PAIEMENT_LABELS[modePaiement] || 'Espèces';
-    return modePaiement === 'mutuelle' && mutuelleNom ? `${label} (${mutuelleNom})` : label;
+    return modePaiement === 'mutuelle' && mutuelleNom ? `${label} (${escapeHtml(mutuelleNom)})` : label;
 }
 
 // Bouton "Encaisser" (caisse) réutilisé sur Consultations/Soins/Examens/Ordonnances :
@@ -1252,10 +1252,10 @@ function renderConsultations(data) {
     if (!data.length) { tbody.innerHTML = '<tr><td colspan="8">Aucune consultation</td></tr>'; return; }
     tbody.innerHTML = data.map(c => `<tr>
         <td>${formatDateFR(c.date_consult)}</td>
-        <td>${c.nom || ''} ${c.prenom || ''}</td>
-        <td>${c.medecin_nom || '-'}</td>
-        <td>${c.motif || '-'}</td>
-        <td>${c.diagnostic || '-'}</td>
+        <td>${escapeHtml(c.nom || '')} ${escapeHtml(c.prenom || '')}</td>
+        <td>${escapeHtml(c.medecin_nom || '-')}</td>
+        <td>${escapeHtml(c.motif || '-')}</td>
+        <td>${escapeHtml(c.diagnostic || '-')}</td>
         <td>${(c.montant_total || 0).toLocaleString()} FCFA</td>
         <td>${libellePaiement(c.mode_paiement, c.mutuelle_nom)}</td>
         <td>
@@ -1367,7 +1367,7 @@ function populateStockDesignationsDatalist() {
     const datalist = document.getElementById('stock-designations');
     datalist.innerHTML = stockData.map(s => {
         const details = [s.Dosage, s.Forme].filter(Boolean).join(' - ');
-        return `<option value="${s.Designation}">${s.Designation}${details ? ' (' + details + ')' : ''}</option>`;
+        return `<option value="${escapeHtml(s.Designation)}">${escapeHtml(s.Designation)}${details ? ' (' + escapeHtml(details) + ')' : ''}</option>`;
     }).join('');
 }
 
@@ -1381,7 +1381,7 @@ async function openNewConsultationModal() {
     resetPatientCombo('co');
 
     const medecinSelect = document.getElementById('co-medecin');
-    medecinSelect.innerHTML = '<option value="">-- Aucun --</option>' + medecinsData.map(m => `<option value="${m.id}">${m.nom}</option>`).join('');
+    medecinSelect.innerHTML = '<option value="">-- Aucun --</option>' + medecinsData.map(m => `<option value="${m.id}">${escapeHtml(m.nom)}</option>`).join('');
 
     document.getElementById('co-date').value = new Date().toISOString().split('T')[0];
     document.getElementById('co-motif').value = '';
@@ -1407,7 +1407,7 @@ async function editConsultation(id) {
     setPatientComboValue('co', consultation.patient_id);
 
     const medecinSelect = document.getElementById('co-medecin');
-    medecinSelect.innerHTML = '<option value="">-- Aucun --</option>' + medecinsData.map(m => `<option value="${m.id}">${m.nom}</option>`).join('');
+    medecinSelect.innerHTML = '<option value="">-- Aucun --</option>' + medecinsData.map(m => `<option value="${m.id}">${escapeHtml(m.nom)}</option>`).join('');
     medecinSelect.value = consultation.medecin_id || '';
 
     document.getElementById('co-date').value = consultation.date_consult || '';
@@ -1751,9 +1751,9 @@ function renderRendezVous(data) {
         const heure = (r.date_heure_rdv || '').split('T')[1] || '';
         return `<tr>
             <td>${heure}</td>
-            <td>${r.nom ? `${r.nom} ${r.prenom}` : '-'}</td>
-            <td>${r.medecin_nom || '-'}</td>
-            <td>${r.motif || '-'}</td>
+            <td>${r.nom ? `${escapeHtml(r.nom)} ${escapeHtml(r.prenom)}` : '-'}</td>
+            <td>${escapeHtml(r.medecin_nom || '-')}</td>
+            <td>${escapeHtml(r.motif || '-')}</td>
             <td>
                 <select onchange="changerStatutRdv(${r.id}, this.value)">
                     ${Object.keys(STATUT_RDV_LABELS).map(s => `<option value="${s}" ${s === r.statut ? 'selected' : ''}>${STATUT_RDV_LABELS[s]}</option>`).join('')}
@@ -1786,7 +1786,7 @@ async function openNewRdvModal() {
     resetPatientCombo('rdv');
 
     const medecinSelect = document.getElementById('rdv-medecin');
-    medecinSelect.innerHTML = '<option value="">-- Aucun --</option>' + medecinsData.map(m => `<option value="${m.id}">${m.nom}</option>`).join('');
+    medecinSelect.innerHTML = '<option value="">-- Aucun --</option>' + medecinsData.map(m => `<option value="${m.id}">${escapeHtml(m.nom)}</option>`).join('');
 
     const dateFiltre = parseDateFR(document.getElementById('rdv-date').value) || new Date().toISOString().split('T')[0];
     document.getElementById('rdv-form-date').value = dateFiltre;
@@ -1810,7 +1810,7 @@ async function editRdv(id) {
     setPatientComboValue('rdv', rdv.patient_id);
 
     const medecinSelect = document.getElementById('rdv-medecin');
-    medecinSelect.innerHTML = '<option value="">-- Aucun --</option>' + medecinsData.map(m => `<option value="${m.id}">${m.nom}</option>`).join('');
+    medecinSelect.innerHTML = '<option value="">-- Aucun --</option>' + medecinsData.map(m => `<option value="${m.id}">${escapeHtml(m.nom)}</option>`).join('');
     medecinSelect.value = rdv.medecin_id || '';
 
     const [datePart, heurePart] = (rdv.date_heure_rdv || '').split('T');
@@ -2200,7 +2200,7 @@ function renderStock(data) {
             const options = getStatutsEquipementEntries(statutActuel)
                 .map(([val, label]) => `<option value="${escapeHtml(val)}"${val === statutActuel ? ' selected' : ''}>${escapeHtml(label)}</option>`).join('');
             return `<tr class="${statutActuel === 'a_remplacer' ? 'row-danger' : ''}">
-                <td>${s.Designation||''}</td><td>${s.Type||''}</td><td>${formatQuantiteUnites(s.Quantite, s.unites_par_boite)}</td>
+                <td>${escapeHtml(s.Designation||'')}</td><td>${escapeHtml(s.Type||'')}</td><td>${formatQuantiteUnites(s.Quantite, s.unites_par_boite)}</td>
                 <td>${s.DateEntree ? formatDateFR(s.DateEntree) : '-'}</td>
                 <td><select onchange="changerStatutEquipement(${s.idStock}, this.value)" title="État de l'équipement (modifiable)">${options}</select></td>
                 <td>${actions}</td>
@@ -2223,10 +2223,10 @@ function renderStock(data) {
         const isLaboTab = currentStockTab === 'consommable_laboratoire';
         const suivi = isLaboTab && s.gestion_quantite
             ? ' <span title="Stock suivi (décrémenté à la prescription)">📦</span>' : '';
-        const typeCell = isLaboTab ? laboTypeBadge(s.type_labo) + suivi : (s.Type||'');
+        const typeCell = isLaboTab ? laboTypeBadge(s.type_labo) + suivi : escapeHtml(s.Type||'');
         const qteCell = (isLaboTab && !s.gestion_quantite) ? '-' : formatQuantiteUnites(s.Quantite, s.unites_par_boite);
         return `<tr class="${rowClass}">
-            <td>${s.Designation||''}</td><td>${typeCell}</td><td>${s.Dosage||'-'}</td><td>${s.Forme||'-'}</td><td>${qteCell}</td><td>${s.SeuilAlerte||0}</td><td>${(s.PrixVente||0).toLocaleString()} FCFA</td><td>${peremption}</td><td>${statut}</td>
+            <td>${escapeHtml(s.Designation||'')}</td><td>${typeCell}</td><td>${escapeHtml(s.Dosage||'-')}</td><td>${escapeHtml(s.Forme||'-')}</td><td>${qteCell}</td><td>${s.SeuilAlerte||0}</td><td>${(s.PrixVente||0).toLocaleString()} FCFA</td><td>${peremption}</td><td>${statut}</td>
             <td>${actions}</td>
         </tr>`;
     }).join('');
@@ -2508,9 +2508,9 @@ function renderSyntheseChart(evolution) {
 // Remplit un select Fournisseur (Stock : valeur = nom, Achats : valeur = id)
 function populateFournisseurSelect(selected, selectId = 'st-fournisseur', valueField = 'nom') {
     const select = document.getElementById(selectId);
-    let options = '<option value="">-- Aucun --</option>' + fournisseursData.map(f => `<option value="${f[valueField]}">${f.nom}</option>`).join('');
+    let options = '<option value="">-- Aucun --</option>' + fournisseursData.map(f => `<option value="${escapeHtml(String(f[valueField]))}">${escapeHtml(f.nom)}</option>`).join('');
     if (valueField === 'nom' && selected && !fournisseursData.some(f => f.nom === selected)) {
-        options += `<option value="${selected}">${selected}</option>`;
+        options += `<option value="${escapeHtml(selected)}">${escapeHtml(selected)}</option>`;
     }
     select.innerHTML = options;
     select.value = selected || '';
@@ -3547,7 +3547,7 @@ async function openOrdonnanceModal(type) {
     resetPatientCombo('o');
 
     const medecinSelect = document.getElementById('o-medecin');
-    medecinSelect.innerHTML = '<option value="">-- Aucun --</option>' + medecinsData.map(m => `<option value="${m.id}">${m.nom}</option>`).join('');
+    medecinSelect.innerHTML = '<option value="">-- Aucun --</option>' + medecinsData.map(m => `<option value="${m.id}">${escapeHtml(m.nom)}</option>`).join('');
 
     // Date par défaut = aujourd'hui
     document.getElementById('o-date').value = new Date().toISOString().split('T')[0];
@@ -3590,7 +3590,7 @@ async function editOrdonnance(id) {
         }
         document.getElementById('o-date').value = ordonnance.date_ordonnance || '';
         const medecinSelect = document.getElementById('o-medecin');
-        medecinSelect.innerHTML = '<option value="">-- Aucun --</option>' + medecinsData.map(m => `<option value="${m.id}">${m.nom}</option>`).join('');
+        medecinSelect.innerHTML = '<option value="">-- Aucun --</option>' + medecinsData.map(m => `<option value="${m.id}">${escapeHtml(m.nom)}</option>`).join('');
         medecinSelect.value = ordonnance.medecin_id || '';
         document.getElementById('o-beneficiaire').value = ordonnance.beneficiaire || '';
         document.getElementById('o-est-validee').checked = !!ordonnance.est_validee;
@@ -3759,7 +3759,7 @@ function addLigneSoinOrdonnance(soin) {
     container.appendChild(wrapper);
     const select = wrapper.querySelector('.lso-type-soin');
     select.innerHTML = '<option value="">-- Type de soin --</option>'
-        + typeSoinsData.map(t => `<option value="${t.id}" data-prix="${t.prix_defaut}" ${soin && soin.type_soin_id === t.id ? 'selected' : ''}>${t.nom}</option>`).join('');
+        + typeSoinsData.map(t => `<option value="${t.id}" data-prix="${t.prix_defaut}" ${soin && soin.type_soin_id === t.id ? 'selected' : ''}>${escapeHtml(t.nom)}</option>`).join('');
     if (soin) wrapper.querySelector('.lso-prix').dataset.modified = 'yes';
 }
 
@@ -4399,7 +4399,7 @@ async function loadExamenRefs() {
     if (tasks.length) await Promise.all(tasks);
 
     const medecinSelect = document.getElementById('e-medecin');
-    medecinSelect.innerHTML = '<option value="">-- Aucun --</option>' + medecinsData.map(m => `<option value="${m.id}">${m.nom}</option>`).join('');
+    medecinSelect.innerHTML = '<option value="">-- Aucun --</option>' + medecinsData.map(m => `<option value="${m.id}">${escapeHtml(m.nom)}</option>`).join('');
 }
 
 // Retourne la liste des catégories d'examens (id + nom) déduite des types d'examens chargés.
@@ -4414,7 +4414,7 @@ function getExamenCategoriesList() {
 function addLigneExamen() {
     const container = document.getElementById('examen-lignes-container');
     const categories = getExamenCategoriesList();
-    const catOptions = categories.map(c => `<option value="${c.id}">${c.nom}</option>`).join('');
+    const catOptions = categories.map(c => `<option value="${c.id}">${escapeHtml(c.nom)}</option>`).join('');
     const wrapper = document.createElement('div');
     wrapper.className = 'ligne-examen-wrapper';
     wrapper.innerHTML = `
@@ -4941,7 +4941,7 @@ function renderPrescripteurs(data) {
     const tbody = document.getElementById('table-prescripteurs');
     if (!data.length) { tbody.innerHTML = '<tr><td colspan="2">Aucun prescripteur</td></tr>'; return; }
     tbody.innerHTML = data.map(m => `<tr>
-        <td>${m.nom}</td>
+        <td>${escapeHtml(m.nom)}</td>
         <td>
             <button class="btn btn-sm" onclick="editPrescripteur(${m.id})">Modifier</button>
             <button class="btn btn-sm btn-danger" onclick="deletePrescripteur(${m.id})">Supprimer</button>
@@ -5254,7 +5254,7 @@ function renderCategoriesExamens(data) {
     data = data.filter(c => c.id !== TYPE_EXAMEN_LABORATOIRE_ID);
     if (!data.length) { tbody.innerHTML = '<tr><td colspan="2">Aucune catégorie</td></tr>'; return; }
     tbody.innerHTML = data.map(c => `<tr>
-        <td>${c.nom}</td>
+        <td>${escapeHtml(c.nom)}</td>
         <td>
             <button class="btn btn-sm" onclick="editCategorieExamen(${c.id})">Modifier</button>
             <button class="btn btn-sm btn-danger" onclick="deleteCategorieExamen(${c.id})">Supprimer</button>
@@ -5268,8 +5268,8 @@ function renderTypesExamens(data) {
     data = data.filter(t => t.type_examen_id !== TYPE_EXAMEN_LABORATOIRE_ID);
     if (!data.length) { tbody.innerHTML = '<tr><td colspan="4">Aucun type d\'examen</td></tr>'; return; }
     tbody.innerHTML = data.map(t => `<tr>
-        <td>${t.type_nom || '-'}</td>
-        <td>${t.nom}</td>
+        <td>${escapeHtml(t.type_nom || '-')}</td>
+        <td>${escapeHtml(t.nom)}</td>
         <td>${(t.tarif || 0).toLocaleString()} FCFA</td>
         <td>
             <button class="btn btn-sm" onclick="editTypeExamen(${t.id})">Modifier</button>
@@ -5282,7 +5282,7 @@ function populateCategorieExamenSelect(selected) {
     const select = document.getElementById('te-categorie');
     select.innerHTML = categoriesExamensData
         .filter(c => c.id !== TYPE_EXAMEN_LABORATOIRE_ID)
-        .map(c => `<option value="${c.id}">${c.nom}</option>`).join('');
+        .map(c => `<option value="${c.id}">${escapeHtml(c.nom)}</option>`).join('');
     select.value = selected || '';
 }
 
@@ -5403,7 +5403,7 @@ function renderFournisseurs(data) {
     const tbody = document.getElementById('table-fournisseurs');
     if (!data.length) { tbody.innerHTML = '<tr><td colspan="5">Aucun fournisseur</td></tr>'; return; }
     tbody.innerHTML = data.map(f => `<tr>
-        <td>${f.nom}</td><td>${f.type_article || '-'}</td><td>${f.telephone || '-'}</td><td>${f.adresse || '-'}</td>
+        <td>${escapeHtml(f.nom)}</td><td>${escapeHtml(f.type_article || '-')}</td><td>${escapeHtml(f.telephone || '-')}</td><td>${escapeHtml(f.adresse || '-')}</td>
         <td>
             <button class="btn btn-sm" onclick="editFournisseur(${f.id})">Modifier</button>
             <button class="btn btn-sm btn-danger" onclick="deleteFournisseur(${f.id})">Supprimer</button>
@@ -5431,7 +5431,7 @@ async function ensureTypesArticleFournisseurLoaded() {
 function populateTypeArticleFournisseurSelect(selected) {
     const select = document.getElementById('fo-type-article');
     select.innerHTML = '<option value="">-- Aucun --</option>'
-        + typesArticleFournisseurData.map(t => `<option value="${t.libelle}">${t.libelle}</option>`).join('');
+        + typesArticleFournisseurData.map(t => `<option value="${escapeHtml(t.libelle)}">${escapeHtml(t.libelle)}</option>`).join('');
     select.value = selected || '';
 }
 
@@ -5564,7 +5564,7 @@ function renderDepenses(data) {
             : `<button class="btn btn-sm" onclick="editDepense(${d.id_depense})">Modifier</button>
                <button class="btn btn-sm btn-danger" onclick="deleteDepense(${d.id_depense})">Supprimer</button>`;
         return `<tr>
-        <td>${formatDateFR(d.date_depense)}</td><td>${d.type_depense}</td><td>${(d.montant || 0).toLocaleString()} FCFA</td><td>${d.description || '-'}</td>
+        <td>${formatDateFR(d.date_depense)}</td><td>${escapeHtml(d.type_depense)}</td><td>${(d.montant || 0).toLocaleString()} FCFA</td><td>${escapeHtml(d.description || '-')}</td>
         <td>${actions}</td>
     </tr>`;
     }).join('');
@@ -5572,7 +5572,7 @@ function renderDepenses(data) {
 
 function populateTypeDepenseFilter() {
     const select = document.getElementById('filter-type-depense');
-    select.innerHTML = '<option value="">Tous les types</option>' + typesDepenseData.map(t => `<option value="${t.nom}">${t.nom}</option>`).join('');
+    select.innerHTML = '<option value="">Tous les types</option>' + typesDepenseData.map(t => `<option value="${escapeHtml(t.nom)}">${escapeHtml(t.nom)}</option>`).join('');
 }
 
 async function openTypeDepenseModal() {
@@ -5663,7 +5663,7 @@ function exportDepensesExcel() {
 
 function populateTypeDepenseSelect(selected) {
     const select = document.getElementById('de-type');
-    select.innerHTML = typesDepenseData.map(t => `<option value="${t.nom}">${t.nom}</option>`).join('')
+    select.innerHTML = typesDepenseData.map(t => `<option value="${escapeHtml(t.nom)}">${escapeHtml(t.nom)}</option>`).join('')
         + '<option value="__new__">+ Nouveau type...</option>';
     if (selected) select.value = selected;
     toggleNewTypeDepense();
@@ -5764,11 +5764,11 @@ function renderAchats(data) {
     const tbody = document.getElementById('table-achats');
     if (!data.length) { tbody.innerHTML = '<tr><td colspan="6">Aucun achat</td></tr>'; return; }
     tbody.innerHTML = data.map(a => `<tr>
-        <td>${a.numero_facture || '-'}</td>
+        <td>${escapeHtml(a.numero_facture || '-')}</td>
         <td>${formatDateFR(a.date_achat)}</td>
-        <td>${a.fournisseur_nom || '-'}</td>
+        <td>${escapeHtml(a.fournisseur_nom || '-')}</td>
         <td>${(a.montant_total || 0).toLocaleString()} FCFA</td>
-        <td><span class="status ${statutPaiementClasses[a.statut_paiement] || 'status-warning'}">${a.statut_paiement || ''}</span></td>
+        <td><span class="status ${statutPaiementClasses[a.statut_paiement] || 'status-warning'}">${escapeHtml(a.statut_paiement || '')}</span></td>
         <td>
             <button class="btn btn-sm" onclick="editAchat(${a.id})">Modifier</button>
             <button class="btn btn-sm btn-danger" onclick="deleteAchat(${a.id})">Supprimer</button>
@@ -5848,7 +5848,7 @@ async function loadAchatsStock() {
     const datalist = document.getElementById('stock-designations-achats');
     datalist.innerHTML = achatsStockData.map(s => {
         const details = [s.Dosage, s.Forme].filter(Boolean).join(' - ');
-        return `<option value="${s.Designation}">${s.Designation}${details ? ' (' + details + ')' : ''}</option>`;
+        return `<option value="${escapeHtml(s.Designation)}">${escapeHtml(s.Designation)}${details ? ' (' + escapeHtml(details) + ')' : ''}</option>`;
     }).join('');
 }
 
@@ -5906,7 +5906,7 @@ function addLigneAchat(ligne) {
         : (ligne ? (ligne.prix_unitaire || 0) : 0);
     wrapper.innerHTML = `
         <div class="ligne-achat">
-            <input type="text" placeholder="Désignation *" class="la-designation" list="stock-designations-achats" value="${ligne ? (ligne.designation || '') : ''}" oninput="onLigneAchatDesignationInput(this)">
+            <input type="text" placeholder="Désignation *" class="la-designation" list="stock-designations-achats" value="${ligne ? escapeHtml(ligne.designation || '') : ''}" oninput="onLigneAchatDesignationInput(this)">
             <select class="la-mode" onchange="onLigneAchatModeChange(this)">
                 <option value="unites"${enBoites ? '' : ' selected'}>En unités</option>
                 <option value="boites"${enBoites ? ' selected' : ''}>En boîtes</option>
@@ -6019,7 +6019,7 @@ function refreshLigneAchatInfo(wrapper) {
 
     if (designation && match) {
         stockIdField.value = match.idStock;
-        const details = [STOCK_CATEGORIE_LABELS[match.categorie] || '', match.Dosage, match.Forme].filter(Boolean).join(' - ');
+        const details = [STOCK_CATEGORIE_LABELS[match.categorie] || '', escapeHtml(match.Dosage || ''), escapeHtml(match.Forme || '')].filter(Boolean).join(' - ');
         const upb = match.unites_par_boite || 1;
         infoDiv.innerHTML = `<span class="status status-ok">Article existant</span> En stock : <strong>${formatQuantiteUnites(match.Quantite, upb)}</strong>`
             + (details ? ` · ${details}` : '')
@@ -6295,7 +6295,7 @@ async function ensureTypeSoinsLoaded() {
 function populateTypeSoinSelect(selectId, selectedId) {
     const select = document.getElementById(selectId);
     select.innerHTML = '<option value="">-- Choisir --</option>'
-        + typeSoinsData.map(t => `<option value="${t.id}" data-prix="${t.prix_defaut}">${t.nom} (${(t.prix_defaut||0).toLocaleString()} FCFA)</option>`).join('');
+        + typeSoinsData.map(t => `<option value="${t.id}" data-prix="${t.prix_defaut}">${escapeHtml(t.nom)} (${(t.prix_defaut||0).toLocaleString()} FCFA)</option>`).join('');
     if (selectedId) select.value = selectedId;
 }
 
