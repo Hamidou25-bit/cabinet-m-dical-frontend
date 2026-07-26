@@ -6775,6 +6775,7 @@ async function loadParametres() {
         document.getElementById('param-taux-medecin-consultation').value = data.taux_medecin_consultation?.valeur || '';
         document.getElementById('param-taux-medecin-examen').value = data.taux_medecin_examen?.valeur || '';
         document.getElementById('param-taux-laborantin-examen').value = data.taux_laborantin_examen?.valeur || '';
+        document.getElementById('param-taux-medecin-soin').value = data.taux_medecin_soin?.valeur || '';
     } catch (e) {
         showToast('Erreur lors du chargement des paramètres', 'error');
     }
@@ -6831,6 +6832,7 @@ async function enregistrerParametres() {
         taux_medecin_consultation: document.getElementById('param-taux-medecin-consultation').value,
         taux_medecin_examen: document.getElementById('param-taux-medecin-examen').value,
         taux_laborantin_examen: document.getElementById('param-taux-laborantin-examen').value,
+        taux_medecin_soin: document.getElementById('param-taux-medecin-soin').value,
     };
     try {
         await apiFetch('/parametres/', { method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(data) });
