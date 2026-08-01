@@ -2459,15 +2459,18 @@ async function loadMargesOrdonnances(dateDebut, dateFin) {
 
 function renderSynthese(data) {
     const r = data.recettes;
+    const rn = data.recettes_nettes;
     document.getElementById('synthese-recettes').textContent = `${r.total.toLocaleString()} FCFA`;
     document.getElementById('synthese-recettes-detail').innerHTML =
         `Consultations: ${r.detail.consultations.toLocaleString()} · Ordonnances: ${r.detail.ordonnances.toLocaleString()}<br>`
-        + `Soins: ${r.detail.soins.toLocaleString()} · Examens: ${r.detail.examens.toLocaleString()}`;
+        + `Soins: ${r.detail.soins.toLocaleString()} · Examens: ${r.detail.examens.toLocaleString()}`
+        + (rn ? `<br><em>Net cabinet (après parts médecin/laborantin & coût médicaments) : ${rn.total.toLocaleString()} FCFA</em>` : '');
 
     const d = data.depenses;
     document.getElementById('synthese-depenses').textContent = `${d.total.toLocaleString()} FCFA`;
     document.getElementById('synthese-depenses-detail').innerHTML =
-        `Achats fournisseurs: ${d.detail.achats_fournisseurs.toLocaleString()} · Autres: ${d.detail.autres.toLocaleString()}`;
+        `Achats fournisseurs: ${d.detail.achats_fournisseurs.toLocaleString()} · Autres: ${d.detail.autres.toLocaleString()}`
+        + (d.medicaments_deja_comptes ? `<br><em>Hors médicaments déjà comptés dans la marge ordonnances (−${d.medicaments_deja_comptes.toLocaleString()}) : ${(d.ajustees != null ? d.ajustees : d.total).toLocaleString()} FCFA</em>` : '');
 
     const profitEl = document.getElementById('synthese-profit');
     profitEl.textContent = `${data.profit.toLocaleString()} FCFA`;
@@ -6588,14 +6591,18 @@ async function exportBilanExcel() {
             { 'Indicateur': 'Ordonnances', 'Valeur': synthese.recettes.detail.ordonnances },
             { 'Indicateur': 'Soins', 'Valeur': synthese.recettes.detail.soins },
             { 'Indicateur': 'Examens', 'Valeur': synthese.recettes.detail.examens },
-            { 'Indicateur': 'TOTAL RECETTES', 'Valeur': synthese.recettes.total },
+            { 'Indicateur': 'TOTAL RECETTES (brut)', 'Valeur': synthese.recettes.total },
+            { 'Indicateur': 'TOTAL RECETTES NETTES cabinet', 'Valeur': synthese.recettes_nettes ? synthese.recettes_nettes.total : synthese.recettes.total },
             { 'Indicateur': '', 'Valeur': '' },
             { 'Indicateur': '— DÉPENSES —', 'Valeur': '' },
             { 'Indicateur': 'Achats fournisseurs', 'Valeur': synthese.depenses.detail.achats_fournisseurs },
             { 'Indicateur': 'Autres dépenses', 'Valeur': synthese.depenses.detail.autres },
-            { 'Indicateur': 'TOTAL DÉPENSES', 'Valeur': synthese.depenses.total },
+            { 'Indicateur': 'TOTAL DÉPENSES (brut)', 'Valeur': synthese.depenses.total },
+            { 'Indicateur': 'dont médicaments déjà comptés (marge ordo.)', 'Valeur': synthese.depenses.medicaments_deja_comptes || 0 },
+            { 'Indicateur': 'TOTAL DÉPENSES AJUSTÉES', 'Valeur': synthese.depenses.ajustees != null ? synthese.depenses.ajustees : synthese.depenses.total },
             { 'Indicateur': '', 'Valeur': '' },
             { 'Indicateur': 'BÉNÉFICE NET', 'Valeur': synthese.profit },
+            { 'Indicateur': 'Bénéfice brut (ancien calcul)', 'Valeur': synthese.profit_brut != null ? synthese.profit_brut : synthese.profit },
         ];
         XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(syntheseRows), 'Synthèse');
 
