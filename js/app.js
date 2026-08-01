@@ -3670,8 +3670,28 @@ function addLigneOrdonnance(ligne) {
             <button class="btn-remove" onclick="removeLigneOrdonnance(this)">✕</button>
         </div>
         <div class="ligne-ordonnance-info"></div>
+        <div class="ligne-ordonnance-profit"></div>
     `;
     container.appendChild(wrapper);
+    // Profit par ligne (admin uniquement) : figé côté serveur (basé sur le prix d'achat
+    // au moment de la vente), fourni par GET /ordonnances/{id} seulement pour l'admin et
+    // seulement pour les lignes du stock cabinet (stock_id NOT NULL). Affiché dans un div
+    // dédié pour ne pas être écrasé par refreshLigneOrdonnanceInfo (qui recalcule en direct
+    // depuis le stock courant). Absent du JSON => rien affiché, sans erreur.
+    if (ligne && ligne.profit_ligne !== undefined) {
+        // Détail complet du calcul (admin, ligne du stock cabinet uniquement) :
+        // "Vente V − Achat A = U/unité × Qté = Profit". Les composants viennent figés du
+        // serveur (prix au moment de la vente), pas du stock courant.
+        const fmt = n => Math.round(n).toLocaleString();
+        const v = ligne.prix_vente_unitaire || 0;
+        const a = ligne.prix_achat_unitaire || 0;
+        const u = ligne.profit_unitaire || 0;
+        const q = ligne.quantite || 0;
+        const p = Math.round(ligne.profit_ligne);
+        const cls = p >= 0 ? 'profit-positif' : 'profit-negatif';
+        wrapper.querySelector('.ligne-ordonnance-profit').innerHTML =
+            `<span class="profit-ligne ${cls}">💰 Vente ${fmt(v)} − Achat ${fmt(a)} = ${fmt(u)}/unité × ${q} = <strong>Profit ${fmt(p)} FCFA</strong></span>`;
+    }
     refreshLigneOrdonnanceInfo(wrapper);
 }
 
