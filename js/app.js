@@ -671,12 +671,22 @@ function renderDossierTab() {
             <td>${formatDateFR(c.date_consult)}</td><td>${escapeHtml(c.medecin_nom || '-')}</td><td>${escapeHtml(c.motif || '-')}</td><td>${escapeHtml(c.diagnostic || '-')}</td><td>${(c.montant_total || 0).toLocaleString()} FCFA</td>
         </tr>`).join('') : '<tr><td colspan="5">Aucune consultation</td></tr>';
     } else if (dossierActiveTab === 'ordonnances') {
-        thead.innerHTML = '<tr><th>Date</th><th>Type</th><th>Statut</th><th>Médicaments</th><th>Total</th></tr>';
         const rows = dossierPatientData.ordonnances;
-        tbody.innerHTML = rows.length ? rows.map(o => `<tr>
+        // Profit (admin uniquement) : la réponse dossier ne fournit o.marge que pour l'admin.
+        const showProfit = rows.some(o => o.marge !== undefined)
+            || dossierPatientData.resume.marge_totale_ordonnances !== undefined;
+        thead.innerHTML = '<tr><th>Date</th><th>Type</th><th>Statut</th><th>Médicaments</th><th>Total</th>'
+            + (showProfit ? '<th>Profit</th>' : '') + '</tr>';
+        const nbCols = showProfit ? 6 : 5;
+        let html = rows.length ? rows.map(o => `<tr>
             <td>${formatDateFR(o.date_ordonnance)}</td><td>${escapeHtml(o.type_beneficiaire || '-')}</td><td>${o.est_validee ? 'Validée' : 'Non validée'}</td>
-            <td>${(o.lignes || []).map(l => escapeHtml(l.medicament)).join(', ') || '-'}</td><td>${(o.total || 0).toLocaleString()} FCFA</td>
-        </tr>`).join('') : '<tr><td colspan="5">Aucune ordonnance</td></tr>';
+            <td>${(o.lignes || []).map(l => escapeHtml(l.medicament)).join(', ') || '-'}</td><td>${(o.total || 0).toLocaleString()} FCFA</td>${showProfit ? `<td>${o.type_beneficiaire === 'interne' || o.marge === undefined ? '-' : Math.round(o.marge).toLocaleString() + ' FCFA'}</td>` : ''}
+        </tr>`).join('') : `<tr><td colspan="${nbCols}">Aucune ordonnance</td></tr>`;
+        if (showProfit && rows.length) {
+            const totalProfit = dossierPatientData.resume.marge_totale_ordonnances || 0;
+            html += `<tr class="row-total"><td colspan="5" style="text-align:right"><strong>Profit total ordonnances</strong></td><td><strong>${Math.round(totalProfit).toLocaleString()} FCFA</strong></td></tr>`;
+        }
+        tbody.innerHTML = html;
     } else if (dossierActiveTab === 'soins') {
         thead.innerHTML = '<tr><th>Date</th><th>Type de soin</th><th>Montant</th><th>Notes</th></tr>';
         const rows = dossierPatientData.soins;
@@ -3225,7 +3235,11 @@ async function loadOrdonnancesTab(type) {
         const dateFin = parseDateFR(document.getElementById(`filter-ordonnances-${type}-date-fin`).value);
         if (dateDebut) params.set('date_debut', dateDebut);
         if (dateFin) params.set('date_fin', dateFin);
-        ordonnancesData[type] = await apiFetch(`/ordonnances/?${params.toString()}`).then(r => r.json());
+        const resp = await apiFetch(`/ordonnances/?${params.toString()}`).then(r => r.json());
+        // Réponse admin = { ordonnances: [...], marge_totale }; non-admin = [...] (tableau brut).
+        // Le profit par ordonnance (o.marge) et le total sont dérivés côté rendu depuis les
+        // ordonnances elles-mêmes (présent seulement pour l'admin).
+        ordonnancesData[type] = Array.isArray(resp) ? resp : (resp.ordonnances || []);
         renderOrdonnancesTab(type);
     } catch(e) { tbody.innerHTML = '<tr><td colspan="6">Erreur</td></tr>'; }
 }
@@ -3250,7 +3264,7 @@ function renderOrdonnancesTab(type) {
             <td>${formatDateFR(o.date_ordonnance)}</td>
             <td>${escapeHtml(beneficiaire)}</td>
             <td>${escapeHtml(o.medecin_nom || '-')}</td>
-            <td>${(o.montant_total || 0).toLocaleString()} FCFA</td>
+            <td>${(o.montant_total || 0).toLocaleString()} FCFA${o.marge !== undefined && type !== 'interne' ? `<br><small class="profit-ligne">Profit : ${Math.round(o.marge).toLocaleString()} FCFA</small>` : ''}</td>
             <td>${statut}</td>
             <td>
                 ${type !== 'interne' && o.est_validee ? boutonEncaisser(o.paye, `encaisserOrdonnance(${o.id}, '${type}')`) : ''}
@@ -3287,8 +3301,14 @@ function filterOrdonnancesTab(type) {
 
 function updateOrdonnancesTotaux(type, data) {
     const montant = data.reduce((sum, o) => sum + (o.montant_total || 0), 0);
-    document.getElementById(`ordonnances-${type}-totaux-bar`).textContent =
-        `Total ordonnances affichées : ${data.length} | Montant total : ${montant.toLocaleString()} FCFA`;
+    let txt = `Total ordonnances affichées : ${data.length} | Montant total : ${montant.toLocaleString()} FCFA`;
+    // Profit total : uniquement si la réponse admin a fourni marge_totale, et hors usage interne.
+    // On somme les marges des ordonnances affichées (respecte le filtre de recherche client).
+    if (type !== 'interne' && data.length && data[0].marge !== undefined) {
+        const profit = data.reduce((sum, o) => sum + (o.marge || 0), 0);
+        txt += ` | Profit total : ${Math.round(profit).toLocaleString()} FCFA`;
+    }
+    document.getElementById(`ordonnances-${type}-totaux-bar`).textContent = txt;
 }
 
 function resetFilterOrdonnances(type) {
