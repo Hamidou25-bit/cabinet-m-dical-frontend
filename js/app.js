@@ -3673,26 +3673,41 @@ function addLigneOrdonnance(ligne) {
         <div class="ligne-ordonnance-profit"></div>
     `;
     container.appendChild(wrapper);
-    // Profit par ligne (admin uniquement) : figé côté serveur (basé sur le prix d'achat
-    // au moment de la vente), fourni par GET /ordonnances/{id} seulement pour l'admin et
-    // seulement pour les lignes du stock cabinet (stock_id NOT NULL). Affiché dans un div
-    // dédié pour ne pas être écrasé par refreshLigneOrdonnanceInfo (qui recalcule en direct
-    // depuis le stock courant). Absent du JSON => rien affiché, sans erreur.
+    // Profit par ligne (admin uniquement) : recalculé en direct depuis les valeurs COURANTES
+    // du formulaire par renderProfitLigne(), appelée ici à la construction ET depuis
+    // refreshLigneOrdonnanceInfo() à chaque changement de quantité/prix (sinon l'affichage
+    // resterait figé sur les valeurs initiales — bug corrigé le 01/08/2026).
+    // La valeur figée reçue du serveur (ligne.profit_ligne) sert uniquement de marqueur
+    // "admin + ligne du stock cabinet" : absente => aucun profit affiché, sans erreur.
     if (ligne && ligne.profit_ligne !== undefined) {
-        // Détail complet du calcul (admin, ligne du stock cabinet uniquement) :
-        // "Vente V − Achat A = U/unité × Qté = Profit". Les composants viennent figés du
-        // serveur (prix au moment de la vente), pas du stock courant.
-        const fmt = n => Math.round(n).toLocaleString();
-        const v = ligne.prix_vente_unitaire || 0;
-        const a = ligne.prix_achat_unitaire || 0;
-        const u = ligne.profit_unitaire || 0;
-        const q = ligne.quantite || 0;
-        const p = Math.round(ligne.profit_ligne);
-        const cls = p >= 0 ? 'profit-positif' : 'profit-negatif';
-        wrapper.querySelector('.ligne-ordonnance-profit').innerHTML =
-            `<span class="profit-ligne ${cls}">💰 Vente ${fmt(v)} − Achat ${fmt(a)} = ${fmt(u)}/unité × ${q} = <strong>Profit ${fmt(p)} FCFA</strong></span>`;
+        wrapper.dataset.profitVisible = 'yes';
     }
     refreshLigneOrdonnanceInfo(wrapper);
+}
+
+// Recalcule et affiche le profit d'une ligne d'ordonnance à partir des valeurs COURANTES
+// du formulaire (prix unitaire et quantité en cours de saisie) et du prix d'achat unitaire
+// du stock (stockData, déjà en cache — aucun appel réseau). N'affiche rien si la ligne n'est
+// pas marquée profitVisible (non-admin, ou ligne hors stock cabinet). Le prix d'achat du
+// stock est UNITAIRE (colonne PrixAchat) — le total d'achat de la ligne = pa_unit × quantité.
+function renderProfitLigne(wrapper) {
+    const profitDiv = wrapper.querySelector('.ligne-ordonnance-profit');
+    if (!profitDiv) return;
+    if (wrapper.dataset.profitVisible !== 'yes') { profitDiv.innerHTML = ''; return; }
+    const stockIdField = wrapper.querySelector('.lo-stock-id');
+    // Profit affiché uniquement pour les médicaments du stock cabinet (stock_id résolu).
+    if (!stockIdField.value) { profitDiv.innerHTML = ''; return; }
+    const match = stockData.find(s => String(s.idStock) === String(stockIdField.value));
+    if (!match) { profitDiv.innerHTML = ''; return; }
+    const q = parseFloat(wrapper.querySelector('.lo-quantite').value) || 0;
+    const pvUnit = parseFloat(wrapper.querySelector('.lo-prix-unitaire').value) || 0;
+    const paUnit = match.PrixAchat || 0;
+    const profitUnit = pvUnit - paUnit;
+    const profit = profitUnit * q;
+    const fmt = n => Math.round(n).toLocaleString();
+    const cls = profit >= 0 ? 'profit-positif' : 'profit-negatif';
+    profitDiv.innerHTML =
+        `<span class="profit-ligne ${cls}">💰 Vente ${fmt(pvUnit)} − Achat ${fmt(paUnit)} = ${fmt(profitUnit)}/unité × ${q} = <strong>Profit ${fmt(profit)} FCFA</strong></span>`;
 }
 
 function removeLigneOrdonnance(button) {
@@ -3888,6 +3903,7 @@ function refreshLigneOrdonnanceInfo(wrapper) {
         prixInput.readOnly = false;
     }
     montantInput.value = Math.round((parseFloat(prixInput.value) || 0) * quantite * 100) / 100;
+    renderProfitLigne(wrapper);
     updateOrdonnanceTotalDisplay();
 }
 
