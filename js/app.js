@@ -4329,7 +4329,28 @@ function renderExamens(data) {
     if (!data.length) { tbody.innerHTML = '<tr><td colspan="9">Aucun examen</td></tr>'; return; }
     const roleExamens = localStorage.getItem('role');
     const isLaborantin = roleExamens === 'laborantin';
+
+    // Regroupement visuel par séance : les examens saisis ensemble (même seance_id)
+    // sont précédés d'une ligne d'en-tête indiquant le nombre d'examens et le total,
+    // pour matérialiser qu'ils forment un seul enregistrement logique (une séance).
+    const compteParSeance = {};
+    data.forEach(e => { if (e.seance_id) compteParSeance[e.seance_id] = (compteParSeance[e.seance_id] || 0) + 1; });
+    let seanceEnCours = null;
+
     tbody.innerHTML = data.map(e => {
+        let enteteSeance = '';
+        if (e.seance_id && compteParSeance[e.seance_id] > 1 && e.seance_id !== seanceEnCours) {
+            const lignesSeance = data.filter(x => x.seance_id === e.seance_id);
+            const totalSeance = lignesSeance.reduce((s, x) => s + (x.prix || 0), 0);
+            enteteSeance = `<tr style="background:#eef4fb;"><td colspan="9" style="font-weight:600;color:#1565C0;">
+                🧪 Séance du ${formatDateFR(e.date_examen)} — ${compteParSeance[e.seance_id]} examens · ${totalSeance.toLocaleString()} FCFA</td></tr>`;
+        }
+        if (e.seance_id) seanceEnCours = e.seance_id;
+        return enteteSeance + renderExamenRow(e, roleExamens, isLaborantin);
+    }).join('');
+}
+
+function renderExamenRow(e, roleExamens, isLaborantin) {
         const patientDisplay = e.patient_id
             ? `${e.nom || ''} ${e.prenom || ''}`.trim()
             : (e.nom_patient_externe || '-');
@@ -4364,7 +4385,6 @@ function renderExamens(data) {
             <td>${(e.prix || 0).toLocaleString()} FCFA</td>
             <td>${actions}</td>
         </tr>`;
-    }).join('');
 }
 
 async function encaisserExamen(id) {
@@ -4700,22 +4720,24 @@ async function saveExamen() {
             };
             await apiFetch(`/examens-complementaires/${id}`, { method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(data) });
         } else {
-            for (const ligne of lignes) {
-                const data = {
-                    patient_id: patientId,
-                    nom_patient_externe: nomPatientExterne,
+            // Saisie groupée : tous les examens saisis dans le formulaire sont envoyés
+            // en UN seul appel POST /examens/ → une séance regroupant toutes les lignes,
+            // au lieu d'un enregistrement séparé sans lien par examen. La sortie de stock
+            // des consommables liés reste automatique côté backend (avertissement non
+            // bloquant en cas d'échec).
+            const payload = {
+                patient_id: patientId,
+                nom_patient_externe: nomPatientExterne,
+                date: dateExamen,
+                medecin_id: medecinId,
+                renseignement_clinique: renseignement,
+                examens: Array.from(lignes).map(ligne => ({
                     ...champsType(ligne.querySelector('.le-type').value),
-                    date_examen: dateExamen,
-                    prix: parseFloat(ligne.querySelector('.le-prix').value) || 0,
-                    medecin_id: medecinId,
-                    renseignement_clinique: renseignement
-                };
-                // La sortie de stock des consommables liés au type d'examen est
-                // automatique côté backend — un échec (ex: stock insuffisant)
-                // n'annule pas l'examen, il est remonté en avertissement.
-                const res = await apiFetch('/examens-complementaires/', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(data) }).then(r => r.json());
-                (res.avertissements || []).forEach(a => showToast(a, 'warning'));
-            }
+                    prix: parseFloat(ligne.querySelector('.le-prix').value) || 0
+                }))
+            };
+            const res = await apiFetch('/examens/', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(payload) }).then(r => r.json());
+            (res.avertissements || []).forEach(a => showToast(a, 'warning'));
         }
         closeModal('modal-examen');
         loadExamens();
