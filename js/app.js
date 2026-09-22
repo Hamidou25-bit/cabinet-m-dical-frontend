@@ -3268,12 +3268,22 @@ function renderOrdonnancesTab(type) {
             <td>${statut}</td>
             <td>
                 ${type !== 'interne' && o.est_validee ? boutonEncaisser(o.paye, `encaisserOrdonnance(${o.id}, '${type}')`) : ''}
+                ${type === 'patient' && o.patient_id ? `<button class="btn btn-sm" onclick="creerConsultationDepuisOrdonnance(${o.id})">Créer consultation</button>` : ''}
                 <button class="btn btn-sm" onclick="editOrdonnance(${o.id})">Modifier</button>
                 <button class="btn btn-sm" onclick="printOrdonnance(${o.id})">Imprimer</button>
                 <button class="btn btn-sm btn-danger" onclick="deleteOrdonnance(${o.id}, '${type}')">Supprimer</button>
             </td>
         </tr>`;
     }).join('');
+}
+
+async function creerConsultationDepuisOrdonnance(id) {
+    const ordonnance = ordonnancesData.patient.find(o => o.id === id);
+    if (!ordonnance || !ordonnance.patient_id) return;
+    await openNewConsultationModal();
+    setPatientComboValue('co', ordonnance.patient_id);
+    document.getElementById('co-medecin').value = ordonnance.medecin_id || '';
+    showToast('Formulaire pré-rempli depuis l\'ordonnance', 'success');
 }
 
 async function encaisserOrdonnance(id, type) {
