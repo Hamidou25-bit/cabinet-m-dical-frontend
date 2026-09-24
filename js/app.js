@@ -4064,13 +4064,21 @@ async function saveOrdonnance(btn) {
     try {
         if (id) {
             await apiFetch(`/ordonnances/${id}`, { method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(data) });
+        } else if (avecConsultation) {
+            // Création atomique (une seule requête, tout ou rien côté serveur) : voir
+            // POST /ordonnances/avec-consultation/ (api/ordonnances.py).
+            await apiFetch('/ordonnances/avec-consultation/', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(data) });
         } else {
             await apiFetch('/ordonnances', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(data) });
         }
         showPage('ordonnances');
         showOrdonnancesTab(typeBeneficiaire);
         showToast(avecConsultation ? 'Ordonnance et consultation enregistrées !' : 'Ordonnance enregistrée !', 'success');
-    } catch(e) { showToast('Erreur lors de l\'enregistrement : ' + e.message, 'error'); }
+    } catch(e) {
+        // En cas d'échec, la page du formulaire reste affichée (pas de showPage ici) :
+        // les données saisies par l'utilisateur restent dans les champs, rien n'est perdu.
+        showToast('Erreur lors de l\'enregistrement : ' + e.message, 'error');
+    }
     finally { setBoutonEnvoi(btn, false); }
 }
 
