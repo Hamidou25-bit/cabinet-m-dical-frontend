@@ -607,6 +607,38 @@
                     <button class="btn btn-sm" onclick="addLigneSoinOrdonnance()">+ Ajouter un soin</button>
                 </div>
 
+                <div id="o-consultation-section" style="margin-top:20px; border:1px solid #e0e0e0; border-radius:6px; padding:12px;">
+                    <h3 style="font-size: 14px; margin-top:0;">
+                        <label><input type="checkbox" id="o-avec-consultation" style="width:auto; margin-right:5px;" onchange="onAvecConsultationChange()"> Enregistrer aussi une consultation</label>
+                    </h3>
+                    <div id="o-consultation-fields" style="display:none;">
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>Motif<span class="required-mark">*</span></label>
+                                <input type="text" id="o-consult-motif" placeholder="Motif">
+                            </div>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>Prix unitaire</label>
+                                <input type="number" id="o-consult-prix-unitaire" oninput="onConsultationOrdonnancePrixChange()">
+                            </div>
+                            <div class="form-group">
+                                <label>Montant total</label>
+                                <input type="number" id="o-consult-montant-total">
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label>Diagnostic</label>
+                            <textarea id="o-consult-diagnostic" rows="2" placeholder="Diagnostic"></textarea>
+                        </div>
+                        <div class="form-group">
+                            <label>Observation</label>
+                            <textarea id="o-consult-observation" rows="2" placeholder="Observation"></textarea>
+                        </div>
+                    </div>
+                </div>
+
                 <div class="modal-actions">
                     <button class="btn" onclick="showPage('ordonnances')">Annuler</button>
                     <button class="btn btn-primary" onclick="saveOrdonnance(this)">Enregistrer</button>

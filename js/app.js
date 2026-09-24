@@ -3552,6 +3552,13 @@ function onTypeBeneficiaireChange() {
     const beneficiaireLabel = document.getElementById('o-beneficiaire-label');
     document.getElementById('o-soins-section').style.display = type === 'interne' ? 'none' : '';
 
+    // La consultation nécessite un patient enregistré (pas de nom_patient_externe en base).
+    document.getElementById('o-consultation-section').style.display = type === 'patient' ? '' : 'none';
+    if (type !== 'patient') {
+        document.getElementById('o-avec-consultation').checked = false;
+        onAvecConsultationChange();
+    }
+
     if (type === 'patient') {
         patientGroup.style.display = '';
         beneficiaireGroup.style.display = 'none';
@@ -3564,6 +3571,25 @@ function onTypeBeneficiaireChange() {
         beneficiaireGroup.style.display = '';
         beneficiaireLabel.innerHTML = 'Nom du bénéficiaire (optionnel)';
     }
+}
+
+function onAvecConsultationChange() {
+    const checked = document.getElementById('o-avec-consultation').checked;
+    document.getElementById('o-consultation-fields').style.display = checked ? '' : 'none';
+}
+
+function onConsultationOrdonnancePrixChange() {
+    document.getElementById('o-consult-montant-total').value = document.getElementById('o-consult-prix-unitaire').value;
+}
+
+function resetConsultationOrdonnanceFields() {
+    document.getElementById('o-avec-consultation').checked = false;
+    document.getElementById('o-consult-motif').value = '';
+    document.getElementById('o-consult-prix-unitaire').value = '';
+    document.getElementById('o-consult-montant-total').value = '';
+    document.getElementById('o-consult-diagnostic').value = '';
+    document.getElementById('o-consult-observation').value = '';
+    onAvecConsultationChange();
 }
 
 async function openOrdonnanceModal(type) {
@@ -3587,6 +3613,7 @@ async function openOrdonnanceModal(type) {
     document.getElementById('o-beneficiaire').value = '';
     document.getElementById('o-est-validee').checked = false;
     document.getElementById('o-mode-paiement').value = 'especes';
+    resetConsultationOrdonnanceFields();
     onTypeBeneficiaireChange();
 
     // Réinitialiser les lignes
@@ -3606,11 +3633,12 @@ async function editOrdonnance(id) {
         loadOrdonnanceRefs(), ensureStockLoaded(), ensureMedecinsLoaded(), ensureTypeSoinsLoaded(),
         apiFetch(`/ordonnances/${id}`).then(r => r.json()),
         apiFetch(`/soins/?ordonnance_id=${id}`).then(r => r.json()),
+        apiFetch(`/consultations/?ordonnance_id=${id}`).then(r => r.json()),
     ];
     if (!patientsData.length) tasks.push(loadPatients());
 
     try {
-        const [, , , , ordonnance, soinsLies] = await Promise.all(tasks);
+        const [, , , , ordonnance, soinsLies, consultationsLiees] = await Promise.all(tasks);
         populateStockDesignationsDatalist();
 
         ordonnanceFormReturnTab = ordonnance.type_beneficiaire || 'patient';
@@ -3638,6 +3666,18 @@ async function editOrdonnance(id) {
 
         document.getElementById('lignes-soin-ordonnance').innerHTML = '';
         (soinsLies || []).forEach(soin => addLigneSoinOrdonnance(soin));
+
+        resetConsultationOrdonnanceFields();
+        const consultationLiee = (consultationsLiees || [])[0];
+        if (consultationLiee) {
+            document.getElementById('o-avec-consultation').checked = true;
+            document.getElementById('o-consult-motif').value = consultationLiee.motif || '';
+            document.getElementById('o-consult-prix-unitaire').value = consultationLiee.prix_unitaire || 0;
+            document.getElementById('o-consult-montant-total').value = consultationLiee.montant_total || 0;
+            document.getElementById('o-consult-diagnostic').value = consultationLiee.diagnostic || '';
+            document.getElementById('o-consult-observation').value = consultationLiee.observation || '';
+            onAvecConsultationChange();
+        }
 
         showPage('ordonnance-form');
     } catch(e) { showToast('Erreur lors du chargement de l\'ordonnance', 'error'); }
@@ -3951,9 +3991,14 @@ async function saveOrdonnance(btn) {
     if (btn && btn.disabled) return;
     const typeBeneficiaire = ordonnanceFormReturnTab;
 
+    const avecConsultation = typeBeneficiaire === 'patient' && document.getElementById('o-avec-consultation').checked;
+
     const requiredFields = [{ id: 'o-date', label: 'Date' }];
     if (typeBeneficiaire === 'patient') {
         requiredFields.push({ id: 'o-patient', label: 'Patient', highlightId: 'o-patient-search' });
+    }
+    if (avecConsultation) {
+        requiredFields.push({ id: 'o-consult-motif', label: 'Motif de consultation' });
     }
     if (!validateRequiredFields(requiredFields)) return;
 
@@ -3990,6 +4035,18 @@ async function saveOrdonnance(btn) {
         }))
         .filter(s => s.type_soin_id);
 
+    let consultation = null;
+    if (avecConsultation) {
+        const prix = parseFloat(document.getElementById('o-consult-prix-unitaire').value) || 0;
+        consultation = {
+            motif: document.getElementById('o-consult-motif').value.trim(),
+            diagnostic: document.getElementById('o-consult-diagnostic').value,
+            observation: document.getElementById('o-consult-observation').value,
+            prix_unitaire: prix,
+            montant_total: parseFloat(document.getElementById('o-consult-montant-total').value) || prix,
+        };
+    }
+
     const data = {
         patient_id: typeBeneficiaire === 'patient' && patientId ? parseInt(patientId) : null,
         date_ordonnance: document.getElementById('o-date').value,
@@ -3999,7 +4056,8 @@ async function saveOrdonnance(btn) {
         est_validee: document.getElementById('o-est-validee').checked ? 1 : 0,
         mode_paiement: document.getElementById('o-mode-paiement').value,
         lignes: lignes,
-        soins: soins
+        soins: soins,
+        consultation: consultation
     };
 
     setBoutonEnvoi(btn, true);
@@ -4011,7 +4069,7 @@ async function saveOrdonnance(btn) {
         }
         showPage('ordonnances');
         showOrdonnancesTab(typeBeneficiaire);
-        showToast('Ordonnance enregistrée !', 'success');
+        showToast(avecConsultation ? 'Ordonnance et consultation enregistrées !' : 'Ordonnance enregistrée !', 'success');
     } catch(e) { showToast('Erreur lors de l\'enregistrement : ' + e.message, 'error'); }
     finally { setBoutonEnvoi(btn, false); }
 }
