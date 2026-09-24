@@ -403,9 +403,9 @@ function showToast(message, type = 'success', duration = 3000) {
 async function loadDashboard() {
     try {
         const [patients, consultations, stock, alertes, equipementsARemplacer, rdvAujourdhui, statistiques] = await Promise.all([
-            apiFetch('/patients').then(r => r.json()),
-            apiFetch('/consultations').then(r => r.json()),
-            apiFetch('/stock').then(r => r.json()),
+            apiFetch('/patients/').then(r => r.json()),
+            apiFetch('/consultations/').then(r => r.json()),
+            apiFetch('/stock/').then(r => r.json()),
             apiFetch('/stock/alertes').then(r => r.json()),
             apiFetch('/stock/equipements-a-remplacer').then(r => r.json()),
             apiFetch('/dashboard/rdv-aujourdhui').then(r => r.json()),
@@ -508,7 +508,7 @@ function updateAlertesBadges(nbAlertesStock, nbRdvEnAttente) {
 // Patients
 async function loadPatients() {
     try {
-        patientsData = await apiFetch('/patients').then(r => r.json());
+        patientsData = await apiFetch('/patients/').then(r => r.json());
         renderPatients(patientsData);
     } catch(e) { document.getElementById('table-patients').innerHTML = '<tr><td colspan="6">Erreur</td></tr>'; }
 }
@@ -597,7 +597,7 @@ let dossierActiveTab = 'consultations';
 
 async function loadDossiersList() {
     try {
-        if (!patientsData.length) patientsData = await apiFetch('/patients').then(r => r.json());
+        if (!patientsData.length) patientsData = await apiFetch('/patients/').then(r => r.json());
         renderDossiersList(patientsData);
     } catch(e) { document.getElementById('table-dossiers').innerHTML = '<tr><td colspan="6">Erreur</td></tr>'; }
 }
@@ -1034,7 +1034,7 @@ async function savePatient() {
         if (id) {
             await apiFetch(`/patients/${id}`, { method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(patient) });
         } else {
-            const res = await apiFetch('/patients', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(patient) }).then(r => r.json());
+            const res = await apiFetch('/patients/', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(patient) }).then(r => r.json());
             if (res.numero_dossier) messageSucces = `Patient enregistré ! N° Dossier : ${res.numero_dossier}`;
         }
         closeModal('modal-patient'); loadPatients();
@@ -1132,7 +1132,7 @@ async function savePatientRapide() {
         date_enregistrement: new Date().toISOString().split('T')[0]
     };
     try {
-        const res = await apiFetch('/patients', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(patient) }).then(r => r.json());
+        const res = await apiFetch('/patients/', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(patient) }).then(r => r.json());
         const nouveauPatient = { id: res.id, numero_dossier: res.numero_dossier, ...patient };
         patientsData.unshift(nouveauPatient);
         closeModal('modal-patient-rapide');
@@ -1144,7 +1144,7 @@ async function savePatientRapide() {
 // Consultations
 async function loadConsultations() {
     try {
-        consultationsData = await apiFetch('/consultations').then(r => r.json());
+        consultationsData = await apiFetch('/consultations/').then(r => r.json());
         renderConsultations(consultationsData);
     } catch(e) { document.getElementById('table-consultations').innerHTML = '<tr><td colspan="8">Erreur</td></tr>'; }
 }
@@ -1346,7 +1346,7 @@ function exportConsultationsExcel() {
 async function ensureMedecinsLoaded() {
     if (medecinsData.length) return;
     try {
-        const data = await apiFetch('/medecins').then(r => r.json());
+        const data = await apiFetch('/medecins/').then(r => r.json());
         medecinsData = Array.isArray(data) ? data : [];
     } catch (e) {
         medecinsData = [];
@@ -1461,7 +1461,7 @@ async function saveConsultation(btn) {
         if (id) {
             await apiFetch(`/consultations/${id}`, { method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(data) });
         } else {
-            await apiFetch('/consultations', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(data) });
+            await apiFetch('/consultations/', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(data) });
         }
         closeModal('modal-consultation');
         loadConsultations();
@@ -2156,7 +2156,7 @@ let stockAdminData = [];
 async function loadStock() {
     try {
         const [data, alertes, alertesPeremption, equipementsARemplacer] = await Promise.all([
-            apiFetch('/stock').then(r => r.json()),
+            apiFetch('/stock/').then(r => r.json()),
             apiFetch('/stock/alertes').then(r => r.json()),
             apiFetch('/stock/alertes-peremption').then(r => r.json()),
             apiFetch('/stock/equipements-a-remplacer').then(r => r.json()),
@@ -5106,7 +5106,7 @@ async function saveMonCompte() {
 // Prescripteurs
 async function loadPrescripteurs() {
     try {
-        medecinsData = await apiFetch('/medecins').then(r => r.json());
+        medecinsData = await apiFetch('/medecins/').then(r => r.json());
         renderPrescripteurs(medecinsData);
     } catch(e) { document.getElementById('table-prescripteurs').innerHTML = '<tr><td colspan="2">Erreur</td></tr>'; }
 }
@@ -5181,7 +5181,7 @@ function initBilanGarde() {
 async function loadMedecinsSelectBilan() {
     const select = document.getElementById('bilan-medecin-id');
     if (!medecinsData.length) {
-        try { medecinsData = await apiFetch('/medecins').then(r => r.json()); }
+        try { medecinsData = await apiFetch('/medecins/').then(r => r.json()); }
         catch (e) { showToast('Erreur lors du chargement des médecins', 'error'); return; }
     }
     // Présélectionne le premier médecin si aucun n'est encore choisi, sinon la page
@@ -5381,7 +5381,7 @@ async function savePrescripteur() {
         if (id) {
             await apiFetch(`/medecins/${id}`, { method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(medecin) });
         } else {
-            await apiFetch('/medecins', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(medecin) });
+            await apiFetch('/medecins/', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(medecin) });
         }
         closeModal('modal-prescripteur');
         medecinsData = [];
@@ -6017,7 +6017,7 @@ function exportAchatsExcel() {
 let achatsStockData = [];
 
 async function loadAchatsStock() {
-    const data = await apiFetch('/stock').then(r => r.json());
+    const data = await apiFetch('/stock/').then(r => r.json());
     achatsStockData = Array.isArray(data) ? data : [];
     const datalist = document.getElementById('stock-designations-achats');
     datalist.innerHTML = achatsStockData.map(s => {
@@ -7028,7 +7028,7 @@ async function onTauxPersoTypeChange() {
     document.getElementById('tp-cible-label').textContent = typeActe === 'consultation' ? 'Médecin' : 'Laborantin';
 
     if (typeActe === 'consultation') {
-        if (!medecinsData.length) { try { medecinsData = await apiFetch('/medecins').then(r => r.json()); } catch (e) {} }
+        if (!medecinsData.length) { try { medecinsData = await apiFetch('/medecins/').then(r => r.json()); } catch (e) {} }
         cibleSelect.innerHTML = medecinsData.map(m => `<option value="${m.id}">${escapeHtml(m.nom)}</option>`).join('');
     } else {
         if (!utilisateursData.length) { try { utilisateursData = await apiFetch('/utilisateurs/').then(r => r.json()); } catch (e) {} }
